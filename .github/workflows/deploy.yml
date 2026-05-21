@@ -160,11 +160,12 @@ jobs:
         timeout-minutes: 10
         
   # Job 5: Build and Push Docker Image
+  # OPTIONAL: Only runs if DOCKER_USERNAME and DOCKER_PASSWORD secrets are configured
   docker-build:
     name: Build Docker Image
     needs: build-and-test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.DOCKER_USERNAME != '' && secrets.DOCKER_PASSWORD != ''
     
     steps:
       - name: Checkout code
@@ -203,7 +204,7 @@ jobs:
   # Job 6: Notify on Success/Failure
   notify:
     name: Notify Deployment Status
-    needs: [deploy-netlify, docker-build]
+    needs: [deploy-netlify]
     runs-on: ubuntu-latest
     if: always() && github.ref == 'refs/heads/main'
     

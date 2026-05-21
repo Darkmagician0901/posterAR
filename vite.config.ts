@@ -11,7 +11,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': '/src'
-    }
+    },
+    dedupe: ['react', 'react-dom', 'three']
   },
   server: {
     https: true, // Required for WebXR API access
@@ -24,9 +25,18 @@ export default defineConfig({
       output: {
         manualChunks: (id) => {
           if (id.includes('node_modules')) {
-            // Only split Three.js (the largest dependency)
-            if (id.includes('three')) {
+            // Split Three.js separately (largest dependency)
+            if (id.includes('/three/') || id.includes('\\three\\')) {
               return 'three';
+            }
+            // Split React Three Fiber ecosystem
+            if (id.includes('@react-three')) {
+              return 'react-three';
+            }
+            // Split React core separately to avoid circular dependencies
+            if (id.includes('/react/') || id.includes('\\react\\') ||
+                id.includes('/react-dom/') || id.includes('\\react-dom\\')) {
+              return 'react-vendor';
             }
             // Everything else goes into vendor
             return 'vendor';

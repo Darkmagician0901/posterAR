@@ -54,7 +54,7 @@
   ],
   "redirects": [
     {
-      "source": "/",
+      "source": "/:path*",
       "has": [
         {
           "type": "header",
@@ -62,7 +62,7 @@
           "value": "http"
         }
       ],
-      "destination": "https://xr-poster.vercel.app",
+      "destination": "https://:path*",
       "permanent": true
     }
   ],

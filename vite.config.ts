@@ -7,16 +7,14 @@ import { dirname, resolve } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
-    basicSsl() // Enables HTTPS for local development (required for WebXR)
+    basicSsl()
   ],
   resolve: {
     alias: {
       '@': '/src',
-      // Force all React imports to resolve to the same instance
       'react': resolve(__dirname, './node_modules/react'),
       'react-dom': resolve(__dirname, './node_modules/react-dom'),
       'react/jsx-runtime': resolve(__dirname, './node_modules/react/jsx-runtime'),
@@ -25,8 +23,8 @@ export default defineConfig({
     dedupe: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'three']
   },
   server: {
-    https: true, // Required for WebXR API access
-    host: true, // Expose to network for mobile testing
+    https: true,
+    host: true,
     port: 5173
   },
   build: {
@@ -35,20 +33,14 @@ export default defineConfig({
       output: {
         manualChunks: (id) => {
           if (id.includes('node_modules')) {
-            // Split Three.js separately (largest dependency)
             if (id.includes('/three/') || id.includes('\\three\\')) {
               return 'three';
             }
-            // Split React Three Fiber ecosystem
             if (id.includes('@react-three')) {
               return 'react-three';
             }
-            // Split React core separately to avoid circular dependencies
-            if (id.includes('/react/') || id.includes('\\react\\') ||
-                id.includes('/react-dom/') || id.includes('\\react-dom\\')) {
-              return 'react-vendor';
-            }
-            // Everything else goes into vendor
+            // ❌ REMOVED: React chunk splitting — was causing load order race
+            // React now stays in vendor, always available when other chunks run
             return 'vendor';
           }
         },
@@ -68,8 +60,7 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    include: ['three', '@react-three/fiber', '@react-three/xr', '@react-three/drei']
+    include: ['react', 'react-dom', 'three', '@react-three/fiber', '@react-three/xr', '@react-three/drei']
+    //         👆 also added react + react-dom here to pre-bundle them
   }
 });
-
-// Made with Bob

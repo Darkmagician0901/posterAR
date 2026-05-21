@@ -20,43 +20,28 @@ export default defineConfig({
   },
   build: {
     target: 'es2020',
-    // Optimize for mobile performance
     rollupOptions: {
       output: {
         manualChunks: (id) => {
           if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom')) {
-              return 'react-vendor';
+            // Only split Three.js (the largest dependency)
+            if (id.includes('three')) {
+              return 'three';
             }
-            if (id.includes('three') || id.includes('@react-three')) {
-              return 'three-vendor';
-            }
-            if (id.includes('zustand')) {
-              return 'state-vendor';
-            }
-            if (id.includes('@use-gesture')) {
-              return 'gesture-vendor';
-            }
+            // Everything else goes into vendor
             return 'vendor';
           }
         },
-        // Optimize chunk names for better caching
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]'
       }
     },
-    // Reduce bundle size using esbuild (faster than terser)
     minify: 'esbuild',
-    // Source maps for production debugging (optional)
     sourcemap: false,
-    // Chunk size warnings
-    chunkSizeWarningLimit: 600,
-    // CSS code splitting
+    chunkSizeWarningLimit: 2000,
     cssCodeSplit: true,
-    // Report compressed size
     reportCompressedSize: true,
-    // Optimize dependencies
     commonjsOptions: {
       include: [/node_modules/],
       transformMixedEsModules: true

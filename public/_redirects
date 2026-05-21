@@ -1,0 +1,5 @@
+# SPA routing - redirect all requests to index.html
+/*    /index.html   200
+
+# Force HTTPS (handled by Cloudflare by default, but explicit rule)
+http://*  https://:splat  301!

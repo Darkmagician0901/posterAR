@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    
+    <!-- Mobile optimization -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    
+    <!-- iOS specific -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="XR Poster" />
+    
+    <!-- Android specific -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#6366f1" />
+    
+    <!-- SEO -->
+    <meta name="description" content="Place 2D posters in augmented reality using WebXR. Mobile-first AR web application." />
+    <meta name="keywords" content="AR, WebXR, augmented reality, posters, mobile, web app" />
+    <meta name="author" content="XR Poster Team" />
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="XR Poster - AR Experience" />
+    <meta property="og:description" content="Place 2D posters in augmented reality using WebXR" />
+    <meta property="og:url" content="https://xrposter.com" />
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="XR Poster - AR Experience" />
+    <meta name="twitter:description" content="Place 2D posters in augmented reality using WebXR" />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    
+    <!-- Preconnect to improve performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    
+    <!-- Title -->
+    <title>XR Poster - AR Experience</title>
+    
+    <!-- Prevent zoom on input focus (iOS) -->
+    <style>
+      input, select, textarea {
+        font-size: 16px !important;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Root element for React -->
+    <div id="root"></div>
+    
+    <!-- Vite module script -->
+    <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- Noscript fallback -->
+    <noscript>
+      <div style="
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        font-family: sans-serif;
+        text-align: center;
+        padding: 20px;
+        background-color: #0f172a;
+        color: #f1f5f9;
+      ">
+        <div>
+          <h1>JavaScript Required</h1>
+          <p>This application requires JavaScript to be enabled.</p>
+          <p>Please enable JavaScript in your browser settings and reload the page.</p>
+        </div>
+      </div>
+    </noscript>
+  </body>
+</html>

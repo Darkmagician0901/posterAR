@@ -1,0 +1,189 @@
+/**
+ * InstructionsOverlay Component
+ * First-time user tutorial with step-by-step instructions
+ */
+
+import React, { useState, useEffect } from 'react';
+import { useUIState, useTutorialCompleted } from '@/hooks/useUIState';
+import './InstructionsOverlay.css';
+
+interface InstructionStep {
+  id: number;
+  title: string;
+  description: string;
+  icon: string;
+}
+
+const INSTRUCTION_STEPS: InstructionStep[] = [
+  {
+    id: 1,
+    title: 'Scan Surfaces',
+    description: 'Move your phone slowly to detect flat surfaces like walls or floors',
+    icon: '📱',
+  },
+  {
+    id: 2,
+    title: 'Place Poster',
+    description: 'Tap on a detected surface to place your poster',
+    icon: '👆',
+  },
+  {
+    id: 3,
+    title: 'Move & Scale',
+    description: 'Drag to move, pinch to scale, and rotate with two fingers',
+    icon: '✋',
+  },
+  {
+    id: 4,
+    title: 'Manage Posters',
+    description: 'Tap a poster to select it, then use controls to delete or adjust',
+    icon: '🎨',
+  },
+];
+
+/**
+ * Instructions overlay with animated steps
+ */
+export const InstructionsOverlay: React.FC = () => {
+  const { showInstructions, setShowInstructions } = useUIState();
+  const tutorialCompleted = useTutorialCompleted();
+  const [currentStep, setCurrentStep] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
+
+  // Show instructions on first visit
+  useEffect(() => {
+    if (!tutorialCompleted && !showInstructions) {
+      // Delay showing instructions slightly
+      const timer = setTimeout(() => {
+        setShowInstructions(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [tutorialCompleted, showInstructions, setShowInstructions]);
+
+  // Handle visibility animation
+  useEffect(() => {
+    if (showInstructions) {
+      setIsVisible(true);
+    }
+  }, [showInstructions]);
+
+  const handleClose = () => {
+    setIsVisible(false);
+    setTimeout(() => {
+      setShowInstructions(false);
+      setCurrentStep(0);
+    }, 300);
+  };
+
+  const handleNext = () => {
+    if (currentStep < INSTRUCTION_STEPS.length - 1) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      handleClose();
+    }
+  };
+
+  const handlePrevious = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleSkip = () => {
+    handleClose();
+  };
+
+  if (!showInstructions) return null;
+
+  const currentInstruction = INSTRUCTION_STEPS[currentStep];
+  const progress = ((currentStep + 1) / INSTRUCTION_STEPS.length) * 100;
+
+  return (
+    <div
+      className={`instructions-overlay ${isVisible ? 'instructions-visible' : ''}`}
+      role="dialog"
+      aria-labelledby="instructions-title"
+      aria-modal="true"
+    >
+      <div className="instructions-backdrop" onClick={handleClose} />
+      
+      <div className="instructions-content">
+        {/* Close button */}
+        <button
+          className="instructions-close"
+          onClick={handleClose}
+          aria-label="Close instructions"
+        >
+          ×
+        </button>
+
+        {/* Progress bar */}
+        <div className="instructions-progress">
+          <div
+            className="instructions-progress-bar"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        {/* Step indicator */}
+        <div className="instructions-step-indicator">
+          Step {currentStep + 1} of {INSTRUCTION_STEPS.length}
+        </div>
+
+        {/* Current step content */}
+        <div className="instructions-step">
+          <div className="instructions-icon">{currentInstruction.icon}</div>
+          <h2 id="instructions-title" className="instructions-title">
+            {currentInstruction.title}
+          </h2>
+          <p className="instructions-description">
+            {currentInstruction.description}
+          </p>
+        </div>
+
+        {/* Step dots */}
+        <div className="instructions-dots">
+          {INSTRUCTION_STEPS.map((step, index) => (
+            <button
+              key={step.id}
+              className={`instructions-dot ${index === currentStep ? 'active' : ''} ${
+                index < currentStep ? 'completed' : ''
+              }`}
+              onClick={() => setCurrentStep(index)}
+              aria-label={`Go to step ${index + 1}`}
+            />
+          ))}
+        </div>
+
+        {/* Navigation buttons */}
+        <div className="instructions-actions">
+          {currentStep > 0 && (
+            <button
+              className="instructions-button instructions-button-secondary"
+              onClick={handlePrevious}
+            >
+              Previous
+            </button>
+          )}
+          
+          <button
+            className="instructions-button instructions-button-text"
+            onClick={handleSkip}
+          >
+            Skip
+          </button>
+          
+          <button
+            className="instructions-button instructions-button-primary"
+            onClick={handleNext}
+          >
+            {currentStep === INSTRUCTION_STEPS.length - 1 ? 'Get Started' : 'Next'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Made with Bob

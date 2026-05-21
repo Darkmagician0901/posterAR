@@ -1,0 +1,247 @@
+/**
+ * PosterGallery Component Styles
+ */
+
+.poster-gallery-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.poster-gallery {
+  background: white;
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 600px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease-out;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.poster-gallery-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.poster-gallery-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+}
+
+.poster-gallery-close {
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.poster-gallery-close:hover {
+  color: #333;
+}
+
+.poster-gallery-content {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 15px;
+  align-content: start;
+}
+
+.poster-gallery-item {
+  position: relative;
+  aspect-ratio: 3/4;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 3px solid transparent;
+  transition: all 0.2s;
+  background: #f5f5f5;
+}
+
+.poster-gallery-item:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.poster-gallery-item.selected {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+}
+
+.poster-gallery-thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.poster-gallery-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+  padding: 8px 6px 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.poster-gallery-name {
+  font-size: 12px;
+  color: white;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.poster-gallery-badge {
+  font-size: 14px;
+  color: #4caf50;
+  font-weight: bold;
+  margin-left: 4px;
+}
+
+.poster-gallery-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0;
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.poster-gallery-item:hover .poster-gallery-delete {
+  opacity: 1;
+}
+
+.poster-gallery-delete:hover {
+  background: #ff4444;
+  transform: scale(1.1);
+}
+
+.poster-gallery-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+
+.poster-gallery-empty p {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+}
+
+.poster-gallery-empty-hint {
+  font-size: 14px;
+  color: #bbb;
+}
+
+/* Mobile optimizations */
+@media (max-width: 480px) {
+  .poster-gallery-content {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 12px;
+    padding: 15px;
+  }
+
+  .poster-gallery-header {
+    padding: 15px;
+  }
+
+  .poster-gallery-header h2 {
+    font-size: 18px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .poster-gallery {
+    background: #1e1e1e;
+  }
+
+  .poster-gallery-header {
+    border-bottom-color: #333;
+  }
+
+  .poster-gallery-header h2 {
+    color: #fff;
+  }
+
+  .poster-gallery-close {
+    color: #aaa;
+  }
+
+  .poster-gallery-close:hover {
+    color: #fff;
+  }
+
+  .poster-gallery-item {
+    background: #2a2a2a;
+  }
+
+  .poster-gallery-empty {
+    color: #666;
+  }
+
+  .poster-gallery-empty-hint {
+    color: #555;
+  }
+}
+
+/* Made with Bob */

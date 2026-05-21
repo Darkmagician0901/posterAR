@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  xr-poster:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: xr-poster-app
+    ports:
+      - "8080:80"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - xr-poster-network
+    labels:
+      - "com.xr-poster.description=XR Poster AR Web Application"
+      - "com.xr-poster.version=1.0.0"
+
+  # Optional: Nginx reverse proxy with SSL (for local HTTPS testing)
+  nginx-ssl:
+    image: nginx:alpine
+    container_name: xr-poster-nginx-ssl
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - xr-poster
+    networks:
+      - xr-poster-network
+    restart: unless-stopped
+    profiles:
+      - ssl
+
+networks:
+  xr-poster-network:
+    driver: bridge
+
+# To run with SSL proxy:
+# docker-compose --profile ssl up -d
+#
+# To run without SSL proxy (HTTP only):
+# docker-compose up -d
+
+# Made with Bob

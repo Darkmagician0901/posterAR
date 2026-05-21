@@ -1,0 +1,47 @@
+{
+  "name": "xr-poster",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Mobile-first AR web application for placing 2D posters using WebXR",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc && vite build",
+    "build:prod": "NODE_ENV=production npm run build",
+    "preview": "vite preview --host",
+    "preview:prod": "npm run build:prod && npm run preview",
+    "type-check": "tsc --noEmit",
+    "deploy:vercel": "vercel --prod",
+    "deploy:vercel:preview": "vercel",
+    "deploy:netlify": "netlify deploy --prod",
+    "deploy:netlify:preview": "netlify deploy",
+    "docker:build": "docker build -t xr-poster .",
+    "docker:run": "docker run -p 8080:80 xr-poster",
+    "docker:compose": "docker-compose up -d",
+    "docker:compose:down": "docker-compose down",
+    "generate-qr": "node scripts/generate-qr.js",
+    "analyze": "vite build --mode analyze"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "three": "^0.160.0",
+    "@react-three/fiber": "^8.15.0",
+    "@react-three/xr": "^6.2.0",
+    "@react-three/drei": "^9.95.0",
+    "zustand": "^4.4.7",
+    "@use-gesture/react": "^10.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@types/three": "^0.160.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8",
+    "@vitejs/plugin-basic-ssl": "^1.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,213 @@
+/**
+ * ControlPanel Component Styles
+ */
+
+.control-panel {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.control-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 64px;
+  min-height: 64px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid transparent;
+  border-radius: 16px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: inherit;
+}
+
+.control-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+}
+
+.control-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(255, 255, 255, 0.1);
+}
+
+.control-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.control-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1;
+}
+
+/* Button-specific colors */
+.control-button-reset:hover {
+  border-color: #f44336;
+  background: rgba(244, 67, 54, 0.2);
+}
+
+.control-button-screenshot:hover {
+  border-color: #2196f3;
+  background: rgba(33, 150, 243, 0.2);
+}
+
+.control-button-upload:hover {
+  border-color: #4caf50;
+  background: rgba(76, 175, 80, 0.2);
+}
+
+.control-button-info:hover {
+  border-color: #ff9800;
+  background: rgba(255, 152, 0, 0.2);
+.control-button-gallery:hover {
+  border-color: #9c27b0;
+  background: rgba(156, 39, 176, 0.2);
+}
+
+/* Disabled state */
+.control-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+}
+
+/* Focus styles for accessibility */
+.control-button:focus {
+  outline: none;
+  border-color: #00d4ff;
+  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.3);
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .control-panel {
+    bottom: 70px;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .control-button {
+    min-width: 56px;
+    min-height: 56px;
+    padding: 6px 10px;
+    gap: 4px;
+  }
+
+  .control-icon {
+    font-size: 20px;
+  }
+
+  .control-label {
+    font-size: 10px;
+  }
+}
+
+/* Small mobile devices */
+@media (max-width: 480px) {
+  .control-panel {
+    gap: 6px;
+    padding: 10px;
+  }
+
+  .control-button {
+    min-width: 52px;
+    min-height: 52px;
+    padding: 6px 8px;
+  }
+
+  .control-icon {
+    font-size: 18px;
+  }
+
+  .control-label {
+    font-size: 9px;
+  }
+}
+
+/* Landscape mode adjustments */
+@media (max-height: 500px) and (orientation: landscape) {
+  .control-panel {
+    bottom: 20px;
+    padding: 10px;
+  }
+
+  .control-button {
+    min-width: 48px;
+    min-height: 48px;
+    padding: 4px 8px;
+  }
+
+  .control-icon {
+    font-size: 18px;
+  }
+
+  .control-label {
+    font-size: 9px;
+  }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .control-panel {
+    animation: none;
+  }
+
+  .control-button:hover {
+    transform: none;
+  }
+
+  .control-button:active {
+    transform: none;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .control-panel {
+    background: rgba(0, 0, 0, 0.95);
+    border: 2px solid white;
+  }
+
+  .control-button {
+    border: 2px solid rgba(255, 255, 255, 0.5);
+  }
+
+  .control-button:hover {
+    border-color: white;
+  }
+}
+
+/* Made with Bob */

@@ -23,11 +23,22 @@ export default defineConfig({
     // Optimize for mobile performance
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-          'three-vendor': ['three', '@react-three/fiber', '@react-three/drei', '@react-three/xr'],
-          'gesture-vendor': ['@use-gesture/react'],
-          'state-vendor': ['zustand']
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'react-vendor';
+            }
+            if (id.includes('three') || id.includes('@react-three')) {
+              return 'three-vendor';
+            }
+            if (id.includes('zustand')) {
+              return 'state-vendor';
+            }
+            if (id.includes('@use-gesture')) {
+              return 'gesture-vendor';
+            }
+            return 'vendor';
+          }
         },
         // Optimize chunk names for better caching
         chunkFileNames: 'assets/[name]-[hash].js',

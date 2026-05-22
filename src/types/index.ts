@@ -53,7 +53,12 @@ export enum DeviceCapability {
  * XR Support interface
  */
 export interface XRSupport {
+  /** True when navigator.xr.isSessionSupported('immersive-ar') returns true.
+   * On iOS Safari this is always false — Apple does not ship immersive-ar.
+   * The webxr-polyfill installs navigator.xr but does not enable immersive-ar. */
   hasWebXR: boolean;
+  /** True when we can run the iOS camera + DeviceOrientation 3DoF fallback. */
+  hasIOSFallback: boolean;
   hasWebAR: boolean;
   hasCamera: boolean;
   hasGyroscope: boolean;

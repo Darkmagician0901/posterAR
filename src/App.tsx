@@ -3,6 +3,7 @@ import { detectXRSupport } from '@/utils/deviceDetection';
 import { XRSupport } from '@/types';
 import { UI_TEXT } from '@/utils/constants';
 import { ARExperience } from '@/components/ar/ARExperience';
+import { IOSARFallback } from '@/components/ar/IOSARFallback';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Toast } from '@/components/ui/Toast';
@@ -41,7 +42,26 @@ function App() {
     );
   }
 
-  // Show error if WebXR is not supported
+  // iOS fallback route: native WebXR is unavailable but we can still run a
+  // camera + DeviceOrientation 3DoF experience.
+  if (!xrSupport?.hasWebXR && xrSupport?.hasIOSFallback) {
+    return (
+      <ErrorBoundary>
+        <MainLayout>
+          <div className="app-container">
+            <Toast />
+            <InstructionsOverlay />
+            <IOSARFallback
+              onSessionStart={() => console.log('iOS AR session started')}
+              onSessionEnd={() => console.log('iOS AR session ended')}
+            />
+          </div>
+        </MainLayout>
+      </ErrorBoundary>
+    );
+  }
+
+  // Show error if neither native WebXR nor iOS fallback is available
   if (!xrSupport?.hasWebXR) {
     return (
       <div className="app-container">
@@ -52,16 +72,16 @@ function App() {
 
         <main className="app-main">
           <div className="error-message">
-            <h2>⚠️ WebXR Not Supported</h2>
+            <h2>⚠️ AR Not Supported</h2>
             <p>
-              Your device or browser doesn't support WebXR AR.
+              Your device or browser doesn't support AR.
             </p>
             <p>
               Please use:
             </p>
             <ul>
               <li>Chrome on Android (version 79+)</li>
-              <li>Safari on iOS (version 17.4+)</li>
+              <li>Safari on iOS (camera + motion required)</li>
             </ul>
           </div>
 

@@ -121,8 +121,14 @@ export async function detectXRSupport(): Promise<XRSupport> {
   // WebAR fallback support (for devices without WebXR)
   const hasWebAR = !hasWebXR && hasCamera && deviceIsMobile;
 
+  // iOS Safari cannot run immersive-ar (Apple doesn't ship it), but we can
+  // render an AR-lite experience with getUserMedia + DeviceOrientation.
+  const hasIOSFallback =
+    !hasWebXR && deviceIsIOS && hasCamera && hasGyroscope;
+
   return {
     hasWebXR,
+    hasIOSFallback,
     hasWebAR,
     hasCamera,
     hasGyroscope,

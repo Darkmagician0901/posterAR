@@ -103,4 +103,32 @@ interface XRInputSource {
 
 type XRFrameRequestCallback = (time: DOMHighResTimeStamp, frame: XRFrame) => void;
 
+/**
+ * Minimal type shim for webxr-polyfill (no upstream types in v2.0.3)
+ */
+declare module 'webxr-polyfill' {
+  export interface WebXRPolyfillOptions {
+    global?: any;
+    webvr?: boolean;
+    cardboard?: boolean;
+    cardboardConfig?: Record<string, unknown>;
+    allowCardboardOnDesktop?: boolean;
+  }
+  export default class WebXRPolyfill {
+    constructor(config?: WebXRPolyfillOptions);
+    nativeWebXR: boolean;
+    injected: boolean;
+  }
+}
+
+/**
+ * iOS 13+ requestPermission on DeviceOrientationEvent
+ */
+interface DeviceOrientationEventStatic {
+  requestPermission?: () => Promise<'granted' | 'denied'>;
+}
+interface DeviceMotionEventStatic {
+  requestPermission?: () => Promise<'granted' | 'denied'>;
+}
+
 // Made with Bob

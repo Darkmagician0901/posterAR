@@ -44,34 +44,6 @@ export const PosterControls: React.FC = () => {
     }
   };
 
-  const handleBringToFront = () => {
-    // Move poster slightly forward in Z-axis
-    const newPosition: [number, number, number] = [
-      poster.position[0],
-      poster.position[1],
-      poster.position[2] + 0.01,
-    ];
-    updatePoster(poster.id, { position: newPosition });
-    addToast({
-      type: 'info',
-      message: 'Poster moved forward',
-    });
-  };
-
-  const handleSendToBack = () => {
-    // Move poster slightly backward in Z-axis
-    const newPosition: [number, number, number] = [
-      poster.position[0],
-      poster.position[1],
-      poster.position[2] - 0.01,
-    ];
-    updatePoster(poster.id, { position: newPosition });
-    addToast({
-      type: 'info',
-      message: 'Poster moved backward',
-    });
-  };
-
   const toggleExpanded = () => {
     setIsExpanded(!isExpanded);
   };
@@ -117,26 +89,6 @@ export const PosterControls: React.FC = () => {
 
           {/* Action buttons */}
           <div className="poster-control-actions">
-            <button
-              className="poster-control-button poster-control-button-front"
-              onClick={handleBringToFront}
-              aria-label="Bring to front"
-              title="Bring to Front"
-            >
-              <span className="button-icon">⬆️</span>
-              <span className="button-label">Front</span>
-            </button>
-
-            <button
-              className="poster-control-button poster-control-button-back"
-              onClick={handleSendToBack}
-              aria-label="Send to back"
-              title="Send to Back"
-            >
-              <span className="button-icon">⬇️</span>
-              <span className="button-label">Back</span>
-            </button>
-
             <button
               className="poster-control-button poster-control-button-delete"
               onClick={handleDelete}

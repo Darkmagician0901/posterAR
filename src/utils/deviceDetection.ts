@@ -5,18 +5,19 @@
 import { XRSupport, DeviceCapability } from '@/types';
 
 /**
- * Detect if WebXR is supported
+ * Detect if immersive-ar is supported. iOS Safari returns false here even
+ * with the polyfill installed — the polyfill cannot synthesize immersive-ar
+ * on platforms that don't expose the underlying APIs.
  */
 export async function checkWebXRSupport(): Promise<boolean> {
-  if (!navigator.xr) {
+  if (typeof navigator === 'undefined' || !navigator.xr) {
     return false;
   }
 
   try {
-    const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
-    return isSupported;
+    return await navigator.xr.isSessionSupported('immersive-ar');
   } catch (error) {
-    console.error('Error checking WebXR support:', error);
+    console.error('Error checking immersive-ar support:', error);
     return false;
   }
 }

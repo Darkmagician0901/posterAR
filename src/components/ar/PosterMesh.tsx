@@ -1,10 +1,17 @@
 /**
- * PosterMesh Component
- * Renders a 3D poster mesh in AR space with gesture controls
+ * PosterMesh
+ *
+ * iOS-fallback-only poster mesh. The WebXR (Android) path no longer mounts
+ * this component — placed posters live inside AnchorManager and are driven
+ * from anchor.anchorSpace each frame.
+ *
+ * No mesh.position.set is performed here after construction. React drives
+ * position/rotation/scale from store values (set once at placement), and
+ * three.js builds the matrix from those props.
  */
 
-import React, { useRef, useState, useEffect } from 'react';
-import { useFrame, useLoader } from '@react-three/fiber';
+import React, { useEffect, useRef, useState } from 'react';
+import { useLoader } from '@react-three/fiber';
 import { TextureLoader, Mesh, DoubleSide, PlaneGeometry } from 'three';
 import { Poster } from '@/types';
 import { usePosterStore } from '@/store/posterStore';
@@ -14,22 +21,16 @@ interface PosterMeshProps {
   poster: Poster;
 }
 
-/**
- * 3D mesh component for displaying a poster in AR with gesture support
- */
 export const PosterMesh: React.FC<PosterMeshProps> = ({ poster }) => {
   const meshRef = useRef<Mesh>(null);
   const { selectPoster, selectedPosterId } = usePosterStore();
   const [hovered, setHovered] = useState(false);
   const [isGesturing, setIsGesturing] = useState(false);
 
-  // Load poster texture
   const texture = useLoader(TextureLoader, poster.imageUrl);
 
-  // Check if this poster is selected
   const isSelected = selectedPosterId === poster.id;
 
-  // Gesture controls
   const { bind } = useGestures({
     posterId: poster.id,
     enabled: isSelected,
@@ -37,7 +38,6 @@ export const PosterMesh: React.FC<PosterMeshProps> = ({ poster }) => {
     onGestureEnd: () => setIsGesturing(false),
   });
 
-  // Handle click/tap
   const handleClick = (event: any) => {
     event.stopPropagation();
     if (!isGesturing) {
@@ -45,25 +45,12 @@ export const PosterMesh: React.FC<PosterMeshProps> = ({ poster }) => {
     }
   };
 
-  // Update cursor on hover
   useEffect(() => {
-    if (hovered) {
-      document.body.style.cursor = 'pointer';
-    } else {
-      document.body.style.cursor = 'auto';
-    }
+    document.body.style.cursor = hovered ? 'pointer' : 'auto';
     return () => {
       document.body.style.cursor = 'auto';
     };
   }, [hovered]);
-
-  // Subtle animation for selected poster
-  useFrame((state) => {
-    if (meshRef.current && isSelected && !isGesturing) {
-      // Gentle floating animation when not gesturing
-      meshRef.current.position.y = poster.position[1] + Math.sin(state.clock.elapsedTime * 2) * 0.01;
-    }
-  });
 
   return (
     <mesh
@@ -78,10 +65,7 @@ export const PosterMesh: React.FC<PosterMeshProps> = ({ poster }) => {
       receiveShadow
       {...(isSelected ? bind() : {})}
     >
-      {/* Plane geometry for the poster */}
       <planeGeometry args={[1, 1]} />
-      
-      {/* Material with the poster texture */}
       <meshStandardMaterial
         map={texture}
         side={DoubleSide}
@@ -90,8 +74,6 @@ export const PosterMesh: React.FC<PosterMeshProps> = ({ poster }) => {
         emissive={isSelected ? '#ffffff' : '#000000'}
         emissiveIntensity={isSelected ? 0.2 : 0}
       />
-      
-      {/* Selection indicator - subtle outline */}
       {isSelected && (
         <lineSegments>
           <edgesGeometry args={[new PlaneGeometry(1.05, 1.05)]} />
@@ -101,5 +83,3 @@ export const PosterMesh: React.FC<PosterMeshProps> = ({ poster }) => {
     </mesh>
   );
 };
-
-// Made with Bob

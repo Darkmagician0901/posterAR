@@ -78,9 +78,9 @@ export const SUPPORTED_IMAGE_FORMATS = [
 ];
 
 /**
- * Maximum image file size (10MB)
+ * Maximum image file size accepted by the uploader before compression.
  */
-export const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+export const MAX_IMAGE_SIZE = 50 * 1024 * 1024;
 
 /**
  * Application configuration

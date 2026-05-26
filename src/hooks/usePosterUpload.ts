@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { validateAndProcessImage, ProcessedImage } from '@/utils/imageUpload';
+import { validateAndProcessImage, ProcessedImage, formatBytes } from '@/utils/imageUpload';
 import { useUIState } from './useUIState';
 
 /**
@@ -94,10 +94,14 @@ export const usePosterUpload = (): UsePosterUploadReturn => {
           error: null,
         });
 
-        // Show success toast
+        // Show success toast with compression info
         addToast({
           type: 'success',
-          message: `Image uploaded successfully!`,
+          message:
+            `Uploaded · ${formatBytes(processedImage.originalBytes)} → ` +
+            `${formatBytes(processedImage.compressedBytes)} (` +
+            `${processedImage.ratio.toFixed(1)}× smaller, ` +
+            `q=${processedImage.quality.toFixed(2)})`,
         });
 
         return {

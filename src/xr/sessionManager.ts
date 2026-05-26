@@ -1,6 +1,13 @@
 /**
  * WebXR Session Manager
- * Handles XR session initialization, lifecycle, and state management
+ *
+ * Builds immersive-ar sessions with the feature set this app actually needs:
+ *   required: hit-test, anchors, dom-overlay
+ *   optional: plane-detection, light-estimation, local-floor
+ *
+ * Required features will cause the session request to fail on devices that
+ * lack them — that's intentional. The fallback path handles unsupported
+ * devices explicitly (see App.tsx).
  */
 
 export enum XRSessionState {
@@ -11,111 +18,59 @@ export enum XRSessionState {
 }
 
 export interface XRSessionConfig {
-  requiredFeatures?: string[];
-  optionalFeatures?: string[];
-  domOverlay?: HTMLElement;
+  domOverlayRoot?: HTMLElement;
 }
 
-export interface XRSessionManager {
-  session: XRSession | null;
-  state: XRSessionState;
-  error: string | null;
-  referenceSpace: XRReferenceSpace | null;
-}
+export const REQUIRED_FEATURES = ['hit-test', 'anchors', 'dom-overlay'] as const;
+export const OPTIONAL_FEATURES = [
+  'plane-detection',
+  'light-estimation',
+  'local-floor',
+] as const;
 
-/**
- * Check if WebXR is supported in the current browser
- */
-export const isWebXRSupported = (): boolean => {
-  return 'xr' in navigator && navigator.xr !== undefined && 'isSessionSupported' in navigator.xr;
-};
+export const isWebXRSupported = (): boolean =>
+  typeof navigator !== 'undefined' &&
+  'xr' in navigator &&
+  navigator.xr !== undefined &&
+  typeof navigator.xr.isSessionSupported === 'function';
 
-/**
- * Check if immersive-ar mode is supported
- */
-export const isARSupported = async (): Promise<boolean> => {
-  if (!isWebXRSupported()) {
-    return false;
-  }
-
+export const isImmersiveARSupported = async (): Promise<boolean> => {
+  if (!isWebXRSupported()) return false;
   try {
     return await navigator.xr!.isSessionSupported('immersive-ar');
   } catch (error) {
-    console.error('Error checking AR support:', error);
+    console.error('isSessionSupported(immersive-ar) failed:', error);
     return false;
   }
 };
 
-/**
- * Request an immersive AR session
- */
+/** Back-compat alias used by detectXRSupport. */
+export const isARSupported = isImmersiveARSupported;
+
 export const requestARSession = async (
   config: XRSessionConfig = {}
 ): Promise<XRSession> => {
   if (!isWebXRSupported()) {
-    throw new Error('WebXR is not supported on this device');
+    throw new Error('WebXR is not available in this browser');
   }
 
   const sessionInit: XRSessionInit = {
-    requiredFeatures: config.requiredFeatures || ['hit-test'],
-    optionalFeatures: config.optionalFeatures || ['dom-overlay', 'local-floor'],
+    requiredFeatures: [...REQUIRED_FEATURES],
+    optionalFeatures: [...OPTIONAL_FEATURES],
   };
 
-  // Add DOM overlay if provided
-  if (config.domOverlay) {
-    sessionInit.domOverlay = { root: config.domOverlay };
+  if (config.domOverlayRoot) {
+    sessionInit.domOverlay = { root: config.domOverlayRoot };
   }
 
-  try {
-    const session = await navigator.xr!.requestSession('immersive-ar', sessionInit);
-    return session;
-  } catch (error) {
-    console.error('Failed to request AR session:', error);
-    throw new Error(`Failed to start AR session: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
+  return navigator.xr!.requestSession('immersive-ar', sessionInit);
 };
 
-/**
- * Get reference space for the session
- */
-export const getReferenceSpace = async (
-  session: XRSession,
-  type: XRReferenceSpaceType = 'local'
-): Promise<XRReferenceSpace> => {
-  try {
-    return await session.requestReferenceSpace(type);
-  } catch (error) {
-    console.warn(`Failed to get ${type} reference space, falling back to viewer`, error);
-    // Fallback to viewer space if requested type fails
-    return await session.requestReferenceSpace('viewer');
-  }
-};
-
-/**
- * End an XR session
- */
 export const endARSession = async (session: XRSession | null): Promise<void> => {
-  if (!session) {
-    return;
-  }
-
+  if (!session) return;
   try {
     await session.end();
   } catch (error) {
     console.error('Error ending AR session:', error);
   }
 };
-
-/**
- * Create a session manager instance
- */
-export const createSessionManager = (): XRSessionManager => {
-  return {
-    session: null,
-    state: XRSessionState.IDLE,
-    error: null,
-    referenceSpace: null,
-  };
-};
-
-// Made with Bob

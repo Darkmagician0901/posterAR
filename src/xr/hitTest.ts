@@ -1,159 +1,87 @@
 /**
- * WebXR Hit Test Utilities
- * Handles surface detection and ray casting for AR placement
+ * WebXR Hit Test Pipeline
+ *
+ * Single hit-test source rooted at the **viewer** reference space — the
+ * reticle should track wherever the user is currently looking, not a fixed
+ * world origin. Per-frame pose math (reticle + anchors) is resolved against
+ * the **local** reference space passed in by the caller.
+ *
+ * Returns raw transform matrices so callers can apply them directly to
+ * three.js objects without rebuilding from decomposed components.
  */
 
-import { Vector3, Euler, Matrix4, Quaternion } from 'three';
-import { HitTestResult } from '@/types';
+export interface ReticlePose {
+  matrix: Float32Array;
+  /** True if hit landed on a detected plane with orientation roughly vertical. */
+  vertical: boolean;
+}
 
-/**
- * Request a hit test source for the session
- */
-export const requestHitTestSource = async (
-  session: XRSession,
-  referenceSpace: XRReferenceSpace
-): Promise<XRHitTestSource | null> => {
-  try {
-    // Request hit test source from viewer space (where the user is looking)
-    if (!session.requestHitTestSource) {
-      console.warn('Hit test not supported in this session');
-      return null;
-    }
-    const hitTestSource = await session.requestHitTestSource({
-      space: referenceSpace,
-    });
-    return hitTestSource || null;
-  } catch (error) {
-    console.error('Failed to request hit test source:', error);
-    return null;
-  }
-};
-
-/**
- * Request a transient hit test source for touch input
- */
-export const requestTransientHitTestSource = async (
+export const requestViewerHitTestSource = async (
   session: XRSession
-): Promise<XRTransientInputHitTestSource | null> => {
+): Promise<XRHitTestSource | null> => {
+  if (!session.requestHitTestSource) {
+    console.warn('hit-test feature not present on session');
+    return null;
+  }
+
   try {
-    if (!session.requestHitTestSourceForTransientInput) {
-      console.warn('Transient hit test not supported in this session');
-      return null;
-    }
-    const hitTestSource = await session.requestHitTestSourceForTransientInput({
-      profile: 'generic-touchscreen',
-    });
-    return hitTestSource || null;
+    const viewerSpace = await session.requestReferenceSpace('viewer');
+    const source = await session.requestHitTestSource({ space: viewerSpace });
+    return source ?? null;
   } catch (error) {
-    console.error('Failed to request transient hit test source:', error);
+    console.error('requestHitTestSource(viewer) failed:', error);
     return null;
   }
 };
 
 /**
- * Process hit test results and convert to world position
+ * Read the first hit-test result. When plane-detection is available we prefer
+ * vertical planes (wall placement); otherwise fall back to the closest hit.
  */
-export const processHitTestResults = (
-  hitTestResults: XRHitTestResult[],
-  referenceSpace: XRReferenceSpace
-): HitTestResult | null => {
-  if (hitTestResults.length === 0) {
+export const readHitTestPose = (
+  frame: XRFrame,
+  source: XRHitTestSource,
+  localSpace: XRReferenceSpace
+): ReticlePose | null => {
+  let results: XRHitTestResult[];
+  try {
+    results = frame.getHitTestResults(source);
+  } catch (error) {
+    console.error('getHitTestResults failed:', error);
     return null;
   }
 
-  // Get the first hit test result (closest surface)
-  const hitTestResult = hitTestResults[0];
-  const pose = hitTestResult.getPose(referenceSpace);
+  if (results.length === 0) return null;
 
-  if (!pose) {
-    return null;
+  let chosen = results[0];
+  let chosenVertical = false;
+
+  for (const result of results) {
+    const pose = result.getPose(localSpace);
+    if (!pose) continue;
+
+    if (isVerticalPose(pose.transform.matrix)) {
+      chosen = result;
+      chosenVertical = true;
+      break;
+    }
   }
 
-  // Extract position from the pose matrix
-  const matrix = new Matrix4().fromArray(pose.transform.matrix);
-  const position = new Vector3();
-  const quaternion = new Quaternion();
-  const rotation = new Euler();
-  const scale = new Vector3();
-
-  matrix.decompose(position, quaternion, scale);
-  rotation.setFromQuaternion(quaternion);
-
-  // Calculate distance from origin (camera)
-  const distance = position.length();
+  const pose = chosen.getPose(localSpace);
+  if (!pose) return null;
 
   return {
-    position,
-    rotation,
-    distance,
-    confidence: 1.0, // WebXR doesn't provide confidence, assume high
+    matrix: new Float32Array(pose.transform.matrix),
+    vertical: chosenVertical,
   };
 };
 
 /**
- * Get hit test results for the current frame
+ * A pose is "vertical" when its local Y axis (column 1 of the 4x4 matrix) is
+ * roughly horizontal in world space — i.e. the surface normal points sideways
+ * rather than up.
  */
-export const getHitTestResults = (
-  frame: XRFrame,
-  hitTestSource: XRHitTestSource | null
-): XRHitTestResult[] => {
-  if (!hitTestSource) {
-    return [];
-  }
-
-  try {
-    return frame.getHitTestResults(hitTestSource);
-  } catch (error) {
-    console.error('Error getting hit test results:', error);
-    return [];
-  }
+const isVerticalPose = (m: Float32Array | number[]): boolean => {
+  const upY = m[5];
+  return Math.abs(upY) < 0.5;
 };
-
-/**
- * Get transient hit test results (for touch input)
- */
-export const getTransientHitTestResults = (
-  frame: XRFrame,
-  hitTestSource: XRTransientInputHitTestSource | null
-): XRTransientInputHitTestResult[] => {
-  if (!hitTestSource) {
-    return [];
-  }
-
-  try {
-    return frame.getHitTestResultsForTransientInput(hitTestSource);
-  } catch (error) {
-    console.error('Error getting transient hit test results:', error);
-    return [];
-  }
-};
-
-/**
- * Convert XR pose to Three.js position and rotation
- */
-export const poseToTransform = (pose: XRPose): { position: Vector3; rotation: Euler } => {
-  const matrix = new Matrix4().fromArray(pose.transform.matrix);
-  const position = new Vector3();
-  const quaternion = new Quaternion();
-  const scale = new Vector3();
-
-  matrix.decompose(position, quaternion, scale);
-  
-  const rotation = new Euler();
-  rotation.setFromQuaternion(quaternion);
-
-  return { position, rotation };
-};
-
-/**
- * Check if a point is within reasonable placement distance
- */
-export const isValidPlacementDistance = (
-  distance: number,
-  minDistance: number = 0.3,
-  maxDistance: number = 10.0
-): boolean => {
-  return distance >= minDistance && distance <= maxDistance;
-};
-
-// Made with Bob

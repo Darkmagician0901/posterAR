@@ -1,188 +1,230 @@
 /**
  * Image Upload Utility
- * Handles file validation, processing, and optimization
+ * Validates input up to 50MB, compresses on the client to <2MB wire size,
+ * normalizes output to image/webp, and reports the compression ratio.
  */
 
-/**
- * Supported image formats
- */
-export const SUPPORTED_FORMATS = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+export const SUPPORTED_FORMATS = [
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+  'image/gif',
+];
 
-/**
- * Maximum file size (5MB)
- */
-export const MAX_FILE_SIZE = 5 * 1024 * 1024;
+/** Max accepted source file size — 50 MB. */
+export const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
-/**
- * Maximum image dimensions for optimization
- */
-export const MAX_IMAGE_WIDTH = 2048;
-export const MAX_IMAGE_HEIGHT = 2048;
+/** Wire-size target after compression — 2 MB. */
+export const TARGET_WIRE_SIZE = 2 * 1024 * 1024;
 
-/**
- * Image validation result
- */
+/** Hard cap for decoded image dimensions on the longest axis. */
+export const MAX_IMAGE_DIMENSION = 2048;
+
+/** Lower bound the compressor will not go below when shrinking. */
+export const MIN_IMAGE_DIMENSION = 512;
+
+/** Initial WebP quality; reduced iteratively until the target is met. */
+const INITIAL_QUALITY = 0.92;
+const MIN_QUALITY = 0.5;
+
 export interface ImageValidationResult {
   valid: boolean;
   error?: string;
   file?: File;
 }
 
-/**
- * Processed image result
- */
 export interface ProcessedImage {
   dataUrl: string;
   width: number;
   height: number;
-  size: number;
+  /** Compressed payload size in bytes (WebP). */
+  compressedBytes: number;
+  /** Original file size in bytes. */
+  originalBytes: number;
+  /** originalBytes / compressedBytes — e.g. 8.4 means 8.4x smaller. */
+  ratio: number;
+  /** Final quality value used. */
+  quality: number;
+  /** MIME of the compressed payload (always image/webp). */
+  mimeType: string;
   originalName: string;
 }
 
-/**
- * Validate image file
- */
 export const validateImageFile = (file: File): ImageValidationResult => {
-  // Check if file exists
   if (!file) {
     return { valid: false, error: 'No file provided' };
   }
 
-  // Check file type
   if (!SUPPORTED_FORMATS.includes(file.type)) {
     return {
       valid: false,
-      error: `Unsupported file format. Please use PNG, JPEG, or WebP.`,
+      error: 'Unsupported format. Use PNG, JPEG, WebP, or GIF.',
     };
   }
 
-  // Check file size
   if (file.size > MAX_FILE_SIZE) {
-    const sizeMB = (MAX_FILE_SIZE / (1024 * 1024)).toFixed(1);
+    const sizeMB = (MAX_FILE_SIZE / (1024 * 1024)).toFixed(0);
     return {
       valid: false,
-      error: `File size exceeds ${sizeMB}MB limit.`,
+      error: `File exceeds ${sizeMB}MB limit (${(file.size / (1024 * 1024)).toFixed(1)}MB).`,
     };
   }
 
   return { valid: true, file };
 };
 
-/**
- * Load image from file
- */
-const loadImage = (file: File): Promise<HTMLImageElement> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = (e) => {
-      const img = new Image();
-      
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('Failed to load image'));
-      
-      img.src = e.target?.result as string;
-    };
-
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-  });
-};
-
-/**
- * Resize image if needed
- */
-const resizeImage = (
-  img: HTMLImageElement,
-  maxWidth: number = MAX_IMAGE_WIDTH,
-  maxHeight: number = MAX_IMAGE_HEIGHT
-): HTMLCanvasElement => {
-  let { width, height } = img;
-
-  // Calculate new dimensions while maintaining aspect ratio
-  if (width > maxWidth || height > maxHeight) {
-    const aspectRatio = width / height;
-
-    if (width > height) {
-      width = maxWidth;
-      height = width / aspectRatio;
-    } else {
-      height = maxHeight;
-      width = height * aspectRatio;
+const loadImageBitmap = async (file: File): Promise<ImageBitmap | HTMLImageElement> => {
+  if ('createImageBitmap' in window) {
+    try {
+      return await createImageBitmap(file);
+    } catch {
+      // Fall through to HTMLImageElement.
     }
   }
 
-  // Create canvas and draw resized image
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Failed to decode image'));
+    };
+    img.src = url;
+  });
+};
+
+const fitWithin = (
+  width: number,
+  height: number,
+  maxDim: number
+): { width: number; height: number } => {
+  const longest = Math.max(width, height);
+  if (longest <= maxDim) {
+    return { width, height };
+  }
+  const scale = maxDim / longest;
+  return {
+    width: Math.round(width * scale),
+    height: Math.round(height * scale),
+  };
+};
+
+const drawToCanvas = (
+  source: ImageBitmap | HTMLImageElement,
+  width: number,
+  height: number
+): HTMLCanvasElement => {
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
-
   const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    throw new Error('Failed to get canvas context');
-  }
-
-  // Use high-quality image smoothing
+  if (!ctx) throw new Error('Canvas 2D context unavailable');
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-
-  ctx.drawImage(img, 0, 0, width, height);
-
+  ctx.drawImage(source, 0, 0, width, height);
   return canvas;
 };
 
+const canvasToWebp = (canvas: HTMLCanvasElement, quality: number): Promise<Blob> =>
+  new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return reject(new Error('toBlob returned null'));
+        resolve(blob);
+      },
+      'image/webp',
+      quality
+    );
+  });
+
+const blobToDataUrl = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to read blob'));
+    reader.readAsDataURL(blob);
+  });
+
 /**
- * Process and optimize image file
+ * Iteratively shrink dimensions and quality until the WebP payload fits under
+ * TARGET_WIRE_SIZE. Returns the best blob produced (last iteration if nothing
+ * meets the budget — better an over-budget WebP than failing the upload).
  */
-export const processImage = async (file: File): Promise<ProcessedImage> => {
-  try {
-    // Load image
-    const img = await loadImage(file);
+const compressToTarget = async (
+  source: ImageBitmap | HTMLImageElement,
+  origW: number,
+  origH: number
+): Promise<{ blob: Blob; width: number; height: number; quality: number }> => {
+  let { width, height } = fitWithin(origW, origH, MAX_IMAGE_DIMENSION);
+  let quality = INITIAL_QUALITY;
+  let canvas = drawToCanvas(source, width, height);
+  let blob = await canvasToWebp(canvas, quality);
 
-    // Resize if needed
-    const canvas = resizeImage(img);
+  while (blob.size > TARGET_WIRE_SIZE) {
+    if (quality > MIN_QUALITY) {
+      quality = Math.max(MIN_QUALITY, quality - 0.1);
+      blob = await canvasToWebp(canvas, quality);
+      continue;
+    }
 
-    // Convert to data URL
-    const dataUrl = canvas.toDataURL('image/png', 0.9);
-
-    return {
-      dataUrl,
-      width: canvas.width,
-      height: canvas.height,
-      size: dataUrl.length,
-      originalName: file.name,
-    };
-  } catch (error) {
-    throw new Error(`Failed to process image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    const longest = Math.max(width, height);
+    if (longest <= MIN_IMAGE_DIMENSION) break;
+    const next = Math.max(MIN_IMAGE_DIMENSION, Math.round(longest * 0.8));
+    const scale = next / longest;
+    width = Math.max(1, Math.round(width * scale));
+    height = Math.max(1, Math.round(height * scale));
+    quality = INITIAL_QUALITY;
+    canvas = drawToCanvas(source, width, height);
+    blob = await canvasToWebp(canvas, quality);
   }
+
+  return { blob, width, height, quality };
 };
 
-/**
- * Validate and process image file
- */
+export const processImage = async (file: File): Promise<ProcessedImage> => {
+  const source = await loadImageBitmap(file);
+  const srcW = 'width' in source ? source.width : (source as HTMLImageElement).naturalWidth;
+  const srcH = 'height' in source ? source.height : (source as HTMLImageElement).naturalHeight;
+
+  const { blob, width, height, quality } = await compressToTarget(source, srcW, srcH);
+
+  if ('close' in source && typeof source.close === 'function') {
+    source.close();
+  }
+
+  const dataUrl = await blobToDataUrl(blob);
+
+  return {
+    dataUrl,
+    width,
+    height,
+    compressedBytes: blob.size,
+    originalBytes: file.size,
+    ratio: file.size / Math.max(1, blob.size),
+    quality,
+    mimeType: 'image/webp',
+    originalName: file.name,
+  };
+};
+
 export const validateAndProcessImage = async (file: File): Promise<ProcessedImage> => {
-  // Validate file
   const validation = validateImageFile(file);
   if (!validation.valid) {
     throw new Error(validation.error);
   }
-
-  // Process image
-  return await processImage(file);
+  return processImage(file);
 };
 
-/**
- * Create object URL from file (for preview)
- */
-export const createPreviewUrl = (file: File): string => {
-  return URL.createObjectURL(file);
-};
+export const createPreviewUrl = (file: File): string => URL.createObjectURL(file);
+export const revokePreviewUrl = (url: string): void => URL.revokeObjectURL(url);
 
-/**
- * Revoke object URL (cleanup)
- */
-export const revokePreviewUrl = (url: string): void => {
-  URL.revokeObjectURL(url);
+export const formatBytes = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 };
-
-// Made with Bob

@@ -14,9 +14,18 @@
  *     is exposed to Safari).
  */
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { Euler, MathUtils, Quaternion, Vector3 } from 'three';
+import {
+  CanvasTexture,
+  DoubleSide,
+  Euler,
+  MathUtils,
+  Mesh,
+  Quaternion,
+  RepeatWrapping,
+  Vector3,
+} from 'three';
 import { PosterMesh } from './PosterMesh';
 import { usePosterStore } from '@/store/posterStore';
 import { useUIState } from '@/hooks/useUIState';
@@ -24,6 +33,9 @@ import { ControlPanel } from '@/components/ui/ControlPanel';
 import { PosterControls } from '@/components/ui/PosterControls';
 import { Header } from '@/components/layout/Header';
 import { DEFAULT_PLACEMENT_DISTANCE } from '@/utils/constants';
+
+/** Camera-to-floor distance assumed for the estimated ground plane (meters). */
+const FLOOR_Y = -1.5;
 
 /**
  * Convert a DeviceOrientationEvent (alpha / beta / gamma in degrees, plus
@@ -72,6 +84,99 @@ const CameraRig: React.FC<{ orientationRef: React.MutableRefObject<Quaternion> }
   return null;
 };
 
+/**
+ * Raycast the camera's forward vector onto the assumed floor plane
+ * (y = FLOOR_Y, normal +Y). Returns the world-space hit point, or null if
+ * the camera is looking up / parallel to the floor.
+ */
+const raycastToFloor = (orientation: Quaternion, out: Vector3): Vector3 | null => {
+  const forward = new Vector3(0, 0, -1).applyQuaternion(orientation);
+  // Need forward.y < 0 (looking downward) for a valid intersection.
+  if (forward.y > -0.01) return null;
+  const t = FLOOR_Y / forward.y;
+  if (t <= 0) return null;
+  out.copy(forward).multiplyScalar(t);
+  return out;
+};
+
+/**
+ * Floor grid mesh: a single textured plane at y = FLOOR_Y. Texture is a
+ * canvas-rendered grid pattern in the same green as the WebXR plane fill,
+ * tiled across a 12x12 m area. Slight transparency so the camera feed
+ * shows through.
+ */
+const FloorGrid: React.FC = () => {
+  const texture = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = 'rgba(34, 197, 94, 0.18)';
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.strokeStyle = 'rgba(34, 197, 94, 0.85)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i <= 4; i++) {
+      const p = (i / 4) * 256;
+      ctx.beginPath();
+      ctx.moveTo(p, 0); ctx.lineTo(p, 256);
+      ctx.moveTo(0, p); ctx.lineTo(256, p);
+      ctx.stroke();
+    }
+    const tex = new CanvasTexture(canvas);
+    tex.wrapS = tex.wrapT = RepeatWrapping;
+    tex.repeat.set(12, 12);
+    return tex;
+  }, []);
+
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, FLOOR_Y, 0]}>
+      <planeGeometry args={[24, 24]} />
+      <meshBasicMaterial
+        map={texture}
+        transparent
+        opacity={0.65}
+        side={DoubleSide}
+        depthWrite={false}
+      />
+    </mesh>
+  );
+};
+
+/**
+ * GroundReticle: a small ring on the estimated floor where the camera is
+ * currently aimed. Updated each frame from the orientation ref so it tracks
+ * the user's view without going through React.
+ */
+const GroundReticle: React.FC<{
+  orientationRef: React.MutableRefObject<Quaternion>;
+  reticlePosRef: React.MutableRefObject<Vector3 | null>;
+}> = ({ orientationRef, reticlePosRef }) => {
+  const meshRef = useRef<Mesh>(null);
+  const tmp = useMemo(() => new Vector3(), []);
+
+  useFrame(() => {
+    const hit = raycastToFloor(orientationRef.current, tmp);
+    if (!hit) {
+      if (meshRef.current) meshRef.current.visible = false;
+      reticlePosRef.current = null;
+      return;
+    }
+    if (meshRef.current) {
+      meshRef.current.visible = true;
+      meshRef.current.position.set(hit.x, hit.y + 0.005, hit.z);
+    }
+    if (!reticlePosRef.current) reticlePosRef.current = new Vector3();
+    reticlePosRef.current.copy(hit);
+  });
+
+  return (
+    <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+      <ringGeometry args={[0.12, 0.18, 32]} />
+      <meshBasicMaterial color="#22c55e" transparent opacity={0.9} side={DoubleSide} />
+    </mesh>
+  );
+};
+
 interface IOSARFallbackProps {
   onSessionStart?: () => void;
   onSessionEnd?: () => void;
@@ -87,6 +192,8 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const orientationRef = useRef(new Quaternion());
+  /** World-space hit point of the ground reticle, updated each frame by GroundReticle. */
+  const reticlePosRef = useRef<Vector3 | null>(null);
 
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [needsPermission, setNeedsPermission] = useState(false);
@@ -212,10 +319,10 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
   }, []);
 
   /**
-   * Tap-to-place: drop a poster at a fixed distance in front of the current
-   * camera direction. We compute the placement point from the latest
-   * orientation quaternion rather than the three.js camera (which lags by
-   * one slerp step) so the poster lands where the user is actually looking.
+   * Tap-to-place: drop a poster at the ground-reticle's current world
+   * position. If the user is looking up (no floor intersection), fall back
+   * to a fixed-distance drop in front of the camera so the tap still does
+   * something useful.
    */
   const handlePlace = useCallback(() => {
     if (!isSessionActive) return;
@@ -225,10 +332,15 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
     }
 
     const forward = new Vector3(0, 0, -1).applyQuaternion(orientationRef.current);
-    const placePos = forward.multiplyScalar(DEFAULT_PLACEMENT_DISTANCE);
-
-    // Make the poster face the camera (negate forward, derive Y rotation).
     const yaw = Math.atan2(forward.x, forward.z) + Math.PI;
+
+    let placePos: Vector3;
+    if (reticlePosRef.current) {
+      placePos = reticlePosRef.current.clone();
+      placePos.y += 0.01; // sit just above the floor so it doesn't z-fight
+    } else {
+      placePos = forward.clone().multiplyScalar(DEFAULT_PLACEMENT_DISTANCE);
+    }
 
     addPoster({
       imageUrl: getCurrentPosterImage(),
@@ -282,8 +394,18 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
         <ambientLight intensity={0.6} />
         <directionalLight position={[2, 4, 2]} intensity={0.8} />
         <CameraRig orientationRef={orientationRef} />
-        {isSessionActive &&
-          posters.map((poster) => <PosterMesh key={poster.id} poster={poster} />)}
+        {isSessionActive && (
+          <>
+            <FloorGrid />
+            <GroundReticle
+              orientationRef={orientationRef}
+              reticlePosRef={reticlePosRef}
+            />
+            {posters.map((poster) => (
+              <PosterMesh key={poster.id} poster={poster} />
+            ))}
+          </>
+        )}
       </Canvas>
 
       {/* Start button — replaces the WebXR ARButton on iOS */}
@@ -318,17 +440,17 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
             }}
           >
             <strong style={{ display: 'block', marginBottom: '4px' }}>
-              Surface detection is not available on iPhone.
+              Estimated floor only — no real plane detection.
             </strong>
-            Apple does not expose any AR plane / hit-test APIs to web pages.
-            This mode uses the camera and motion sensors to place posters at
-            a fixed distance in the direction you are facing — no walls or
-            floors are detected.
+            Apple does not expose AR plane / hit-test APIs to web pages.
+            This mode uses the iPhone&apos;s gyroscope + an assumed floor
+            1.5 m below your starting head height to render a green grid
+            you can aim at. Walls are not detected; the floor distance is
+            a guess, not a measurement.
           </div>
           <p style={{ maxWidth: '420px', marginBottom: '20px', lineHeight: 1.4, fontSize: '13px', opacity: 0.85 }}>
             For real surface detection, open this app in Chrome on an
-            ARCore-supported Android device, or on a desktop Chrome with the
-            WebXR API Emulator extension.
+            ARCore-supported Android device.
           </p>
           {needsPermission && (
             <p style={{ fontSize: '13px', opacity: 0.8, marginBottom: '20px' }}>
@@ -384,7 +506,7 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
             border: '1px solid rgba(251, 191, 36, 0.4)',
           }}
         >
-          iOS mode · no surface detection · fixed-distance drop
+          iOS mode · estimated floor (1.5 m) · aim at the green grid to place
         </div>
       )}
 
@@ -405,7 +527,7 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
             pointerEvents: 'none',
           }}
         >
-          Tap anywhere to place a poster
+          Point your phone down at the floor, then tap to place
         </div>
       )}
 

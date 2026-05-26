@@ -40,8 +40,10 @@ function App() {
     );
   }
 
-  // Branch 1: native WebXR immersive-ar (Android Chrome, etc.)
+  // Branch 1: native WebXR immersive-ar (Android Chrome, or desktop with the
+  // WebXR API Emulator extension).
   if (xrSupport?.hasWebXR) {
+    const mode = xrSupport.hasWebXREmulator ? 'dev' : 'live';
     return (
       <ErrorBoundary>
         <MainLayout>
@@ -49,6 +51,35 @@ function App() {
             <Toast />
             <InstructionsOverlay />
             <ARExperience
+              mode={mode}
+              hasEmulator={xrSupport.hasWebXREmulator}
+              onSessionStart={() => console.log('AR session started')}
+              onSessionEnd={() => console.log('AR session ended')}
+            />
+            <DeviceInfoButton
+              show={showDeviceInfo}
+              onToggle={() => setShowDeviceInfo((s) => !s)}
+              support={xrSupport}
+            />
+          </div>
+        </MainLayout>
+      </ErrorBoundary>
+    );
+  }
+
+  // Branch 1b: desktop without the emulator extension — still drop the wall
+  // so developers can iterate on UI / upload / gallery features without a
+  // phone. The Start AR button is disabled until the emulator shows up.
+  if (xrSupport?.isDesktop) {
+    return (
+      <ErrorBoundary>
+        <MainLayout>
+          <div className="app-container">
+            <Toast />
+            <InstructionsOverlay />
+            <ARExperience
+              mode="dev"
+              hasEmulator={false}
               onSessionStart={() => console.log('AR session started')}
               onSessionEnd={() => console.log('AR session ended')}
             />

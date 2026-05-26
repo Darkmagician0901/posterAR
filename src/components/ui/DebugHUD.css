@@ -1,0 +1,48 @@
+.debug-hud {
+  position: fixed;
+  top: 70px;
+  left: 20px;
+  z-index: 2500;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  min-width: 200px;
+  background-color: rgba(0, 0, 0, 0.78);
+  color: #e2e8f0;
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.3;
+  pointer-events: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.debug-hud-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.debug-hud-row > span:first-child {
+  opacity: 0.65;
+}
+
+.debug-hud-toggle {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.debug-stability {
+  font-weight: 700;
+}
+.debug-stability-stable    { color: #22c55e; }
+.debug-stability-forming   { color: #f59e0b; }
+.debug-stability-reshaping { color: #ef4444; }
+.debug-stability-none      { color: #94a3b8; }

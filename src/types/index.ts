@@ -59,12 +59,16 @@ export interface XRSupport {
   hasWebXR: boolean;
   /** True when we can run the iOS camera + DeviceOrientation 3DoF fallback. */
   hasIOSFallback: boolean;
+  /** True when a desktop browser advertises immersive-ar support — i.e. the
+   * WebXR API Emulator extension is installed and active. */
+  hasWebXREmulator: boolean;
   hasWebAR: boolean;
   hasCamera: boolean;
   hasGyroscope: boolean;
   isIOS: boolean;
   isAndroid: boolean;
   isMobile: boolean;
+  isDesktop: boolean;
   browserName: string;
   browserVersion: string;
 }

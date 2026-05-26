@@ -72,6 +72,24 @@ export function isMobile(): boolean {
 }
 
 /**
+ * Desktop = not a mobile UA. Used to decide whether to drop the
+ * "AR Not Supported" wall in favor of dev mode.
+ */
+export function isDesktop(): boolean {
+  return !isMobile() && !isIOS() && !isAndroid();
+}
+
+/**
+ * True when navigator.xr advertises immersive-ar support on a desktop UA.
+ * The only realistic way for that to happen is the WebXR API Emulator
+ * extension being installed and enabled.
+ */
+export async function detectWebXREmulator(): Promise<boolean> {
+  if (!isDesktop()) return false;
+  return await checkWebXRSupport();
+}
+
+/**
  * Get browser name and version
  */
 export function getBrowserInfo(): { name: string; version: string } {
@@ -117,6 +135,7 @@ export async function detectXRSupport(): Promise<XRSupport> {
   const deviceIsIOS = isIOS();
   const deviceIsAndroid = isAndroid();
   const deviceIsMobile = isMobile();
+  const deviceIsDesktop = isDesktop();
   const browser = getBrowserInfo();
 
   // WebAR fallback support (for devices without WebXR)
@@ -127,15 +146,20 @@ export async function detectXRSupport(): Promise<XRSupport> {
   const hasIOSFallback =
     !hasWebXR && deviceIsIOS && hasCamera && hasGyroscope;
 
+  // Desktop browser advertising immersive-ar = WebXR API Emulator extension.
+  const hasWebXREmulator = deviceIsDesktop && hasWebXR;
+
   return {
     hasWebXR,
     hasIOSFallback,
+    hasWebXREmulator,
     hasWebAR,
     hasCamera,
     hasGyroscope,
     isIOS: deviceIsIOS,
     isAndroid: deviceIsAndroid,
     isMobile: deviceIsMobile,
+    isDesktop: deviceIsDesktop,
     browserName: browser.name,
     browserVersion: browser.version,
   };

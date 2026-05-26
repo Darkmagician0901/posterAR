@@ -31,21 +31,30 @@ import {
 import { readHitTestPose, requestViewerHitTestSource } from '@/xr/hitTest';
 import { AnchorManager } from '@/xr/anchorManager';
 import { createReticle } from '@/xr/reticle';
+import { PlaneRenderer } from '@/xr/planeRenderer';
+import { debugTelemetry } from '@/xr/debugTelemetry';
 import { usePosterStore } from '@/store/posterStore';
 import { useUIState } from '@/hooks/useUIState';
 import { ControlPanel } from '@/components/ui/ControlPanel';
 import { PosterControls } from '@/components/ui/PosterControls';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { DebugHUD } from '@/components/ui/DebugHUD';
+import { DevBanner } from '@/components/ui/DevBanner';
 import { Header } from '@/components/layout/Header';
 
 interface ARExperienceProps {
   onSessionStart?: () => void;
   onSessionEnd?: () => void;
+  /** 'dev' adds the dev banner + HUD-on-by-default; 'live' is the normal flow. */
+  mode?: 'dev' | 'live';
+  hasEmulator?: boolean;
 }
 
 export const ARExperience: React.FC<ARExperienceProps> = ({
   onSessionStart,
   onSessionEnd,
+  mode = 'live',
+  hasEmulator = false,
 }) => {
   const { selectedPosterId } = usePosterStore();
   const { showLoading, setShowLoading, addToast } = useUIState();
@@ -102,11 +111,22 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
     const sceneRoot = new Group();
     scene.add(sceneRoot);
 
+    const planeRoot = new Group();
+    scene.add(planeRoot);
+
     const reticle = createReticle();
     scene.add(reticle.mesh);
 
     const anchorManager = new AnchorManager();
     anchorManagerRef.current = anchorManager;
+
+    const planeRenderer = new PlaneRenderer(planeRoot);
+
+    const isEmulatorSession = mode === 'dev' && hasEmulator;
+    debugTelemetry.write({
+      session: 'immersive-ar' + (isEmulatorSession ? ' (emulator)' : ''),
+      refSpace: 'local',
+    });
 
     let localSpace: XRReferenceSpace | null = null;
     try {
@@ -193,15 +213,18 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
 
     await renderer.xr.setSession(session);
 
-    renderer.xr.setAnimationLoop((_time, frame) => {
+    renderer.xr.setAnimationLoop((time, frame) => {
       if (!frame || !localSpace) return;
 
+      debugTelemetry.tick(time);
+
+      let hitPose: { matrix: Float32Array; vertical: boolean } | null = null;
       if (hitTestSource) {
-        const pose = readHitTestPose(frame, hitTestSource, localSpace);
-        if (pose) {
-          reticle.setPose(pose.matrix);
-          reticle.setVertical(pose.vertical);
-          lastReticleMatrix = pose.matrix;
+        hitPose = readHitTestPose(frame, hitTestSource, localSpace);
+        if (hitPose) {
+          reticle.setPose(hitPose.matrix);
+          reticle.setVertical(hitPose.vertical);
+          lastReticleMatrix = hitPose.matrix;
         } else {
           reticle.setVisible(false);
           lastReticleMatrix = null;
@@ -209,6 +232,27 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
       }
 
       anchorManager.update(frame, localSpace);
+
+      const detectedPlanes = (frame as XRFrame & { detectedPlanes?: ReadonlySet<XRPlane> }).detectedPlanes;
+      planeRenderer.update(
+        {
+          planes: detectedPlanes,
+          activeHitMatrix: hitPose?.matrix ?? null,
+          localSpace,
+          showAll: debugTelemetry.read().showAllPlanes,
+        },
+        frame
+      );
+
+      const counts = planeRenderer.countByOrientation();
+      debugTelemetry.write({
+        hitTest: hitPose ? (hitPose.vertical ? 'vertical' : 'horizontal') : null,
+        planesTotal: detectedPlanes ? detectedPlanes.size : null,
+        planesHorizontal: counts.horizontal,
+        planesVertical: counts.vertical,
+        anchors: anchorManager.size(),
+        activePlaneStability: planeRenderer.getActiveStability(),
+      });
 
       renderer.render(scene, camera);
     });
@@ -218,12 +262,14 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
       unsubscribeStore();
       renderer.xr.setAnimationLoop(null);
       anchorManager.clear();
+      planeRenderer.dispose();
       anchorManagerRef.current = null;
       renderer.dispose();
       rendererRef.current = null;
       sessionRef.current = null;
       setIsARActive(false);
       setShowLoading(false);
+      debugTelemetry.reset();
       addToast({ type: 'info', message: 'AR session ended' });
       onSessionEnd?.();
     });
@@ -249,10 +295,19 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  const startDisabled = mode === 'dev' && !hasEmulator;
+
+  // Default-on HUD in dev mode (once per mount).
+  useEffect(() => {
+    if (mode === 'dev') debugTelemetry.setHudVisible(true);
+  }, [mode]);
+
   return (
     <>
+      {mode === 'dev' && <DevBanner hasEmulator={hasEmulator} />}
       <Header isARActive={isARActive} onExitAR={handleExitAR} />
       <LoadingScreen isLoading={showLoading} message="Initializing AR..." />
+      <DebugHUD />
 
       {/* DOM overlay root — passed to the AR session, holds in-AR UI */}
       <div
@@ -284,6 +339,12 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
       {!isARActive && (
         <button
           onClick={startSession}
+          disabled={startDisabled}
+          title={
+            startDisabled
+              ? 'Install the WebXR API Emulator extension to mock an AR session'
+              : undefined
+          }
           style={{
             position: 'fixed',
             bottom: '20px',
@@ -292,16 +353,17 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
             padding: '15px 30px',
             fontSize: '18px',
             fontWeight: 'bold',
-            backgroundColor: '#007bff',
+            backgroundColor: startDisabled ? '#475569' : '#007bff',
             color: 'white',
             border: 'none',
             borderRadius: '25px',
-            cursor: 'pointer',
+            cursor: startDisabled ? 'not-allowed' : 'pointer',
+            opacity: startDisabled ? 0.7 : 1,
             zIndex: 1000,
             boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
           }}
         >
-          Start AR
+          {startDisabled ? 'Start AR (emulator needed)' : 'Start AR'}
         </button>
       )}
 

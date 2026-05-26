@@ -8,6 +8,7 @@ import { usePosterStore } from '@/store/posterStore';
 import { useUIState } from '@/hooks/useUIState';
 import { usePosterUpload } from '@/hooks/usePosterUpload';
 import { useScreenshot } from '@/hooks/useScreenshot';
+import { debugTelemetry } from '@/xr/debugTelemetry';
 import { PosterGallery } from './PosterGallery';
 import './ControlPanel.css';
 
@@ -146,6 +147,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
         >
           <span className="control-icon">ℹ️</span>
           <span className="control-label">Help</span>
+        </button>
+
+        <button
+          className="control-button control-button-debug"
+          onClick={() => debugTelemetry.toggleHud()}
+          aria-label="Toggle debug HUD"
+          title="Debug"
+        >
+          <span className="control-icon">🛠️</span>
+          <span className="control-label">Debug</span>
         </button>
       </div>
 

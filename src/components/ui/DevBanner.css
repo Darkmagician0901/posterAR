@@ -1,0 +1,46 @@
+.dev-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2400;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  background-color: #1e293b;
+  color: #f1f5f9;
+  font-size: 13px;
+  border-bottom: 1px solid #334155;
+}
+
+.dev-banner-content {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.dev-banner-content strong {
+  color: #fbbf24;
+  margin-right: 6px;
+}
+
+.dev-banner-content a {
+  color: #60a5fa;
+  text-decoration: underline;
+}
+
+.dev-banner-close {
+  background: none;
+  border: none;
+  color: #f1f5f9;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.dev-banner-close:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}

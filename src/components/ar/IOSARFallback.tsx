@@ -304,10 +304,31 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
           }}
         >
           <h2 style={{ marginBottom: '12px' }}>iOS AR Mode</h2>
-          <p style={{ maxWidth: '420px', marginBottom: '20px', lineHeight: 1.4 }}>
-            iOS Safari doesn&apos;t support full WebXR AR, so this uses your
-            camera and motion sensors instead. Posters are placed at a fixed
-            distance in the direction you&apos;re facing.
+          <div
+            style={{
+              maxWidth: '420px',
+              marginBottom: '16px',
+              padding: '10px 14px',
+              backgroundColor: 'rgba(251, 191, 36, 0.15)',
+              border: '1px solid rgba(251, 191, 36, 0.5)',
+              borderRadius: '8px',
+              color: '#fde68a',
+              fontSize: '13px',
+              lineHeight: 1.4,
+            }}
+          >
+            <strong style={{ display: 'block', marginBottom: '4px' }}>
+              Surface detection is not available on iPhone.
+            </strong>
+            Apple does not expose any AR plane / hit-test APIs to web pages.
+            This mode uses the camera and motion sensors to place posters at
+            a fixed distance in the direction you are facing — no walls or
+            floors are detected.
+          </div>
+          <p style={{ maxWidth: '420px', marginBottom: '20px', lineHeight: 1.4, fontSize: '13px', opacity: 0.85 }}>
+            For real surface detection, open this app in Chrome on an
+            ARCore-supported Android device, or on a desktop Chrome with the
+            WebXR API Emulator extension.
           </p>
           {needsPermission && (
             <p style={{ fontSize: '13px', opacity: 0.8, marginBottom: '20px' }}>
@@ -345,12 +366,34 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
         </div>
       )}
 
+      {/* Persistent iOS limitations badge during session */}
+      {isSessionActive && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '60px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            padding: '6px 12px',
+            backgroundColor: 'rgba(15, 23, 42, 0.85)',
+            color: '#fde68a',
+            borderRadius: '14px',
+            fontSize: '12px',
+            zIndex: 1100,
+            pointerEvents: 'none',
+            border: '1px solid rgba(251, 191, 36, 0.4)',
+          }}
+        >
+          iOS mode · no surface detection · fixed-distance drop
+        </div>
+      )}
+
       {/* Tap-to-place hint */}
       {isSessionActive && posters.length === 0 && (
         <div
           style={{
             position: 'fixed',
-            top: '90px',
+            top: '100px',
             left: '50%',
             transform: 'translateX(-50%)',
             padding: '8px 16px',

@@ -2,12 +2,54 @@
  * debugTelemetry
  *
  * Module-singleton ref-shaped state shared between the AR animation loop
- * (writer) and the DebugHUD (reader). The HUD samples this at 5 Hz; the
- * loop writes at frame rate. Plain refs + a subscriber callback list keep
- * React out of the 60 fps path.
+ * (writer) and the DebugHUD / DiagnosticPanel (readers). The HUD samples
+ * this at 5 Hz; the loop writes at frame rate. Plain refs + a subscriber
+ * callback list keep React out of the 60 fps path.
  */
 
 export type PlaneStability = 'stable' | 'forming' | 'reshaping' | null;
+
+/**
+ * Subsystem health rollup — written by each platform path, read by the
+ * always-on DiagnosticPanel. Status values map to dot colors:
+ *   green  → 'ok' | 'active' | 'tracking' | 'detected'
+ *   amber  → 'searching'
+ *   red    → 'denied' | 'error' | 'unavailable' | 'unsupported'
+ *   gray   → 'idle' | 'unknown'
+ */
+export type SubsystemStatus =
+  | 'ok'
+  | 'active'
+  | 'tracking'
+  | 'detected'
+  | 'estimated'
+  | 'searching'
+  | 'denied'
+  | 'error'
+  | 'unavailable'
+  | 'unsupported'
+  | 'idle'
+  | 'unknown';
+
+export type PlatformLabel =
+  | 'android-webxr'
+  | 'ios-fallback'
+  | 'desktop-dev'
+  | 'desktop-emulator'
+  | 'unsupported'
+  | 'unknown';
+
+export interface SubsystemsSnapshot {
+  webxr: SubsystemStatus;
+  session: SubsystemStatus;
+  hitTest: SubsystemStatus;
+  planes: SubsystemStatus;
+  camera: SubsystemStatus;
+  motion: SubsystemStatus;
+  anchors: SubsystemStatus;
+  surface: SubsystemStatus;
+  platform: PlatformLabel;
+}
 
 export interface TelemetrySnapshot {
   fps: number;
@@ -21,7 +63,20 @@ export interface TelemetrySnapshot {
   activePlaneStability: PlaneStability;
   showAllPlanes: boolean;
   hudVisible: boolean;
+  subsystems: SubsystemsSnapshot;
 }
+
+const initialSubsystems: SubsystemsSnapshot = {
+  webxr: 'unknown',
+  session: 'idle',
+  hitTest: 'idle',
+  planes: 'idle',
+  camera: 'idle',
+  motion: 'idle',
+  anchors: 'idle',
+  surface: 'idle',
+  platform: 'unknown',
+};
 
 const initial: TelemetrySnapshot = {
   fps: 0,
@@ -37,9 +92,10 @@ const initial: TelemetrySnapshot = {
   hudVisible:
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('debug') === '1',
+  subsystems: { ...initialSubsystems },
 };
 
-let state: TelemetrySnapshot = { ...initial };
+let state: TelemetrySnapshot = { ...initial, subsystems: { ...initial.subsystems } };
 const subscribers = new Set<() => void>();
 const notify = () => subscribers.forEach((cb) => cb());
 
@@ -70,6 +126,21 @@ export const debugTelemetry = {
     return state;
   },
 
+  /**
+   * Update a single subsystem's status. Used by every platform path to
+   * report health into the always-on DiagnosticPanel. Notifies subscribers
+   * so the panel can re-render on transition (it does not poll subsystems —
+   * they change rarely compared to FPS).
+   */
+  setSubsystem<K extends keyof SubsystemsSnapshot>(
+    name: K,
+    status: SubsystemsSnapshot[K]
+  ): void {
+    if (state.subsystems[name] === status) return;
+    state.subsystems[name] = status;
+    notify();
+  },
+
   /** Used by the HUD toggle button. Mutates state and notifies subscribers. */
   setShowAllPlanes(v: boolean): void {
     state.showAllPlanes = v;
@@ -86,16 +157,30 @@ export const debugTelemetry = {
     notify();
   },
 
-  /** Subscribe for HUD visibility / showAllPlanes changes (not for FPS). */
+  /** Subscribe for HUD visibility / showAllPlanes / subsystems changes (not for FPS). */
   subscribe(cb: () => void): () => void {
     subscribers.add(cb);
     return () => subscribers.delete(cb);
   },
 
-  /** Called on session end. Keeps showAllPlanes / hudVisible across sessions. */
+  /**
+   * Called on session end. Keeps showAllPlanes, hudVisible, and platform
+   * across sessions. Resets ephemeral subsystem states to 'idle' so the
+   * panel reflects "session ended" cleanly.
+   */
   reset(): void {
     const { showAllPlanes, hudVisible } = state;
-    state = { ...initial, showAllPlanes, hudVisible };
+    const { platform, webxr } = state.subsystems;
+    state = {
+      ...initial,
+      showAllPlanes,
+      hudVisible,
+      subsystems: {
+        ...initialSubsystems,
+        platform,
+        webxr,
+      },
+    };
     lastFrameTime = null;
     emaDt = 1000 / 60;
     notify();

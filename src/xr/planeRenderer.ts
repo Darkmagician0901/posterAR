@@ -35,6 +35,9 @@ const VERTICAL_COLOR = new Color('#06b6d4');
 const PASSIVE_OPACITY = 0.3;
 const FILL_OPACITY = 0.25;
 const NORMAL_DIST_TOLERANCE = 0.02; // 2 cm
+/** Keep showing the previously-active plane for this long after the hit pose
+ *  moves off it, so brief tracking jitter doesn't make the mesh blink. */
+const STICKY_ACTIVE_MS = 500;
 
 interface PlaneRecord {
   plane: XRPlane;
@@ -60,6 +63,7 @@ export class PlaneRenderer {
   private readonly cache = new Map<XRPlane, PlaneRecord>();
   private activePlane: XRPlane | null = null;
   private activeStability: PlaneStability = null;
+  private lastActiveMatchTime: number = 0;
   private readonly tmpMatrix = new Matrix4();
   private readonly tmpVec = new Vector3();
 
@@ -98,9 +102,24 @@ export class PlaneRenderer {
     }
 
     // 3. Determine active plane by geometric match against the hit pose.
-    this.activePlane = activeHitMatrix
+    // Honor a sticky window so brief tracking jitter doesn't drop the
+    // active highlight — if we found a match recently and the previous
+    // active plane is still present, keep it.
+    const matched = activeHitMatrix
       ? this.matchActivePlane(activeHitMatrix, frame, localSpace)
       : null;
+    if (matched) {
+      this.activePlane = matched;
+      this.lastActiveMatchTime = now;
+    } else if (
+      this.activePlane &&
+      planes.has(this.activePlane) &&
+      now - this.lastActiveMatchTime <= STICKY_ACTIVE_MS
+    ) {
+      // keep activePlane as-is
+    } else {
+      this.activePlane = null;
+    }
 
     // 4. Pose update + visibility per record.
     for (const record of this.cache.values()) {
@@ -160,6 +179,7 @@ export class PlaneRenderer {
     this.cache.clear();
     this.activePlane = null;
     this.activeStability = null;
+    this.lastActiveMatchTime = 0;
   }
 
   // ---------- internals ----------

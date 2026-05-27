@@ -1,0 +1,164 @@
+.diagnostic-panel {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 3000;
+  background-color: rgba(15, 23, 42, 0.92);
+  color: #f1f5f9;
+  border-radius: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+  max-width: calc(100vw - 24px);
+}
+
+.diagnostic-panel-collapsed {
+  display: inline-flex;
+}
+
+.diagnostic-panel-expanded {
+  min-width: 240px;
+}
+
+.diagnostic-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  color: inherit;
+  border: 0;
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.diagnostic-platform {
+  flex: 1;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+}
+
+.diagnostic-caret {
+  opacity: 0.6;
+  font-size: 10px;
+}
+
+.diagnostic-body {
+  padding: 4px 12px 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.diagnostic-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.diagnostic-label {
+  flex: 1;
+  opacity: 0.85;
+}
+
+.diagnostic-status {
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.diagnostic-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.diagnostic-dot-green {
+  background-color: #22c55e;
+  color: rgba(34, 197, 94, 0.6);
+}
+
+.diagnostic-dot-amber {
+  background-color: #f59e0b;
+  color: rgba(245, 158, 11, 0.6);
+  animation: diagnostic-dot-pulse 1.2s ease-in-out infinite;
+}
+
+.diagnostic-dot-red {
+  background-color: #ef4444;
+  color: rgba(239, 68, 68, 0.6);
+}
+
+.diagnostic-dot-gray {
+  background-color: #64748b;
+  color: rgba(100, 116, 139, 0.4);
+}
+
+.diagnostic-status-green { color: #4ade80; }
+.diagnostic-status-amber { color: #fbbf24; }
+.diagnostic-status-red   { color: #f87171; }
+.diagnostic-status-gray  { color: #94a3b8; }
+
+@keyframes diagnostic-dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(0.82); }
+}
+
+.diagnostic-hint {
+  margin-top: 8px;
+  padding: 6px 8px;
+  background-color: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #bfdbfe;
+}
+
+.diagnostic-dismiss {
+  margin-top: 8px;
+  padding: 4px 8px;
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+
+.diagnostic-dismiss:hover {
+  color: #f1f5f9;
+  border-color: rgba(148, 163, 184, 0.6);
+}
+
+.diagnostic-pill-restore {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 3000;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: rgba(15, 23, 42, 0.85);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}

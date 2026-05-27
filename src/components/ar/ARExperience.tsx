@@ -32,6 +32,7 @@ import { readHitTestPose, requestViewerHitTestSource } from '@/xr/hitTest';
 import { AnchorManager } from '@/xr/anchorManager';
 import { createReticle } from '@/xr/reticle';
 import { PlaneRenderer } from '@/xr/planeRenderer';
+import { SyntheticSurfaceMesh } from '@/xr/syntheticSurfaceMesh';
 import { debugTelemetry } from '@/xr/debugTelemetry';
 import { usePosterStore } from '@/store/posterStore';
 import { useUIState } from '@/hooks/useUIState';
@@ -89,6 +90,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
 
     sessionRef.current = session;
     setShowLoading(true);
+    debugTelemetry.setSubsystem('session', 'active');
 
     const renderer = new WebGLRenderer({
       canvas: canvasRef.current,
@@ -116,11 +118,17 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
 
     const reticle = createReticle();
     scene.add(reticle.mesh);
+    // Scanner is head-locked → child of the XR camera, which lives under
+    // renderer.xr.getCamera() once a session is set. We attach it lazily on
+    // the first frame because the XR camera object only becomes available
+    // after setSession.
+    let scannerAttached = false;
 
     const anchorManager = new AnchorManager();
     anchorManagerRef.current = anchorManager;
 
     const planeRenderer = new PlaneRenderer(planeRoot);
+    const syntheticMesh = new SyntheticSurfaceMesh(planeRoot);
 
     const isEmulatorSession = mode === 'dev' && hasEmulator;
     debugTelemetry.write({
@@ -134,6 +142,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
     } catch (error) {
       console.error('requestReferenceSpace(local) failed:', error);
       addToast({ type: 'error', message: 'Could not acquire local reference space' });
+      debugTelemetry.setSubsystem('session', 'error');
       await session.end();
       return;
     }
@@ -141,7 +150,11 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
     const hitTestSource = await requestViewerHitTestSource(session);
     if (!hitTestSource) {
       addToast({ type: 'error', message: 'Hit-test feature unavailable on this session' });
+      debugTelemetry.setSubsystem('hitTest', 'unavailable');
+    } else {
+      debugTelemetry.setSubsystem('hitTest', 'searching');
     }
+    debugTelemetry.setSubsystem('anchors', 'ok');
 
     let lastReticleMatrix: Float32Array | null = null;
     let placing = false;
@@ -217,6 +230,17 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
       if (!frame || !localSpace) return;
 
       debugTelemetry.tick(time);
+      reticle.tick(time);
+
+      // Lazy-attach the head-locked scanner to the active XR camera. The XR
+      // camera array isn't populated until the session is running.
+      if (!scannerAttached) {
+        const xrCamera = renderer.xr.getCamera();
+        if (xrCamera) {
+          xrCamera.add(reticle.scanner);
+          scannerAttached = true;
+        }
+      }
 
       let hitPose: { matrix: Float32Array; vertical: boolean } | null = null;
       if (hitTestSource) {
@@ -224,11 +248,16 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
         if (hitPose) {
           reticle.setPose(hitPose.matrix);
           reticle.setVertical(hitPose.vertical);
+          reticle.setMode('tracking');
           lastReticleMatrix = hitPose.matrix;
+          debugTelemetry.setSubsystem('hitTest', 'tracking');
         } else {
-          reticle.setVisible(false);
+          reticle.setMode('searching');
           lastReticleMatrix = null;
+          debugTelemetry.setSubsystem('hitTest', 'searching');
         }
+      } else {
+        reticle.setMode('hidden');
       }
 
       anchorManager.update(frame, localSpace);
@@ -243,6 +272,33 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
         },
         frame
       );
+
+      // Synthetic-mesh fallback: when the session doesn't expose
+      // detectedPlanes (e.g. WebXR API Emulator, some ARCore configs) but
+      // we DO have a hit pose, draw a normal-aligned grid quad at the hit
+      // so the user still gets the "this is the surface we found" visual.
+      const planeRendererHasActive =
+        planeRenderer.getActiveStability() !== null;
+      if (!detectedPlanes && hitPose && !planeRendererHasActive) {
+        syntheticMesh.update(hitPose.matrix, hitPose.vertical);
+        debugTelemetry.setSubsystem('planes', 'unavailable');
+        debugTelemetry.setSubsystem('surface', 'estimated');
+      } else if (detectedPlanes && detectedPlanes.size > 0) {
+        syntheticMesh.hide();
+        debugTelemetry.setSubsystem('planes', 'detected');
+        debugTelemetry.setSubsystem(
+          'surface',
+          planeRendererHasActive ? 'tracking' : 'searching'
+        );
+      } else if (detectedPlanes) {
+        syntheticMesh.hide();
+        debugTelemetry.setSubsystem('planes', 'searching');
+        debugTelemetry.setSubsystem('surface', 'searching');
+      } else {
+        syntheticMesh.hide();
+        debugTelemetry.setSubsystem('planes', 'unavailable');
+        debugTelemetry.setSubsystem('surface', hitPose ? 'searching' : 'idle');
+      }
 
       const counts = planeRenderer.countByOrientation();
       debugTelemetry.write({
@@ -263,6 +319,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
       renderer.xr.setAnimationLoop(null);
       anchorManager.clear();
       planeRenderer.dispose();
+      syntheticMesh.dispose();
       anchorManagerRef.current = null;
       renderer.dispose();
       rendererRef.current = null;

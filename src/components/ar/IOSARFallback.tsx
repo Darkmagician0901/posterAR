@@ -33,6 +33,7 @@ import { ControlPanel } from '@/components/ui/ControlPanel';
 import { PosterControls } from '@/components/ui/PosterControls';
 import { Header } from '@/components/layout/Header';
 import { DEFAULT_PLACEMENT_DISTANCE } from '@/utils/constants';
+import { debugTelemetry } from '@/xr/debugTelemetry';
 
 /** Camera-to-floor distance assumed for the estimated ground plane (meters). */
 const FLOOR_Y = -1.5;
@@ -153,12 +154,17 @@ const GroundReticle: React.FC<{
 }> = ({ orientationRef, reticlePosRef }) => {
   const meshRef = useRef<Mesh>(null);
   const tmp = useMemo(() => new Vector3(), []);
+  const lastSurfaceStatus = useRef<'tracking' | 'searching' | null>(null);
 
   useFrame(() => {
     const hit = raycastToFloor(orientationRef.current, tmp);
     if (!hit) {
       if (meshRef.current) meshRef.current.visible = false;
       reticlePosRef.current = null;
+      if (lastSurfaceStatus.current !== 'searching') {
+        debugTelemetry.setSubsystem('surface', 'searching');
+        lastSurfaceStatus.current = 'searching';
+      }
       return;
     }
     if (meshRef.current) {
@@ -167,6 +173,10 @@ const GroundReticle: React.FC<{
     }
     if (!reticlePosRef.current) reticlePosRef.current = new Vector3();
     reticlePosRef.current.copy(hit);
+    if (lastSurfaceStatus.current !== 'tracking') {
+      debugTelemetry.setSubsystem('surface', 'tracking');
+      lastSurfaceStatus.current = 'tracking';
+    }
   });
 
   return (
@@ -225,11 +235,13 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
         // iOS requires explicit play() after attaching srcObject.
         await videoRef.current.play().catch(() => undefined);
       }
+      debugTelemetry.setSubsystem('camera', 'ok');
     } catch (err) {
       console.error('Camera permission denied:', err);
       setPermissionError(
         'Camera permission was denied. Please allow camera access in Safari settings and try again.'
       );
+      debugTelemetry.setSubsystem('camera', 'denied');
       return;
     }
 
@@ -244,12 +256,21 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
           setPermissionError(
             'Motion permission was denied. The poster placement will not track your phone movement.'
           );
+          debugTelemetry.setSubsystem('motion', 'denied');
+        } else {
+          debugTelemetry.setSubsystem('motion', 'ok');
         }
       } catch (err) {
         console.warn('DeviceOrientation permission request failed:', err);
+        debugTelemetry.setSubsystem('motion', 'error');
       }
+    } else {
+      // Non-iOS-13+ paths — DeviceOrientation just works without prompting.
+      debugTelemetry.setSubsystem('motion', 'ok');
     }
 
+    debugTelemetry.setSubsystem('session', 'active');
+    debugTelemetry.setSubsystem('surface', 'estimated');
     setIsSessionActive(true);
     setNeedsPermission(false);
     onSessionStart?.();
@@ -264,6 +285,8 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
       videoRef.current.srcObject = null;
     }
     setIsSessionActive(false);
+    debugTelemetry.setSubsystem('session', 'idle');
+    debugTelemetry.setSubsystem('surface', 'idle');
     onSessionEnd?.();
     addToast({ type: 'info', message: 'AR session ended' });
   }, [addToast, onSessionEnd]);

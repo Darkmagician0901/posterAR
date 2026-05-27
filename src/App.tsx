@@ -8,6 +8,8 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Toast } from '@/components/ui/Toast';
 import { InstructionsOverlay } from '@/components/ui/InstructionsOverlay';
+import { DiagnosticPanel } from '@/components/ui/DiagnosticPanel';
+import { debugTelemetry } from '@/xr/debugTelemetry';
 
 /**
  * Three branches:
@@ -26,7 +28,37 @@ function App() {
 
   useEffect(() => {
     detectXRSupport()
-      .then(setXrSupport)
+      .then((support) => {
+        setXrSupport(support);
+
+        // Seed the diagnostic panel with platform-level facts so the panel
+        // is meaningful even before any AR session is started.
+        debugTelemetry.setSubsystem(
+          'webxr',
+          support.hasWebXR ? 'ok' : 'unsupported'
+        );
+        debugTelemetry.setSubsystem(
+          'camera',
+          support.hasCamera ? 'ok' : 'unavailable'
+        );
+        debugTelemetry.setSubsystem(
+          'motion',
+          support.hasGyroscope ? 'ok' : 'unavailable'
+        );
+
+        if (support.hasWebXR) {
+          debugTelemetry.setSubsystem(
+            'platform',
+            support.hasWebXREmulator ? 'desktop-emulator' : 'android-webxr'
+          );
+        } else if (support.hasIOSFallback) {
+          debugTelemetry.setSubsystem('platform', 'ios-fallback');
+        } else if (support.isDesktop) {
+          debugTelemetry.setSubsystem('platform', 'desktop-dev');
+        } else {
+          debugTelemetry.setSubsystem('platform', 'unsupported');
+        }
+      })
       .catch((error) => console.error('Error detecting XR support:', error))
       .finally(() => setIsLoading(false));
   }, []);
@@ -50,6 +82,7 @@ function App() {
           <div className="app-container">
             <Toast />
             <InstructionsOverlay />
+            <DiagnosticPanel />
             <ARExperience
               mode={mode}
               hasEmulator={xrSupport.hasWebXREmulator}
@@ -77,6 +110,7 @@ function App() {
           <div className="app-container">
             <Toast />
             <InstructionsOverlay />
+            <DiagnosticPanel />
             <ARExperience
               mode="dev"
               hasEmulator={false}
@@ -102,6 +136,7 @@ function App() {
           <div className="app-container">
             <Toast />
             <InstructionsOverlay />
+            <DiagnosticPanel />
             <IOSARFallback
               onSessionStart={() => console.log('iOS AR session started')}
               onSessionEnd={() => console.log('iOS AR session ended')}
@@ -115,6 +150,7 @@ function App() {
   // Branch 3: explicit unsupported message.
   return (
     <div className="app-container">
+      <DiagnosticPanel />
       <header className="app-header">
         <h1>{UI_TEXT.APP_TITLE}</h1>
         <p>{UI_TEXT.APP_SUBTITLE}</p>

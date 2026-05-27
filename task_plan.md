@@ -181,6 +181,78 @@ Colors:
 | Synthetic mesh from hit normal vs. waiting for plane-detection | **Yes for fallback.** Plane-detection has spotty support and we lose nothing by also drawing a normal-aligned quad at the hit pose. |
 | Bigger ring + outer glow for reticle | Nice-to-have, low effort, throw it in Phase 4. |
 
+### Phase 9 — TFJS + DeepLab dependencies — Status: complete
+
+Add runtime deps: `@tensorflow/tfjs` + `@tensorflow-models/deeplab`. Reasoning:
+- DeepLabV3-MobileNet (ADE20K weights) classifies 150 categories including
+  `wall`, `floor`, `ceiling` — directly usable for surface segmentation.
+- TFJS WebGL backend runs on iOS Safari 15+ (WebGL2 supported there).
+- Bundle: TFJS core (~600 KB gzip), DeepLab wrapper (~50 KB), model weights
+  downloaded at runtime from tfhub (~10 MB), cached by browser after first load.
+
+### Phase 10 — Create `src/xr/segmenter.ts` — Status: complete
+
+Wraps DeepLab so the rest of the app talks to a small typed API:
+- `loadSegmenter(): Promise<Segmenter>` — kicks off model download.
+- `segmenter.segment(video): Promise<SegmentResult>`
+- `SegmentResult = { mask, width, height, surface: { classId, centroid, bbox, area } | null }`
+- Picks `wall` if the largest wall region is bigger than the largest floor
+  region; otherwise picks `floor`. Falls back to `null` if neither passes a
+  minimum-area threshold.
+- Writes to `debugTelemetry.setSubsystem('segmenter', ...)`.
+
+### Phase 11 — Create `src/xr/surfaceLifter.ts` — Status: complete
+
+Pure function: 2D mask centroid → 3D world plane.
+- Inputs: centroid (px), image size, camera FOV, camera quaternion at the
+  moment of capture, target depth (default 2 m).
+- Derive camera-ray through centroid pixel using a pinhole model.
+- World position = camera_quat * (ray * depth).
+- Plane normal = negated forward ray (poster faces camera).
+- Returns { position, quaternion, size } in world coords.
+
+### Phase 12 — Create `src/xr/imuStabilizer.ts` — Status: complete
+
+Stabilizes the mesh between segmentation updates:
+- Anchors world frame at session start (first IMU sample = world up + heading).
+- Stores latestDetection (position, quaternion, capturedAtIMUQuat).
+- update(currentIMUQuat, dt) → rotated/lerped transform.
+- Falls back to "hold last position" if IMU sample missing.
+
+### Phase 13 — SurfaceMesh visual — Status: complete
+
+Reuses existing `syntheticSurfaceMesh.ts` shape (translucent green grid +
+outline). Wrapped as a R3F component reading transform from a ref updated
+by the IMU stabilizer each frame.
+
+### Phase 14 — Wire pipeline into `IOSARFallback.tsx` — Status: complete
+
+Mounts segmenter loader on session start. setTimeout-driven re-segmentation
+at ~5 Hz. Each result lifted → stabilizer → SurfaceMesh ref. FloorGrid +
+GroundReticle stay as fallback when segmenter subsystem is `error` or model
+not yet loaded. Tap-to-place uses stabilized mesh's world position when
+available.
+
+### Phase 15 — Desktop mock-AR driver — Status: complete
+
+New file `src/xr/desktopMockDriver.ts` + small UI in dev mode:
+- Renders a fake floor + walls in a Three.js scene.
+- Mouse moves a virtual viewer; WASD translates; wheel changes FOV.
+- Same `requestHitTestSource`-like API as a real WebXR session so the
+  existing pipeline runs end-to-end.
+- Gated by mode === 'dev' only.
+
+### Phase 16 — Extend DiagnosticPanel — Status: complete
+
+Add rows: segmenter (loading/ready/error/inferring), stabilizer
+(anchored/drifting/unavailable), desktopMock (active/idle). Guidance copy.
+
+### Phase 17 — Verification — Status: complete
+
+`npm run type-check`, `npm run build`, smoke-test desktop mock mode. iOS
+verification flagged manual-on-device — cannot test the model on an actual
+iPhone from this session.
+
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |---|---|---|
@@ -196,3 +268,15 @@ Colors:
 - `src/components/ar/ARExperience.tsx` — write subsystem states
 - `src/components/ar/IOSARFallback.tsx` — write subsystem states
 - `src/App.tsx` — mount `<DiagnosticPanel />` at root, write platform state
+
+## Files affected (Phase 9-17, segmentation pipeline)
+
+- `package.json` — add `@tensorflow/tfjs`, `@tensorflow-models/deeplab`
+- `src/xr/segmenter.ts` — new, DeepLab wrapper
+- `src/xr/surfaceLifter.ts` — new, 2D mask → 3D plane
+- `src/xr/imuStabilizer.ts` — new, IMU-driven mesh stabilization
+- `src/xr/desktopMockDriver.ts` — new, simulated AR for desktop dev
+- `src/xr/debugTelemetry.ts` — extend subsystems with segmenter/stabilizer/desktopMock
+- `src/components/ar/IOSARFallback.tsx` — segmentation pipeline + SurfaceMesh
+- `src/components/ui/DiagnosticPanel.tsx` — new rows
+- `src/App.tsx` — wire desktop mock driver behind dev mode toggle

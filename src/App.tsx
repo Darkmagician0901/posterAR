@@ -4,6 +4,7 @@ import { XRSupport } from '@/types';
 import { UI_TEXT } from '@/utils/constants';
 import { ARExperience } from '@/components/ar/ARExperience';
 import { IOSARFallback } from '@/components/ar/IOSARFallback';
+import { DesktopMockMode } from '@/components/ar/DesktopMockMode';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Toast } from '@/components/ui/Toast';
@@ -21,10 +22,21 @@ import { debugTelemetry } from '@/xr/debugTelemetry';
  * There is no silent fallback — the user always sees which branch they
  * landed on.
  */
+/**
+ * URL flag: `?desktopMock=1` opts the desktop branch into the segmentation
+ * sandbox (laptop webcam + DeepLab + mouse-driven orientation). Useful for
+ * iterating on the iOS pipeline without an iPhone or WebXR Emulator.
+ */
+const desktopMockRequested = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('desktopMock') === '1';
+};
+
 function App() {
   const [xrSupport, setXrSupport] = useState<XRSupport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showDeviceInfo, setShowDeviceInfo] = useState(false);
+  const useDesktopMock = desktopMockRequested();
 
   useEffect(() => {
     detectXRSupport()
@@ -100,10 +112,31 @@ function App() {
     );
   }
 
-  // Branch 1b: desktop without the emulator extension — still drop the wall
-  // so developers can iterate on UI / upload / gallery features without a
-  // phone. The Start AR button is disabled until the emulator shows up.
+  // Branch 1b: desktop without the emulator extension. Two sub-modes:
+  //   - ?desktopMock=1  → DesktopMockMode (segmentation pipeline on the
+  //     laptop webcam, mouse-driven orientation). Lets the user iterate on
+  //     the iOS pipeline without an iPhone or WebXR Emulator extension.
+  //   - default         → ARExperience in dev mode (existing wall stub).
   if (xrSupport?.isDesktop) {
+    if (useDesktopMock) {
+      return (
+        <ErrorBoundary>
+          <MainLayout>
+            <div className="app-container">
+              <Toast />
+              <InstructionsOverlay />
+              <DiagnosticPanel />
+              <DesktopMockMode />
+              <DeviceInfoButton
+                show={showDeviceInfo}
+                onToggle={() => setShowDeviceInfo((s) => !s)}
+                support={xrSupport}
+              />
+            </div>
+          </MainLayout>
+        </ErrorBoundary>
+      );
+    }
     return (
       <ErrorBoundary>
         <MainLayout>

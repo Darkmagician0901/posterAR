@@ -39,6 +39,17 @@ export default defineConfig({
             if (id.includes('@react-three')) {
               return 'react-three';
             }
+            // TFJS + DeepLab — dynamically imported by the segmenter on the
+            // iOS path only. Keeping them in their own chunk so Android /
+            // desktop loads don't pull them.
+            if (
+              id.includes('@tensorflow') ||
+              id.includes('\\@tensorflow\\') ||
+              id.includes('seedrandom') ||
+              id.includes('long')
+            ) {
+              return 'tfjs';
+            }
             // ❌ REMOVED: React chunk splitting — was causing load order race
             // React now stays in vendor, always available when other chunks run
             return 'vendor';

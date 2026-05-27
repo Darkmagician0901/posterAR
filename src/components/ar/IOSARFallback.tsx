@@ -27,6 +27,8 @@ import {
   Vector3,
 } from 'three';
 import { PosterMesh } from './PosterMesh';
+import { IOSSurfaceMesh, SurfaceMeshState } from './IOSSurfaceMesh';
+import { IOSSegmentationDriver } from './IOSSegmentationDriver';
 import { usePosterStore } from '@/store/posterStore';
 import { useUIState } from '@/hooks/useUIState';
 import { ControlPanel } from '@/components/ui/ControlPanel';
@@ -205,9 +207,25 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
   /** World-space hit point of the ground reticle, updated each frame by GroundReticle. */
   const reticlePosRef = useRef<Vector3 | null>(null);
 
+  /**
+   * Shared state for the segmentation pipeline. The driver writes each
+   * frame; the SurfaceMesh reads each frame; the tap-to-place handler reads
+   * `position` when `visible` is true.
+   */
+  const surfaceStateRef = useRef<SurfaceMeshState>({
+    position: new Vector3(),
+    quaternion: new Quaternion(),
+    size: { width: 1, height: 1 },
+    classId: null,
+    visible: false,
+  });
+
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [needsPermission, setNeedsPermission] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [segmenterStatus, setSegmenterStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>(
+    'idle'
+  );
 
   // Track screen orientation so the mapping stays correct in landscape.
   const screenOrientationRef = useRef<number>(
@@ -285,8 +303,12 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
       videoRef.current.srcObject = null;
     }
     setIsSessionActive(false);
+    setSegmenterStatus('idle');
+    surfaceStateRef.current.visible = false;
     debugTelemetry.setSubsystem('session', 'idle');
     debugTelemetry.setSubsystem('surface', 'idle');
+    debugTelemetry.setSubsystem('segmenter', 'idle');
+    debugTelemetry.setSubsystem('stabilizer', 'idle');
     onSessionEnd?.();
     addToast({ type: 'info', message: 'AR session ended' });
   }, [addToast, onSessionEnd]);
@@ -358,9 +380,12 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
     const yaw = Math.atan2(forward.x, forward.z) + Math.PI;
 
     let placePos: Vector3;
-    if (reticlePosRef.current) {
+    // Preference order: segmented surface > floor reticle > fixed drop.
+    if (surfaceStateRef.current.visible) {
+      placePos = surfaceStateRef.current.position.clone();
+    } else if (reticlePosRef.current) {
       placePos = reticlePosRef.current.clone();
-      placePos.y += 0.01; // sit just above the floor so it doesn't z-fight
+      placePos.y += 0.01;
     } else {
       placePos = forward.clone().multiplyScalar(DEFAULT_PLACEMENT_DISTANCE);
     }
@@ -419,6 +444,17 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
         <CameraRig orientationRef={orientationRef} />
         {isSessionActive && (
           <>
+            {/* Segmentation pipeline runs in parallel with the legacy
+                FloorGrid/Reticle. The driver loads the DeepLab model in the
+                background; the mesh stays invisible until detections arrive. */}
+            <IOSSegmentationDriver
+              videoRef={videoRef}
+              surfaceStateRef={surfaceStateRef}
+              active={isSessionActive}
+              onSegmenterStatus={setSegmenterStatus}
+            />
+            <IOSSurfaceMesh stateRef={surfaceStateRef} />
+
             <FloorGrid />
             <GroundReticle
               orientationRef={orientationRef}
@@ -454,26 +490,26 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
               maxWidth: '420px',
               marginBottom: '16px',
               padding: '10px 14px',
-              backgroundColor: 'rgba(251, 191, 36, 0.15)',
-              border: '1px solid rgba(251, 191, 36, 0.5)',
+              backgroundColor: 'rgba(34, 197, 94, 0.15)',
+              border: '1px solid rgba(34, 197, 94, 0.5)',
               borderRadius: '8px',
-              color: '#fde68a',
+              color: '#bbf7d0',
               fontSize: '13px',
               lineHeight: 1.4,
             }}
           >
             <strong style={{ display: 'block', marginBottom: '4px' }}>
-              Estimated floor only — no real plane detection.
+              On-device surface segmentation (no WebXR required).
             </strong>
-            Apple does not expose AR plane / hit-test APIs to web pages.
-            This mode uses the iPhone&apos;s gyroscope + an assumed floor
-            1.5 m below your starting head height to render a green grid
-            you can aim at. Walls are not detected; the floor distance is
-            a guess, not a measurement.
+            Apple does not expose WebXR or AR plane APIs to Safari, so we
+            run a small TensorFlow.js segmentation model on the camera feed
+            to find walls and floors in real time. A colored mesh locks onto
+            the detected surface; your phone&apos;s gyroscope keeps it
+            anchored between updates.
           </div>
           <p style={{ maxWidth: '420px', marginBottom: '20px', lineHeight: 1.4, fontSize: '13px', opacity: 0.85 }}>
-            For real surface detection, open this app in Chrome on an
-            ARCore-supported Android device.
+            First run downloads ~10&nbsp;MB of model weights. Battery use is
+            higher than estimated-floor mode.
           </p>
           {needsPermission && (
             <p style={{ fontSize: '13px', opacity: 0.8, marginBottom: '20px' }}>
@@ -511,7 +547,7 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
         </div>
       )}
 
-      {/* Persistent iOS limitations badge during session */}
+      {/* Persistent iOS status badge during session */}
       {isSessionActive && (
         <div
           style={{
@@ -521,15 +557,24 @@ export const IOSARFallback: React.FC<IOSARFallbackProps> = ({
             transform: 'translateX(-50%)',
             padding: '6px 12px',
             backgroundColor: 'rgba(15, 23, 42, 0.85)',
-            color: '#fde68a',
+            color:
+              segmenterStatus === 'ready' ? '#bbf7d0'
+              : segmenterStatus === 'error' ? '#fca5a5'
+              : '#fde68a',
             borderRadius: '14px',
             fontSize: '12px',
             zIndex: 1100,
             pointerEvents: 'none',
-            border: '1px solid rgba(251, 191, 36, 0.4)',
+            border:
+              segmenterStatus === 'ready' ? '1px solid rgba(34, 197, 94, 0.4)'
+              : segmenterStatus === 'error' ? '1px solid rgba(248, 113, 113, 0.4)'
+              : '1px solid rgba(251, 191, 36, 0.4)',
           }}
         >
-          iOS mode · estimated floor (1.5 m) · aim at the green grid to place
+          {segmenterStatus === 'loading' && 'iOS mode · loading segmentation model…'}
+          {segmenterStatus === 'ready' && 'iOS mode · scanning for walls and floors'}
+          {segmenterStatus === 'error' && 'iOS mode · segmentation unavailable — using estimated floor'}
+          {segmenterStatus === 'idle' && 'iOS mode · estimated floor (1.5 m)'}
         </div>
       )}
 

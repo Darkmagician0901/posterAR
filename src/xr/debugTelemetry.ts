@@ -29,7 +29,14 @@ export type SubsystemStatus =
   | 'unavailable'
   | 'unsupported'
   | 'idle'
-  | 'unknown';
+  | 'unknown'
+  // Segmentation pipeline (iOS path) — additional status values that read
+  // naturally for the segmenter / stabilizer / desktop-mock rows.
+  | 'loading'
+  | 'ready'
+  | 'inferring'
+  | 'anchored'
+  | 'drifting';
 
 export type PlatformLabel =
   | 'android-webxr'
@@ -48,6 +55,9 @@ export interface SubsystemsSnapshot {
   motion: SubsystemStatus;
   anchors: SubsystemStatus;
   surface: SubsystemStatus;
+  segmenter: SubsystemStatus;
+  stabilizer: SubsystemStatus;
+  desktopMock: SubsystemStatus;
   platform: PlatformLabel;
 }
 
@@ -75,6 +85,9 @@ const initialSubsystems: SubsystemsSnapshot = {
   motion: 'idle',
   anchors: 'idle',
   surface: 'idle',
+  segmenter: 'idle',
+  stabilizer: 'idle',
+  desktopMock: 'idle',
   platform: 'unknown',
 };
 

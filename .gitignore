@@ -45,3 +45,7 @@ coverage
 .vercel
 .netlify
 .claude/
+
+# Smoke-test artifacts (Playwright MCP)
+.playwright-mcp/
+desktop-mock-*.png

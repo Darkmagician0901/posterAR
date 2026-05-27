@@ -35,8 +35,13 @@ const statusColor = (s: SubsystemStatus): DotColor => {
     case 'tracking':
     case 'detected':
     case 'estimated':
+    case 'ready':
+    case 'anchored':
       return 'green';
     case 'searching':
+    case 'loading':
+    case 'inferring':
+    case 'drifting':
       return 'amber';
     case 'denied':
     case 'error':
@@ -67,14 +72,17 @@ const platformLabel = (p: PlatformLabel): string => {
  * at 'idle' / 'unavailable' so the user sees the full inventory.
  */
 const ROWS: { key: keyof Omit<SubsystemsSnapshot, 'platform'>; label: string }[] = [
-  { key: 'webxr',   label: 'WebXR' },
-  { key: 'session', label: 'Session' },
-  { key: 'hitTest', label: 'Hit-test' },
-  { key: 'planes',  label: 'Planes' },
-  { key: 'surface', label: 'Surface' },
-  { key: 'anchors', label: 'Anchors' },
-  { key: 'camera',  label: 'Camera' },
-  { key: 'motion',  label: 'Motion' },
+  { key: 'webxr',       label: 'WebXR' },
+  { key: 'session',     label: 'Session' },
+  { key: 'hitTest',     label: 'Hit-test' },
+  { key: 'planes',      label: 'Planes' },
+  { key: 'surface',     label: 'Surface' },
+  { key: 'anchors',     label: 'Anchors' },
+  { key: 'camera',      label: 'Camera' },
+  { key: 'motion',      label: 'Motion' },
+  { key: 'segmenter',   label: 'Segmenter' },
+  { key: 'stabilizer',  label: 'Stabilizer' },
+  { key: 'desktopMock', label: 'Desktop mock' },
 ];
 
 const worstColor = (subs: SubsystemsSnapshot): DotColor => {
@@ -101,6 +109,24 @@ const hint = (subs: SubsystemsSnapshot): string | null => {
   if (subs.motion === 'denied') return 'Allow motion access on the start screen.';
   if (subs.webxr === 'unsupported' && subs.platform === 'ios-fallback') {
     return 'iOS has no WebXR. Using camera+gyroscope estimated floor.';
+  }
+  // Active desktop-mock or in-flight segmentation takes precedence over the
+  // generic "WebXR unsupported" message — the user already knows that's why
+  // they're in this branch.
+  if (subs.desktopMock === 'active') {
+    return 'Drag the canvas to rotate the virtual camera; webcam frames drive segmentation.';
+  }
+  if (subs.segmenter === 'loading') {
+    return 'Downloading segmentation model (~10 MB) — first run only.';
+  }
+  if (subs.segmenter === 'error') {
+    return 'TensorFlow.js segmentation could not start. Falling back to estimated floor.';
+  }
+  if (subs.segmenter === 'ready' && subs.stabilizer === 'drifting') {
+    return 'Camera moved a lot since the last detection — re-scan slowly to re-anchor.';
+  }
+  if (subs.segmenter === 'ready' && subs.stabilizer === 'idle') {
+    return 'Model ready. Point camera at a wall or floor to detect a surface.';
   }
   if (subs.webxr === 'unsupported') return 'WebXR immersive-ar not available in this browser.';
   if (subs.session === 'idle') return 'Tap "Start AR" to begin.';

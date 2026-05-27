@@ -110,12 +110,11 @@ const hint = (subs: SubsystemsSnapshot): string | null => {
   if (subs.webxr === 'unsupported' && subs.platform === 'ios-fallback') {
     return 'iOS has no WebXR. Using camera+gyroscope estimated floor.';
   }
-  if (subs.webxr === 'unsupported') return 'WebXR immersive-ar not available in this browser.';
-  if (subs.session === 'idle') return 'Tap "Start AR" to begin.';
-  if (subs.hitTest === 'searching') return 'Point at a flat surface 0.5–2 m away and move the phone slowly.';
-  if (subs.hitTest === 'unavailable') return 'Hit-test feature not granted — the session may have been requested without it.';
-  if (subs.planes === 'unavailable' && subs.hitTest === 'tracking') {
-    return 'No plane-detection (e.g. WebXR Emulator). Showing synthetic surface at hit pose.';
+  // Active desktop-mock or in-flight segmentation takes precedence over the
+  // generic "WebXR unsupported" message — the user already knows that's why
+  // they're in this branch.
+  if (subs.desktopMock === 'active') {
+    return 'Drag the canvas to rotate the virtual camera; webcam frames drive segmentation.';
   }
   if (subs.segmenter === 'loading') {
     return 'Downloading segmentation model (~10 MB) — first run only.';
@@ -129,8 +128,12 @@ const hint = (subs: SubsystemsSnapshot): string | null => {
   if (subs.segmenter === 'ready' && subs.stabilizer === 'idle') {
     return 'Model ready. Point camera at a wall or floor to detect a surface.';
   }
-  if (subs.desktopMock === 'active') {
-    return 'Drag the canvas to rotate the virtual camera; webcam frames drive segmentation.';
+  if (subs.webxr === 'unsupported') return 'WebXR immersive-ar not available in this browser.';
+  if (subs.session === 'idle') return 'Tap "Start AR" to begin.';
+  if (subs.hitTest === 'searching') return 'Point at a flat surface 0.5–2 m away and move the phone slowly.';
+  if (subs.hitTest === 'unavailable') return 'Hit-test feature not granted — the session may have been requested without it.';
+  if (subs.planes === 'unavailable' && subs.hitTest === 'tracking') {
+    return 'No plane-detection (e.g. WebXR Emulator). Showing synthetic surface at hit pose.';
   }
   return null;
 };

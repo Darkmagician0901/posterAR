@@ -100,11 +100,11 @@ function startEngineWatchdog(): void {
     waited += STEP_MS
     if (waited >= LIMIT_MS) {
       clearInterval(id)
+      // Note reflects the ENGINE state only — optional helpers (xrextras /
+      // landing-page) failing is reported separately and is non-fatal.
       let note: string
-      if (diag.error) {
-        note = `Engine error: ${diag.error}`
-      } else if (diag.engine === 'error') {
-        note = 'Engine script failed to load (network, CORS, or blocked).'
+      if (diag.engine === 'error') {
+        note = 'Engine script failed to load (network, CORS, or blocked) — AR cannot start.'
       } else if (diag.engine !== 'loaded') {
         note = 'Engine script still downloading after 15s — slow or blocked network.'
       } else {

@@ -87,7 +87,14 @@ function App() {
             ? 'ready'
             : 'loading'
       );
-      if (d.error) debugTelemetry.setNote(`Engine error: ${d.error}`);
+      // Distinguish a fatal engine failure from a non-fatal optional-helper
+      // failure. landing-page / xrextras are guarded-optional in runXr8, so
+      // their failure must not read as "engine failed".
+      if (d.engine === 'error') {
+        debugTelemetry.setNote('Engine script failed to load — AR cannot start. Check network/CDN reachability.');
+      } else if (d.xrextras === 'error' || d.landingPage === 'error') {
+        debugTelemetry.setNote('Optional helper failed to load (xrextras/landing-page) — AR still works.');
+      }
       ticks += 1;
       if (d.engine === 'loaded' || d.engine === 'error' || ticks > 30) {
         clearInterval(id);

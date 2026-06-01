@@ -128,12 +128,12 @@ const hint = (subs: SubsystemsSnapshot): string | null => {
   if (subs.segmenter === 'ready' && subs.stabilizer === 'idle') {
     return 'Model ready. Point camera at a wall or floor to detect a surface.';
   }
-  if (subs.webxr === 'unsupported') return 'WebXR immersive-ar not available in this browser.';
+  if (subs.webxr === 'unsupported') return '8th Wall AR engine unavailable — use iOS Safari or Android Chrome with camera access.';
   if (subs.session === 'idle') return 'Tap "Start AR" to begin.';
   if (subs.hitTest === 'searching') return 'Point at a flat surface 0.5–2 m away and move the phone slowly.';
   if (subs.hitTest === 'unavailable') return 'Hit-test feature not granted — the session may have been requested without it.';
   if (subs.planes === 'unavailable' && subs.hitTest === 'tracking') {
-    return 'No plane-detection (e.g. WebXR Emulator). Showing synthetic surface at hit pose.';
+    return 'No detected plane yet — placing on an estimated surface at the reticle.';
   }
   return null;
 };

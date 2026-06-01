@@ -1,38 +1,29 @@
 /**
- * ARExperience
+ * ARExperience — 8th Wall (XR8) camera-pipeline implementation.
  *
- * Direct three.js + WebXR implementation. Bypasses @react-three/* because we
- * need:
- *   - explicit immersive-ar feature set (hit-test, anchors, dom-overlay required;
- *     plane-detection, light-estimation optional)
- *   - renderer.xr.setAnimationLoop as the only frame driver
- *   - poster meshes whose matrices are driven from anchor.anchorSpace each
- *     frame, never from stored position arrays
+ * Replaces the old WebXR-based component. The 8th Wall engine owns the canvas,
+ * camera feed, three.js renderer, and render call — we register a custom
+ * pipeline module and the engine calls onStart/onUpdate each frame.
+ *
+ * XR8.Threejs.pipelineModule() calls renderer.render(scene, camera) for us —
+ * we must NOT call render ourselves.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
   AmbientLight,
+  Camera,
   DirectionalLight,
-  PerspectiveCamera,
+  Group,
   Scene,
   Texture,
   TextureLoader,
-  WebGLRenderer,
-  Group,
 } from 'three';
 
-import {
-  REQUIRED_FEATURES,
-  OPTIONAL_FEATURES,
-  isWebXRSupported,
-  requestARSession,
-} from '@/xr/sessionManager';
-import { readHitTestPose, requestViewerHitTestSource } from '@/xr/hitTest';
-import { AnchorManager } from '@/xr/anchorManager';
-import { createReticle } from '@/xr/reticle';
-import { PlaneRenderer } from '@/xr/planeRenderer';
-import { SyntheticSurfaceMesh } from '@/xr/syntheticSurfaceMesh';
+import { onXr8Ready, runXr8, stopXr8 } from '@/xr8/pipeline';
+import { readReticlePose } from '@/xr8/hitTestController';
+import { PosterPlacement } from '@/xr8/posterPlacement';
+import { createReticle, Reticle } from '@/xr/reticle';
 import { debugTelemetry } from '@/xr/debugTelemetry';
 import { usePosterStore } from '@/store/posterStore';
 import { useUIState } from '@/hooks/useUIState';
@@ -48,327 +39,283 @@ interface ARExperienceProps {
   onSessionEnd?: () => void;
   /** 'dev' adds the dev banner + HUD-on-by-default; 'live' is the normal flow. */
   mode?: 'dev' | 'live';
-  hasEmulator?: boolean;
 }
 
 export const ARExperience: React.FC<ARExperienceProps> = ({
   onSessionStart,
   onSessionEnd,
   mode = 'live',
-  hasEmulator = false,
 }) => {
   const { selectedPosterId } = usePosterStore();
   const { showLoading, setShowLoading, addToast } = useUIState();
   const [isARActive, setIsARActive] = useState(false);
-  const [supportError, setSupportError] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
-  const rendererRef = useRef<WebGLRenderer | null>(null);
-  const sessionRef = useRef<XRSession | null>(null);
-  const anchorManagerRef = useRef<AnchorManager | null>(null);
 
-  const startSession = async () => {
-    setSupportError(null);
-
-    if (!isWebXRSupported()) {
-      setSupportError('WebXR is not available in this browser.');
-      return;
-    }
-
-    if (!canvasRef.current || !overlayRef.current) return;
-
-    let session: XRSession;
-    try {
-      session = await requestARSession({ domOverlayRoot: overlayRef.current });
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error';
-      setSupportError(`Failed to start AR session: ${msg}`);
-      addToast({ type: 'error', message: `AR start failed: ${msg}` });
-      return;
-    }
-
-    sessionRef.current = session;
-    setShowLoading(true);
-    debugTelemetry.setSubsystem('session', 'active');
-
-    const renderer = new WebGLRenderer({
-      canvas: canvasRef.current,
-      alpha: true,
-      antialias: true,
-      preserveDrawingBuffer: true,
-    });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(window.innerWidth, window.innerHeight, false);
-    renderer.xr.enabled = true;
-    rendererRef.current = renderer;
-
-    const scene = new Scene();
-    const camera = new PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 100);
-    scene.add(new AmbientLight(0xffffff, 0.7));
-    const dir = new DirectionalLight(0xffffff, 0.8);
-    dir.position.set(1, 2, 1);
-    scene.add(dir);
-
-    const sceneRoot = new Group();
-    scene.add(sceneRoot);
-
-    const planeRoot = new Group();
-    scene.add(planeRoot);
-
-    const reticle = createReticle();
-    scene.add(reticle.mesh);
-    // Scanner is head-locked → child of the XR camera, which lives under
-    // renderer.xr.getCamera() once a session is set. We attach it lazily on
-    // the first frame because the XR camera object only becomes available
-    // after setSession.
-    let scannerAttached = false;
-
-    const anchorManager = new AnchorManager();
-    anchorManagerRef.current = anchorManager;
-
-    const planeRenderer = new PlaneRenderer(planeRoot);
-    const syntheticMesh = new SyntheticSurfaceMesh(planeRoot);
-
-    const isEmulatorSession = mode === 'dev' && hasEmulator;
-    debugTelemetry.write({
-      session: 'immersive-ar' + (isEmulatorSession ? ' (emulator)' : ''),
-      refSpace: 'local',
-    });
-
-    let localSpace: XRReferenceSpace | null = null;
-    try {
-      localSpace = await session.requestReferenceSpace('local');
-    } catch (error) {
-      console.error('requestReferenceSpace(local) failed:', error);
-      addToast({ type: 'error', message: 'Could not acquire local reference space' });
-      debugTelemetry.setSubsystem('session', 'error');
-      await session.end();
-      return;
-    }
-
-    const hitTestSource = await requestViewerHitTestSource(session);
-    if (!hitTestSource) {
-      addToast({ type: 'error', message: 'Hit-test feature unavailable on this session' });
-      debugTelemetry.setSubsystem('hitTest', 'unavailable');
-    } else {
-      debugTelemetry.setSubsystem('hitTest', 'searching');
-    }
-    debugTelemetry.setSubsystem('anchors', 'ok');
-
-    let lastReticleMatrix: Float32Array | null = null;
-    let placing = false;
-
-    const onSelect = async () => {
-      if (placing) return;
-      if (!lastReticleMatrix) return;
-      const frame = (renderer.xr as unknown as { getFrame: () => XRFrame | null }).getFrame?.();
-      if (!frame || !localSpace) return;
-
-      placing = true;
-      try {
-        const { currentPosterImage } = usePosterStore.getState();
-        const texture = await loadTexture(currentPosterImage);
-        const aspect = texture.image && texture.image.height
-          ? texture.image.height / texture.image.width
-          : 1;
-        const posterId = usePosterStore.getState().addPoster({
-          imageUrl: currentPosterImage,
-          position: [0, 0, 0],
-          rotation: [0, 0, 0],
-          scale: [0.5, 0.5 * aspect, 0.01],
-        });
-        if (!posterId) {
-          addToast({ type: 'info', message: 'Poster limit reached' });
-          return;
-        }
-        const record = await anchorManager.createAnchor(
-          frame,
-          lastReticleMatrix,
-          texture,
-          sceneRoot,
-          aspect,
-          posterId
-        );
-        if (!record) {
-          usePosterStore.getState().removePoster(posterId);
-        }
-      } catch (error) {
-        console.error('Anchor placement failed:', error);
-        addToast({ type: 'error', message: 'Failed to place poster' });
-      } finally {
-        placing = false;
-      }
-    };
-
-    session.addEventListener('select', onSelect);
-
-    // Mirror store deletions/scale changes into the anchor manager so the
-    // mesh disappears (and the underlying XRAnchor is released) on delete,
-    // and so PosterControls scale-slider edits reach the anchored mesh.
-    const unsubscribeStore = usePosterStore.subscribe((state, prev) => {
-      const prevById = new Map(prev.posters.map((p) => [p.id, p]));
-      const nextById = new Map(state.posters.map((p) => [p.id, p]));
-      for (const id of prevById.keys()) {
-        if (!nextById.has(id)) anchorManager.remove(id);
-      }
-      for (const [id, poster] of nextById) {
-        const before = prevById.get(id);
-        if (!before) continue;
-        if (
-          before.scale[0] !== poster.scale[0] ||
-          before.scale[1] !== poster.scale[1]
-        ) {
-          anchorManager.setScale(id, poster.scale[0], poster.scale[1]);
-        }
-      }
-    });
-
-    await renderer.xr.setSession(session);
-
-    renderer.xr.setAnimationLoop((time, frame) => {
-      if (!frame || !localSpace) return;
-
-      debugTelemetry.tick(time);
-      reticle.tick(time);
-
-      // Lazy-attach the head-locked scanner to the active XR camera. The XR
-      // camera array isn't populated until the session is running.
-      if (!scannerAttached) {
-        const xrCamera = renderer.xr.getCamera();
-        if (xrCamera) {
-          xrCamera.add(reticle.scanner);
-          scannerAttached = true;
-        }
-      }
-
-      let hitPose: { matrix: Float32Array; vertical: boolean } | null = null;
-      if (hitTestSource) {
-        hitPose = readHitTestPose(frame, hitTestSource, localSpace);
-        if (hitPose) {
-          reticle.setPose(hitPose.matrix);
-          reticle.setVertical(hitPose.vertical);
-          reticle.setMode('tracking');
-          lastReticleMatrix = hitPose.matrix;
-          debugTelemetry.setSubsystem('hitTest', 'tracking');
-        } else {
-          reticle.setMode('searching');
-          lastReticleMatrix = null;
-          debugTelemetry.setSubsystem('hitTest', 'searching');
-        }
-      } else {
-        reticle.setMode('hidden');
-      }
-
-      anchorManager.update(frame, localSpace);
-
-      const detectedPlanes = (frame as XRFrame & { detectedPlanes?: ReadonlySet<XRPlane> }).detectedPlanes;
-      planeRenderer.update(
-        {
-          planes: detectedPlanes,
-          activeHitMatrix: hitPose?.matrix ?? null,
-          localSpace,
-          showAll: debugTelemetry.read().showAllPlanes,
-        },
-        frame
-      );
-
-      // Synthetic-mesh fallback: when the session doesn't expose
-      // detectedPlanes (e.g. WebXR API Emulator, some ARCore configs) but
-      // we DO have a hit pose, draw a normal-aligned grid quad at the hit
-      // so the user still gets the "this is the surface we found" visual.
-      const planeRendererHasActive =
-        planeRenderer.getActiveStability() !== null;
-      if (!detectedPlanes && hitPose && !planeRendererHasActive) {
-        syntheticMesh.update(hitPose.matrix, hitPose.vertical);
-        debugTelemetry.setSubsystem('planes', 'unavailable');
-        debugTelemetry.setSubsystem('surface', 'estimated');
-      } else if (detectedPlanes && detectedPlanes.size > 0) {
-        syntheticMesh.hide();
-        debugTelemetry.setSubsystem('planes', 'detected');
-        debugTelemetry.setSubsystem(
-          'surface',
-          planeRendererHasActive ? 'tracking' : 'searching'
-        );
-      } else if (detectedPlanes) {
-        syntheticMesh.hide();
-        debugTelemetry.setSubsystem('planes', 'searching');
-        debugTelemetry.setSubsystem('surface', 'searching');
-      } else {
-        syntheticMesh.hide();
-        debugTelemetry.setSubsystem('planes', 'unavailable');
-        debugTelemetry.setSubsystem('surface', hitPose ? 'searching' : 'idle');
-      }
-
-      const counts = planeRenderer.countByOrientation();
-      debugTelemetry.write({
-        hitTest: hitPose ? (hitPose.vertical ? 'vertical' : 'horizontal') : null,
-        planesTotal: detectedPlanes ? detectedPlanes.size : null,
-        planesHorizontal: counts.horizontal,
-        planesVertical: counts.vertical,
-        anchors: anchorManager.size(),
-        activePlaneStability: planeRenderer.getActiveStability(),
-      });
-
-      renderer.render(scene, camera);
-    });
-
-    session.addEventListener('end', () => {
-      session.removeEventListener('select', onSelect);
-      unsubscribeStore();
-      renderer.xr.setAnimationLoop(null);
-      anchorManager.clear();
-      planeRenderer.dispose();
-      syntheticMesh.dispose();
-      anchorManagerRef.current = null;
-      renderer.dispose();
-      rendererRef.current = null;
-      sessionRef.current = null;
-      setIsARActive(false);
-      setShowLoading(false);
-      debugTelemetry.reset();
-      addToast({ type: 'info', message: 'AR session ended' });
-      onSessionEnd?.();
-    });
-
-    setIsARActive(true);
-    setShowLoading(false);
-    addToast({ type: 'success', message: 'AR session started' });
-    onSessionStart?.();
-  };
-
-  const handleExitAR = async () => {
-    const session = sessionRef.current;
-    if (session) await session.end();
-  };
-
-  useEffect(() => {
-    const onResize = () => {
-      if (rendererRef.current) {
-        rendererRef.current.setSize(window.innerWidth, window.innerHeight, false);
-      }
-    };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  const startDisabled = mode === 'dev' && !hasEmulator;
+  // Pipeline-module-scoped refs — created inside onStart, used in onUpdate
+  // and in handleExitAR/cleanup.
+  const placementRef = useRef<PosterPlacement | null>(null);
+  const reticleRef = useRef<Reticle | null>(null);
+  const sceneRootRef = useRef<Group | null>(null);
+  const lastReticleMatrixRef = useRef<Float32Array | null>(null);
+  const unsubscribeStoreRef = useRef<(() => void) | null>(null);
+  const pointerListenerRef = useRef<(() => void) | null>(null);
+  const placingRef = useRef(false);
 
   // Default-on HUD in dev mode (once per mount).
   useEffect(() => {
     if (mode === 'dev') debugTelemetry.setHudVisible(true);
   }, [mode]);
 
+  // ── placePoster ─────────────────────────────────────────────────────────────
+
+  const placePoster = async () => {
+    if (placingRef.current) return;
+    if (!lastReticleMatrixRef.current) return;
+
+    placingRef.current = true;
+    try {
+      const { currentPosterImage } = usePosterStore.getState();
+      const texture = await loadTexture(currentPosterImage);
+      const aspect =
+        texture.image && texture.image.height
+          ? texture.image.height / texture.image.width
+          : 1;
+
+      const posterId = usePosterStore.getState().addPoster({
+        imageUrl: currentPosterImage,
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [0.5, 0.5 * aspect, 0.01],
+      });
+
+      if (!posterId) {
+        addToast({ type: 'info', message: 'Poster limit reached' });
+        return;
+      }
+
+      const placement = placementRef.current;
+      if (!placement) {
+        usePosterStore.getState().removePoster(posterId);
+        return;
+      }
+
+      const matrix = lastReticleMatrixRef.current;
+      if (!matrix) {
+        usePosterStore.getState().removePoster(posterId);
+        return;
+      }
+
+      const placedId = placement.place(matrix, texture, aspect, posterId);
+      if (!placedId) {
+        usePosterStore.getState().removePoster(posterId);
+      }
+    } catch (error) {
+      console.error('Poster placement failed:', error);
+      addToast({ type: 'error', message: 'Failed to place poster' });
+    } finally {
+      placingRef.current = false;
+    }
+  };
+
+  // ── startSession ─────────────────────────────────────────────────────────────
+
+  const startSession = () => {
+    if (!canvasRef.current) return;
+
+    try {
+      const canvas = canvasRef.current;
+
+      // Build the custom camera-pipeline module.
+      const sceneModule: Xr8PipelineModule = {
+        name: 'xrposter-scene',
+
+        onStart({ canvas: pipelineCanvas }: { canvas: HTMLCanvasElement }) {
+          // The 8th Wall engine passes its own canvas reference here, but we
+          // also have our own ref — use whichever is available.
+          const activeCanvas = pipelineCanvas ?? canvas;
+
+          const { scene, camera } = (XR8 as any).Threejs.xrScene() as {
+            scene: Scene;
+            camera: Camera;
+          };
+
+          // Lighting
+          scene.add(new AmbientLight(0xffffff, 0.7));
+          const dir = new DirectionalLight(0xffffff, 0.8);
+          dir.position.set(1, 2, 1);
+          scene.add(dir);
+
+          // Scene root that holds all placed posters.
+          const sceneRoot = new Group();
+          scene.add(sceneRoot);
+          sceneRootRef.current = sceneRoot;
+
+          // Reticle
+          const reticle = createReticle();
+          scene.add(reticle.mesh);
+          // Scanner is head-locked — attach to the camera so it follows the
+          // user's view without any world-tracking math.
+          (camera as any).add(reticle.scanner);
+          reticleRef.current = reticle;
+
+          // Poster placement manager.
+          placementRef.current = new PosterPlacement(sceneRoot);
+
+          // Hint the XrController about the initial camera pose.
+          if (typeof (XR8 as any)?.XrController?.updateCameraProjectionMatrix === 'function') {
+            (XR8 as any).XrController.updateCameraProjectionMatrix({
+              origin: (camera as any).position,
+              facing: (camera as any).quaternion,
+            });
+          }
+
+          // Mirror store deletions and scale-changes into the placement manager.
+          const unsubscribe = usePosterStore.subscribe((state, prev) => {
+            const placement = placementRef.current;
+            if (!placement) return;
+
+            const prevById = new Map(prev.posters.map((p) => [p.id, p]));
+            const nextById = new Map(state.posters.map((p) => [p.id, p]));
+
+            for (const id of prevById.keys()) {
+              if (!nextById.has(id)) placement.remove(id);
+            }
+            for (const [id, poster] of nextById) {
+              const before = prevById.get(id);
+              if (!before) continue;
+              if (
+                before.scale[0] !== poster.scale[0] ||
+                before.scale[1] !== poster.scale[1]
+              ) {
+                placement.setScale(id, poster.scale[0], poster.scale[1]);
+              }
+            }
+          });
+          unsubscribeStoreRef.current = unsubscribe;
+
+          // Touch/mouse listener for poster placement.
+          const onPointerDown = () => {
+            placePoster();
+          };
+          activeCanvas.addEventListener('touchstart', onPointerDown, { passive: true });
+          activeCanvas.addEventListener('mousedown', onPointerDown);
+          pointerListenerRef.current = onPointerDown;
+
+          // Telemetry
+          debugTelemetry.setSubsystem('session', 'active');
+          debugTelemetry.setSubsystem('webxr', 'ok');
+          debugTelemetry.setSubsystem('camera', 'ok');
+          debugTelemetry.setSubsystem('hitTest', 'searching');
+          debugTelemetry.setSubsystem('anchors', 'ok');
+          debugTelemetry.setSubsystem('surface', 'searching');
+          debugTelemetry.setSubsystem('planes', 'searching');
+
+          setShowLoading(false);
+          setIsARActive(true);
+          onSessionStart?.();
+        },
+
+        onUpdate() {
+          const reticle = reticleRef.current;
+          const placement = placementRef.current;
+
+          const pose = readReticlePose();
+
+          if (pose) {
+            reticle?.setPose(pose.matrix);
+            reticle?.setVertical(pose.vertical);
+            reticle?.setMode('tracking');
+            lastReticleMatrixRef.current = pose.matrix;
+            debugTelemetry.setSubsystem('hitTest', 'tracking');
+            debugTelemetry.setSubsystem('surface', 'tracking');
+          } else {
+            reticle?.setMode('searching');
+            lastReticleMatrixRef.current = null;
+            debugTelemetry.setSubsystem('hitTest', 'searching');
+            debugTelemetry.setSubsystem('surface', 'searching');
+          }
+
+          const now = performance.now();
+          reticle?.tick(now);
+          debugTelemetry.tick(now);
+          debugTelemetry.write({
+            hitTest: pose ? (pose.vertical ? 'vertical' : 'horizontal') : null,
+            anchors: placement?.size() ?? 0,
+          });
+        },
+      };
+
+      setShowLoading(true);
+
+      onXr8Ready(() => {
+        runXr8({ canvas, customModules: [sceneModule] });
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      addToast({ type: 'error', message: `AR start failed: ${msg}` });
+      setShowLoading(false);
+    }
+  };
+
+  // ── handleExitAR ─────────────────────────────────────────────────────────────
+
+  const handleExitAR = () => {
+    stopXr8();
+
+    // Unsubscribe store listener.
+    unsubscribeStoreRef.current?.();
+    unsubscribeStoreRef.current = null;
+
+    // Clear all placed posters.
+    placementRef.current?.clear();
+    placementRef.current = null;
+
+    // Remove pointer listener from canvas.
+    if (canvasRef.current && pointerListenerRef.current) {
+      canvasRef.current.removeEventListener('touchstart', pointerListenerRef.current);
+      canvasRef.current.removeEventListener('mousedown', pointerListenerRef.current);
+      pointerListenerRef.current = null;
+    }
+
+    // Reset refs.
+    reticleRef.current = null;
+    sceneRootRef.current = null;
+    lastReticleMatrixRef.current = null;
+    placingRef.current = false;
+
+    debugTelemetry.reset();
+    setIsARActive(false);
+    setShowLoading(false);
+    addToast({ type: 'info', message: 'AR session ended' });
+    onSessionEnd?.();
+  };
+
+  // ── render ───────────────────────────────────────────────────────────────────
+
   return (
     <>
-      {mode === 'dev' && <DevBanner hasEmulator={hasEmulator} />}
+      {mode === 'dev' && <DevBanner hasEmulator={false} />}
       <Header isARActive={isARActive} onExitAR={handleExitAR} />
       <LoadingScreen isLoading={showLoading} message="Initializing AR..." />
       <DebugHUD />
 
-      {/* DOM overlay root — passed to the AR session, holds in-AR UI */}
+      {/* The 8th Wall engine draws the camera feed + 3D scene here.
+          XRExtras.FullWindowCanvas handles resizing. */}
+      <canvas
+        id="camerafeed"
+        ref={canvasRef}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          zIndex: 1,
+        }}
+      />
+
+      {/* UI overlay — ordinary DOM on top of the canvas (no WebXR dom-overlay). */}
       <div
-        ref={overlayRef}
         style={{
           position: 'fixed',
           inset: 0,
@@ -382,26 +329,9 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
         </div>
       </div>
 
-      <canvas
-        ref={canvasRef}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          zIndex: 1,
-        }}
-      />
-
       {!isARActive && (
         <button
           onClick={startSession}
-          disabled={startDisabled}
-          title={
-            startDisabled
-              ? 'Install the WebXR API Emulator extension to mock an AR session'
-              : undefined
-          }
           style={{
             position: 'fixed',
             bottom: '20px',
@@ -410,46 +340,23 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
             padding: '15px 30px',
             fontSize: '18px',
             fontWeight: 'bold',
-            backgroundColor: startDisabled ? '#475569' : '#007bff',
+            backgroundColor: '#007bff',
             color: 'white',
             border: 'none',
             borderRadius: '25px',
-            cursor: startDisabled ? 'not-allowed' : 'pointer',
-            opacity: startDisabled ? 0.7 : 1,
+            cursor: 'pointer',
             zIndex: 1000,
             boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
           }}
         >
-          {startDisabled ? 'Start AR (emulator needed)' : 'Start AR'}
+          Start AR
         </button>
-      )}
-
-      {supportError && (
-        <div
-          style={{
-            position: 'fixed',
-            top: '90px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            padding: '10px 16px',
-            backgroundColor: 'rgba(220, 38, 38, 0.9)',
-            color: 'white',
-            borderRadius: '8px',
-            fontSize: '14px',
-            maxWidth: '90vw',
-            zIndex: 1500,
-          }}
-        >
-          {supportError}
-          <div style={{ fontSize: '11px', marginTop: '4px', opacity: 0.85 }}>
-            required: {REQUIRED_FEATURES.join(', ')}; optional:{' '}
-            {OPTIONAL_FEATURES.join(', ')}
-          </div>
-        </div>
       )}
     </>
   );
 };
+
+// ── texture helpers ───────────────────────────────────────────────────────────
 
 const textureCache = new Map<string, Texture>();
 
@@ -468,6 +375,7 @@ const loadTexture = (url: string): Promise<Texture> =>
         resolve(tex);
       },
       undefined,
-      (err) => reject(err instanceof Error ? err : new Error('Texture load failed'))
+      (err) =>
+        reject(err instanceof Error ? err : new Error('Texture load failed'))
     );
   });

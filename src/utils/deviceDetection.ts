@@ -1,26 +1,8 @@
 /**
- * Device detection and WebXR capability checking utilities
+ * Device detection and 8th Wall (XR8) capability checking utilities
  */
 
 import { XRSupport, DeviceCapability } from '@/types';
-
-/**
- * Detect if immersive-ar is supported. iOS Safari returns false here even
- * with the polyfill installed — the polyfill cannot synthesize immersive-ar
- * on platforms that don't expose the underlying APIs.
- */
-export async function checkWebXRSupport(): Promise<boolean> {
-  if (typeof navigator === 'undefined' || !navigator.xr) {
-    return false;
-  }
-
-  try {
-    return await navigator.xr.isSessionSupported('immersive-ar');
-  } catch (error) {
-    console.error('Error checking immersive-ar support:', error);
-    return false;
-  }
-}
 
 /**
  * Check if camera access is available
@@ -72,21 +54,29 @@ export function isMobile(): boolean {
 }
 
 /**
- * Desktop = not a mobile UA. Used to decide whether to drop the
- * "AR Not Supported" wall in favor of dev mode.
+ * Desktop = not a mobile UA.
  */
 export function isDesktop(): boolean {
   return !isMobile() && !isIOS() && !isAndroid();
 }
 
 /**
- * True when navigator.xr advertises immersive-ar support on a desktop UA.
- * The only realistic way for that to happen is the WebXR API Emulator
- * extension being installed and enabled.
+ * Returns true when the page is served in a secure context (required for
+ * getUserMedia and 8th Wall).
  */
-export async function detectWebXREmulator(): Promise<boolean> {
-  if (!isDesktop()) return false;
-  return await checkWebXRSupport();
+export function isSecureContextOk(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    (window.isSecureContext === true || location.hostname === 'localhost')
+  );
+}
+
+/**
+ * Returns true when the device is compatible with 8th Wall:
+ * must be mobile, have camera access, and be in a secure context.
+ */
+export function isXr8Compatible(hasCamera: boolean): boolean {
+  return isMobile() && hasCamera && isSecureContextOk();
 }
 
 /**
@@ -126,10 +116,9 @@ export function getBrowserInfo(): { name: string; version: string } {
 }
 
 /**
- * Comprehensive XR support detection
+ * Comprehensive XR support detection for 8th Wall
  */
 export async function detectXRSupport(): Promise<XRSupport> {
-  const hasWebXR = await checkWebXRSupport();
   const hasCamera = await checkCameraAccess();
   const hasGyroscope = checkGyroscope();
   const deviceIsIOS = isIOS();
@@ -138,22 +127,10 @@ export async function detectXRSupport(): Promise<XRSupport> {
   const deviceIsDesktop = isDesktop();
   const browser = getBrowserInfo();
 
-  // WebAR fallback support (for devices without WebXR)
-  const hasWebAR = !hasWebXR && hasCamera && deviceIsMobile;
-
-  // iOS Safari cannot run immersive-ar (Apple doesn't ship it), but we can
-  // render an AR-lite experience with getUserMedia + DeviceOrientation.
-  const hasIOSFallback =
-    !hasWebXR && deviceIsIOS && hasCamera && hasGyroscope;
-
-  // Desktop browser advertising immersive-ar = WebXR API Emulator extension.
-  const hasWebXREmulator = deviceIsDesktop && hasWebXR;
+  const hasAR8 = isXr8Compatible(hasCamera);
 
   return {
-    hasWebXR,
-    hasIOSFallback,
-    hasWebXREmulator,
-    hasWebAR,
+    hasAR8,
     hasCamera,
     hasGyroscope,
     isIOS: deviceIsIOS,
@@ -171,15 +148,17 @@ export async function detectXRSupport(): Promise<XRSupport> {
 export async function getDeviceCapabilities(): Promise<DeviceCapability[]> {
   const capabilities: DeviceCapability[] = [];
 
-  if (await checkWebXRSupport()) {
-    capabilities.push(DeviceCapability.WEBXR_SUPPORTED);
+  const support = await detectXRSupport();
+
+  if (support.hasAR8) {
+    capabilities.push(DeviceCapability.AR8_SUPPORTED);
   }
 
-  if (await checkCameraAccess()) {
+  if (support.hasCamera) {
     capabilities.push(DeviceCapability.CAMERA_AVAILABLE);
   }
 
-  if (checkGyroscope()) {
+  if (support.hasGyroscope) {
     capabilities.push(DeviceCapability.GYROSCOPE_AVAILABLE);
   }
 
@@ -187,17 +166,11 @@ export async function getDeviceCapabilities(): Promise<DeviceCapability[]> {
     capabilities.push(DeviceCapability.TOUCH_SUPPORTED);
   }
 
-  // Check for WebAR support (fallback)
-  const support = await detectXRSupport();
-  if (support.hasWebAR) {
-    capabilities.push(DeviceCapability.WEBAR_SUPPORTED);
-  }
-
   return capabilities.length > 0 ? capabilities : [DeviceCapability.NONE];
 }
 
 /**
- * Check if device meets minimum requirements
+ * Check if device meets minimum requirements to run 8th Wall AR
  */
 export async function meetsMinimumRequirements(): Promise<{
   meets: boolean;
@@ -206,8 +179,8 @@ export async function meetsMinimumRequirements(): Promise<{
   const missing: string[] = [];
   const support = await detectXRSupport();
 
-  if (!support.hasWebXR && !support.hasWebAR) {
-    missing.push('WebXR or WebAR support');
+  if (!support.hasAR8) {
+    missing.push('8th Wall AR support (mobile device with camera in secure context required)');
   }
 
   if (!support.hasCamera) {
@@ -215,7 +188,7 @@ export async function meetsMinimumRequirements(): Promise<{
   }
 
   if (!support.isMobile) {
-    missing.push('Mobile device (recommended)');
+    missing.push('Mobile device (iOS Safari or Android Chrome required)');
   }
 
   return {

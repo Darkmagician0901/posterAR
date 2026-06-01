@@ -31,7 +31,7 @@ export interface ARSession {
  * AR Mode types
  */
 export enum ARMode {
-  WEBXR = 'webxr',
+  AR8 = 'ar8',
   WEBAR = 'webar',
   PREVIEW_2D = 'preview-2d',
   NONE = 'none'
@@ -41,7 +41,7 @@ export enum ARMode {
  * Device capability detection
  */
 export enum DeviceCapability {
-  WEBXR_SUPPORTED = 'webxr-supported',
+  AR8_SUPPORTED = 'ar8-supported',
   WEBAR_SUPPORTED = 'webar-supported',
   CAMERA_AVAILABLE = 'camera-available',
   GYROSCOPE_AVAILABLE = 'gyroscope-available',
@@ -53,16 +53,8 @@ export enum DeviceCapability {
  * XR Support interface
  */
 export interface XRSupport {
-  /** True when navigator.xr.isSessionSupported('immersive-ar') returns true.
-   * On iOS Safari this is always false — Apple does not ship immersive-ar.
-   * The webxr-polyfill installs navigator.xr but does not enable immersive-ar. */
-  hasWebXR: boolean;
-  /** True when we can run the iOS camera + DeviceOrientation 3DoF fallback. */
-  hasIOSFallback: boolean;
-  /** True when a desktop browser advertises immersive-ar support — i.e. the
-   * WebXR API Emulator extension is installed and active. */
-  hasWebXREmulator: boolean;
-  hasWebAR: boolean;
+  /** True when the device can plausibly run 8th Wall: mobile + camera + secure context. */
+  hasAR8: boolean;
   hasCamera: boolean;
   hasGyroscope: boolean;
   isIOS: boolean;
@@ -120,7 +112,7 @@ export interface CreatePosterOptions {
  * Error types
  */
 export enum ErrorType {
-  WEBXR_NOT_SUPPORTED = 'webxr-not-supported',
+  AR_NOT_SUPPORTED = 'ar-not-supported',
   CAMERA_PERMISSION_DENIED = 'camera-permission-denied',
   SESSION_INIT_FAILED = 'session-init-failed',
   POSTER_LOAD_FAILED = 'poster-load-failed',

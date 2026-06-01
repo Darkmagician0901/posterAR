@@ -50,7 +50,71 @@ export function onXr8Ready(callback: () => void): void {
     ready()
   } else {
     window.addEventListener('xrloaded', ready, { once: true })
+    startEngineWatchdog()
   }
+}
+
+// ---------------------------------------------------------------------------
+// engine watchdog — surfaces WHY the engine didn't start
+// ---------------------------------------------------------------------------
+
+interface Xr8Diag {
+  engine?: 'pending' | 'loaded' | 'error'
+  xrextras?: 'pending' | 'loaded' | 'error'
+  landingPage?: 'pending' | 'loaded' | 'error'
+  error?: string | null
+}
+
+const scriptStatus = (s: Xr8Diag['engine']): SubsystemStatus =>
+  s === 'loaded' ? 'ready' : s === 'error' ? 'error' : 'loading'
+
+/**
+ * While we wait for `xrloaded`, poll the index.html load-diagnostics so the
+ * panel shows per-script load state, and after a timeout flip `engine` to
+ * 'error' with a concrete reason — otherwise the loading bar would hang at the
+ * pre-engine cap forever (the symptom seen on older iOS).
+ */
+function startEngineWatchdog(): void {
+  const STEP_MS = 1000
+  const LIMIT_MS = 15000
+  let waited = 0
+
+  const id = setInterval(() => {
+    const diag: Xr8Diag = (window as unknown as { __xr8diag?: Xr8Diag }).__xr8diag ?? {}
+
+    debugTelemetry.setSubsystem('engineScript', scriptStatus(diag.engine))
+    const helpers =
+      diag.xrextras === 'error' || diag.landingPage === 'error'
+        ? 'error'
+        : diag.xrextras === 'loaded' && diag.landingPage === 'loaded'
+          ? 'ready'
+          : 'loading'
+    debugTelemetry.setSubsystem('helpers', helpers as SubsystemStatus)
+
+    // Engine became ready in the meantime — the 'xrloaded' handler took over.
+    if (window.XR8) {
+      clearInterval(id)
+      return
+    }
+
+    waited += STEP_MS
+    if (waited >= LIMIT_MS) {
+      clearInterval(id)
+      let note: string
+      if (diag.error) {
+        note = `Engine error: ${diag.error}`
+      } else if (diag.engine === 'error') {
+        note = 'Engine script failed to load (network, CORS, or blocked).'
+      } else if (diag.engine !== 'loaded') {
+        note = 'Engine script still downloading after 15s — slow or blocked network.'
+      } else {
+        note =
+          'Engine loaded but never initialized (no xrloaded). Likely unsupported: needs iOS 16.4+ / WebAssembly SIMD.'
+      }
+      debugTelemetry.setSubsystem('engine', 'error')
+      debugTelemetry.setNote(note)
+    }
+  }, STEP_MS)
 }
 
 // ---------------------------------------------------------------------------

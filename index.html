@@ -47,6 +47,21 @@
       }
     </style>
 
+    <!-- Engine-load diagnostics: record each 8th Wall script's load/error
+         outcome and any early runtime error, so the in-app debug panel can show
+         WHY the engine didn't start (e.g. blocked script vs. unsupported iOS
+         WebAssembly SIMD). Read by src/xr8/pipeline.ts. -->
+    <script>
+      window.__xr8diag = { engine: 'pending', xrextras: 'pending', landingPage: 'pending', error: null };
+      window.addEventListener('error', function (e) {
+        var src = (e && e.target && e.target.src) || '';
+        if (/8thwall|xr\.js|xrextras|landing-page/i.test(src) ||
+            /wasm|webassembly|simd|XR8/i.test(String(e && e.message))) {
+          window.__xr8diag.error = String((e && e.message) || ('Failed to load ' + src)).slice(0, 200);
+        }
+      }, true);
+    </script>
+
     <!-- 8th Wall engine scripts (pinned to 1.0.0 via @1 → latest resolution).
          Load order matters: engine-binary first, then xrextras, then landing-page. -->
 
@@ -64,6 +79,8 @@
       async
       crossorigin="anonymous"
       data-preload-chunks="slam"
+      onload="window.__xr8diag.engine='loaded'"
+      onerror="window.__xr8diag.engine='error'"
     ></script>
 
     <!-- @8thwall/xrextras@1.0.0 — SRI sha384 pinned -->
@@ -71,6 +88,8 @@
       src="https://cdn.jsdelivr.net/npm/@8thwall/xrextras@1.0.0/dist/xrextras.js"
       crossorigin="anonymous"
       integrity="sha384-FBP0ovMkbkCCSsc8IUC82onTsdqDZp9bDMSe37690NZnCXlfWk+hlupzHH7AsBVA"
+      onload="window.__xr8diag.xrextras='loaded'"
+      onerror="window.__xr8diag.xrextras='error'"
     ></script>
 
     <!-- @8thwall/landing-page@1.0.0 — SRI sha384 pinned -->
@@ -78,6 +97,8 @@
       src="https://cdn.jsdelivr.net/npm/@8thwall/landing-page@1.0.0/dist/landing-page.js"
       crossorigin="anonymous"
       integrity="sha384-AWtFm2UVSGxj0NlOo0nqxcVGwFopjKDImToiYfi1+T1p8TU6k/89tVAshCJtUW+d"
+      onload="window.__xr8diag.landingPage='loaded'"
+      onerror="window.__xr8diag.landingPage='error'"
     ></script>
   </head>
   <body>

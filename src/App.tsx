@@ -62,6 +62,40 @@ function App() {
       .finally(() => setIsLoading(false));
   }, []);
 
+  // Bridge index.html's engine-load diagnostics into the panel from boot, so
+  // the engine-script load state is visible even before "Start AR" is tapped.
+  useEffect(() => {
+    const mapScript = (s?: string): 'ready' | 'error' | 'loading' =>
+      s === 'loaded' ? 'ready' : s === 'error' ? 'error' : 'loading';
+    let ticks = 0;
+    const id = setInterval(() => {
+      const d =
+        (window as unknown as {
+          __xr8diag?: {
+            engine?: string;
+            xrextras?: string;
+            landingPage?: string;
+            error?: string | null;
+          };
+        }).__xr8diag ?? {};
+      debugTelemetry.setSubsystem('engineScript', mapScript(d.engine));
+      debugTelemetry.setSubsystem(
+        'helpers',
+        d.xrextras === 'error' || d.landingPage === 'error'
+          ? 'error'
+          : d.xrextras === 'loaded' && d.landingPage === 'loaded'
+            ? 'ready'
+            : 'loading'
+      );
+      if (d.error) debugTelemetry.setNote(`Engine error: ${d.error}`);
+      ticks += 1;
+      if (d.engine === 'loaded' || d.engine === 'error' || ticks > 30) {
+        clearInterval(id);
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
   if (isLoading) {
     return (
       <div className="app-container loading">

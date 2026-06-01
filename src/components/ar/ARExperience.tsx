@@ -306,6 +306,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
         message="Initializing AR..."
         progress={loadProgress.percent}
         stageLabel={loadProgress.label}
+        error={loadProgress.error}
       />
       <DebugHUD />
 

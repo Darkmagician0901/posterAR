@@ -17,6 +17,8 @@ interface LoadingScreenProps {
   progress?: number;
   /** Optional stage label shown above the bar (e.g. "Downloading AR engine…"). */
   stageLabel?: string;
+  /** When true, render the bar/label in an error state (engine failed/stalled). */
+  error?: boolean;
 }
 
 /**
@@ -27,6 +29,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   message = 'Initializing AR...',
   progress,
   stageLabel,
+  error = false,
 }) => {
   const [isVisible, setIsVisible] = useState(isLoading);
   const [isFadingOut, setIsFadingOut] = useState(false);
@@ -73,7 +76,9 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
         </div>
 
         {/* Loading message */}
-        <div className="loading-message">{heading}</div>
+        <div className={`loading-message ${error ? 'loading-message-error' : ''}`}>
+          {heading}
+        </div>
 
         {isDeterminate ? (
           <div
@@ -85,11 +90,11 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
           >
             <div className="loading-progress-track">
               <div
-                className="loading-progress-fill"
-                style={{ width: `${shownPercent}%` }}
+                className={`loading-progress-fill ${error ? 'loading-progress-fill-error' : ''}`}
+                style={{ width: `${error ? Math.max(shownPercent, 8) : shownPercent}%` }}
               />
             </div>
-            <div className="loading-progress-pct">{shownPercent}%</div>
+            <div className="loading-progress-pct">{error ? 'stalled' : `${shownPercent}%`}</div>
           </div>
         ) : (
           /* Indeterminate animated dots */

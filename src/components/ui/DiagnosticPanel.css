@@ -116,6 +116,16 @@
   50%      { opacity: 0.55; transform: scale(0.82); }
 }
 
+.diagnostic-note {
+  padding: 7px 9px;
+  background-color: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #fca5a5;
+}
+
 .diagnostic-section {
   display: flex;
   justify-content: space-between;

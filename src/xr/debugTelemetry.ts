@@ -49,8 +49,12 @@ export type PlatformLabel =
   | 'unknown';
 
 export interface SubsystemsSnapshot {
-  /** 8th Wall engine (xr.js + SLAM WASM) load state. */
+  /** 8th Wall engine (xr.js + SLAM WASM) ready state (xrloaded fired). */
   engine: SubsystemStatus;
+  /** engine-binary <script> network load outcome (loaded vs blocked/404). */
+  engineScript: SubsystemStatus;
+  /** xrextras + landing-page <script> load outcome. */
+  helpers: SubsystemStatus;
   /** Camera pipeline running (XR8.run). */
   session: SubsystemStatus;
   /** Camera permission / feed. */
@@ -89,6 +93,8 @@ export interface TelemetrySnapshot {
   hitTest: 'horizontal' | 'vertical' | null;
   /** Number of posters currently placed. */
   posters: number;
+  /** Freeform diagnostic message (e.g. why the engine failed to start). */
+  note: string | null;
   hudVisible: boolean;
   timing: LoadTiming;
   subsystems: SubsystemsSnapshot;
@@ -96,6 +102,8 @@ export interface TelemetrySnapshot {
 
 const initialSubsystems: SubsystemsSnapshot = {
   engine: 'idle',
+  engineScript: 'idle',
+  helpers: 'idle',
   session: 'idle',
   camera: 'idle',
   motion: 'idle',
@@ -119,6 +127,7 @@ const initial: TelemetrySnapshot = {
   fps: 0,
   hitTest: null,
   posters: 0,
+  note: null,
   hudVisible:
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('debug') === '1',
@@ -183,6 +192,13 @@ export const debugTelemetry = {
   ): void {
     if (state.subsystems[name] === status) return;
     state.subsystems[name] = status;
+    notify();
+  },
+
+  /** Set (or clear with null) the freeform diagnostic note shown on the panel. */
+  setNote(note: string | null): void {
+    if (state.note === note) return;
+    state.note = note;
     notify();
   },
 

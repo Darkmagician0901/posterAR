@@ -93,6 +93,8 @@ const slowestStage = (t: LoadTiming): number | null => {
  */
 const ROWS: { key: keyof Omit<SubsystemsSnapshot, 'platform'>; label: string }[] = [
   { key: 'engine',        label: 'Engine (XR8)' },
+  { key: 'engineScript',  label: 'Engine script' },
+  { key: 'helpers',       label: 'Helpers (xrextras)' },
   { key: 'session',       label: 'Session' },
   { key: 'camera',        label: 'Camera' },
   { key: 'motion',        label: 'Motion' },
@@ -152,6 +154,7 @@ const hint = (subs: SubsystemsSnapshot): string | null => {
 export const DiagnosticPanel: React.FC = () => {
   const [snapshot, setSnapshot] = useState(() => debugTelemetry.read().subsystems);
   const [timing, setTiming] = useState<LoadTiming>(() => debugTelemetry.read().timing);
+  const [note, setNote] = useState<string | null>(() => debugTelemetry.read().note);
   const [expanded, setExpanded] = useState(false);
   const [dismissed, setDismissed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -162,6 +165,7 @@ export const DiagnosticPanel: React.FC = () => {
     const refresh = () => {
       setSnapshot({ ...debugTelemetry.read().subsystems });
       setTiming({ ...debugTelemetry.read().timing });
+      setNote(debugTelemetry.read().note);
     };
     const unsub = debugTelemetry.subscribe(refresh);
     // 1 Hz heartbeat so transient states (e.g. 'searching' updates) still
@@ -207,6 +211,7 @@ export const DiagnosticPanel: React.FC = () => {
 
       {expanded && (
         <div className="diagnostic-body">
+          {note && <div className="diagnostic-note">{note}</div>}
           {ROWS.map(({ key, label }) => {
             const status = snapshot[key];
             const color = statusColor(status);

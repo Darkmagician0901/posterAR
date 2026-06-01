@@ -153,6 +153,19 @@
   letter-spacing: 0.5px;
 }
 
+.loading-progress-fill-error {
+  background: linear-gradient(90deg, #b91c1c 0%, #ef4444 100%);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+}
+
+.loading-message-error {
+  color: #fca5a5;
+  font-size: 15px;
+  font-weight: 500;
+  max-width: min(320px, 80vw);
+  line-height: 1.4;
+}
+
 /* Loading hint */
 .loading-hint {
   color: rgba(255, 255, 255, 0.6);

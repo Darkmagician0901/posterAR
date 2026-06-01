@@ -19,6 +19,8 @@ export interface ArLoadProgress {
   /** 0–100, rounded. */
   percent: number;
   label: string;
+  /** True when the engine failed/stalled — the bar should stop and show why. */
+  error: boolean;
 }
 
 interface Stage {
@@ -54,23 +56,36 @@ export function useArLoadProgress(active: boolean): ArLoadProgress {
   const [progress, setProgress] = useState<ArLoadProgress>({
     percent: 0,
     label: 'Preparing…',
+    error: false,
   });
   const percentRef = useRef(0);
 
   useEffect(() => {
     if (!active) {
       percentRef.current = 0;
-      setProgress({ percent: 0, label: 'Preparing…' });
+      setProgress({ percent: 0, label: 'Preparing…', error: false });
       return;
     }
 
     const id = setInterval(() => {
+      const snap = debugTelemetry.read();
+
+      // Engine failed/stalled — freeze the bar and show the diagnostic note.
+      if (snap.subsystems.engine === 'error') {
+        setProgress({
+          percent: Math.round(percentRef.current),
+          label: snap.note ?? 'AR engine failed to load',
+          error: true,
+        });
+        return;
+      }
+
       const { target, cap, label } = stageFor();
       // Snap up to the stage floor, then ease toward its cap (monotonic).
       const base = Math.max(percentRef.current, target);
       const next = Math.min(cap, base + (cap - base) * EASE);
       percentRef.current = next;
-      setProgress({ percent: Math.round(next), label });
+      setProgress({ percent: Math.round(next), label, error: false });
     }, TICK_MS);
 
     return () => clearInterval(id);

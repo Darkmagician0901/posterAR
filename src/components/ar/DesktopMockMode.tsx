@@ -312,7 +312,7 @@ export const DesktopMockMode: React.FC = () => {
       placementRef.current.place(
         lastReticleMatrixRef.current,
         texture,
-        1 / aspect, // PosterPlacement expects width/height (landscape aspect)
+        aspect, // PosterPlacement: height = width * aspectRatio (aspect = h/w)
         posterId,
       );
     } catch (err) {

@@ -49,3 +49,9 @@ coverage
 # Smoke-test artifacts (Playwright MCP)
 .playwright-mcp/
 desktop-mock-*.png
+
+# Claude / superpowers / planning artifacts — local only, never pushed
+docs/superpowers/
+task_plan.md
+findings.md
+progress.md

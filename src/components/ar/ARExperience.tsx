@@ -27,6 +27,7 @@ import { createReticle, Reticle } from '@/xr/reticle';
 import { debugTelemetry } from '@/xr/debugTelemetry';
 import { usePosterStore } from '@/store/posterStore';
 import { useUIState } from '@/hooks/useUIState';
+import { useArLoadProgress } from '@/hooks/useArLoadProgress';
 import { ControlPanel } from '@/components/ui/ControlPanel';
 import { PosterControls } from '@/components/ui/PosterControls';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
@@ -49,6 +50,9 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
   const { selectedPosterId } = usePosterStore();
   const { showLoading, setShowLoading, addToast } = useUIState();
   const [isARActive, setIsARActive] = useState(false);
+
+  // Drives the determinate loading bar during 8th Wall engine + SLAM startup.
+  const loadProgress = useArLoadProgress(showLoading);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -297,7 +301,12 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
     <>
       {mode === 'dev' && <DevBanner hasEmulator={false} />}
       <Header isARActive={isARActive} onExitAR={handleExitAR} />
-      <LoadingScreen isLoading={showLoading} message="Initializing AR..." />
+      <LoadingScreen
+        isLoading={showLoading}
+        message="Initializing AR..."
+        progress={loadProgress.percent}
+        stageLabel={loadProgress.label}
+      />
       <DebugHUD />
 
       {/* The 8th Wall engine draws the camera feed + 3D scene here.

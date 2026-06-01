@@ -120,6 +120,39 @@
   }
 }
 
+/* Determinate progress bar */
+.loading-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(280px, 72vw);
+}
+
+.loading-progress-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.loading-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0088ff 0%, #00d4ff 100%);
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.6);
+  transition: width 0.25s ease-out;
+  will-change: width;
+}
+
+.loading-progress-pct {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+}
+
 /* Loading hint */
 .loading-hint {
   color: rgba(255, 255, 255, 0.6);
@@ -173,6 +206,10 @@
   .loading-hint {
     animation: none;
     opacity: 0.8;
+  }
+
+  .loading-progress-fill {
+    transition: none;
   }
 }
 

@@ -19,6 +19,7 @@
  * `reality.trackingstatus` events.
  */
 
+import * as THREE from 'three'
 import { debugTelemetry, SubsystemStatus } from '@/xr/debugTelemetry'
 
 // ---------------------------------------------------------------------------
@@ -188,6 +189,14 @@ export interface Xr8RunOptions {
  */
 export function runXr8(options: Xr8RunOptions): void {
   const { canvas, customModules = [], disableWorldTracking = false } = options
+
+  // XR8.Threejs.pipelineModule() reads the three.js library from the global
+  // window.THREE and throws "THREE does not exist but is required" if it is
+  // unset. Our app imports three as an ES module, so expose it here before the
+  // Threejs module is registered.
+  if (typeof window !== 'undefined') {
+    ;(window as unknown as { THREE?: typeof THREE }).THREE = THREE
+  }
 
   const modules: Xr8PipelineModule[] = []
 

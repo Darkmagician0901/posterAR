@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Mobile-first AR web application for placing 2D posters using WebXR",
+  "description": "Mobile-first AR web application for placing 2D posters using 8th Wall",
   "scripts": {
     "dev": "vite --host",
     "build": "tsc && vite build",
@@ -25,14 +25,10 @@
   "dependencies": {
     "@react-three/drei": "^9.95.0",
     "@react-three/fiber": "^8.15.0",
-    "@react-three/xr": "^6.2.0",
-    "@tensorflow-models/deeplab": "^0.2.2",
-    "@tensorflow/tfjs": "^4.22.0",
     "@use-gesture/react": "^10.3.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "three": "^0.160.0",
-    "webxr-polyfill": "^2.0.3",
     "zustand": "^4.4.7"
   },
   "devDependencies": {

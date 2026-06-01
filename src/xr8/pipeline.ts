@@ -12,7 +12,14 @@
  * access on them is therefore unrestricted by TypeScript, but every optional
  * module is also guarded at runtime before use so a missing CDN bundle cannot
  * throw.
+ *
+ * It also feeds the diagnostic panel's load-timing track: `engineReady` is
+ * marked when the engine global appears, `pipelineRun` when the camera loop
+ * starts, and `worldTracking` / `firstTracking` are driven from the engine's
+ * `reality.trackingstatus` events.
  */
+
+import { debugTelemetry, SubsystemStatus } from '@/xr/debugTelemetry'
 
 // ---------------------------------------------------------------------------
 // onXr8Ready
@@ -33,12 +40,60 @@ export function onXr8Ready(callback: () => void): void {
     return
   }
 
-  if (window.XR8) {
+  const ready = () => {
+    debugTelemetry.mark('engineReady')
+    debugTelemetry.setSubsystem('engine', 'ready')
     callback()
-  } else {
-    const handler = () => callback()
-    window.addEventListener('xrloaded', handler, { once: true })
   }
+
+  if (window.XR8) {
+    ready()
+  } else {
+    window.addEventListener('xrloaded', ready, { once: true })
+  }
+}
+
+// ---------------------------------------------------------------------------
+// world-tracking telemetry module
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps an 8th Wall `reality.trackingstatus` payload to a subsystem status.
+ * The engine reports statuses like 'NORMAL' | 'LIMITED' | 'NOT_AVAILABLE';
+ * we read defensively (status or reason fields) and default to 'limited'.
+ */
+function trackingStatusToSubsystem(detail: unknown): SubsystemStatus {
+  const raw =
+    (detail as { status?: string; reason?: string } | undefined)?.status ??
+    (detail as { status?: string; reason?: string } | undefined)?.reason ??
+    ''
+  switch (String(raw).toUpperCase()) {
+    case 'NORMAL':
+      return 'normal'
+    case 'NOT_AVAILABLE':
+    case 'UNAVAILABLE':
+      return 'notavailable'
+    case 'LIMITED':
+    default:
+      return 'limited'
+  }
+}
+
+/** A listener-only pipeline module that mirrors SLAM tracking into telemetry. */
+function trackingTelemetryModule(): Xr8PipelineModule {
+  return {
+    name: 'xrposter-tracking-telemetry',
+    listeners: [
+      {
+        event: 'reality.trackingstatus',
+        process: ({ detail }: { detail: unknown }) => {
+          const status = trackingStatusToSubsystem(detail)
+          debugTelemetry.setSubsystem('worldTracking', status)
+          if (status === 'normal') debugTelemetry.mark('firstTracking')
+        },
+      },
+    ],
+  } as unknown as Xr8PipelineModule
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +152,9 @@ export function runXr8(options: Xr8RunOptions): void {
     modules.push(XRExtras.RuntimeError.pipelineModule())
   }
 
+  // World-tracking → telemetry bridge (listener-only).
+  modules.push(trackingTelemetryModule())
+
   // Caller-supplied custom modules go last so they can override / extend.
   modules.push(...customModules)
 
@@ -107,6 +165,7 @@ export function runXr8(options: Xr8RunOptions): void {
     XR8.XrController.configure({ disableWorldTracking: !!disableWorldTracking })
   }
 
+  debugTelemetry.mark('pipelineRun')
   XR8.run({ canvas })
 }
 

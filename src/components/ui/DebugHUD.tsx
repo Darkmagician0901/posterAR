@@ -3,11 +3,26 @@
  *
  * Toggleable overlay that samples debugTelemetry at 5 Hz. Lives outside the
  * 60 FPS render path — never re-renders the React tree from frame data.
+ *
+ * Shows live 8th Wall subsystem state plus the startup load-timing track,
+ * which is the quickest way to see where time-to-AR goes (notably the engine
+ * + SLAM WASM download on iOS).
  */
 
 import React, { useEffect, useState } from 'react';
-import { debugTelemetry, TelemetrySnapshot } from '@/xr/debugTelemetry';
+import { debugTelemetry, TelemetrySnapshot, LoadStage } from '@/xr/debugTelemetry';
 import './DebugHUD.css';
+
+const ms = (v: number | null): string => (v === null ? '—' : `${v} ms`);
+
+const TIMING_ROWS: { key: LoadStage; label: string }[] = [
+  { key: 'appMounted', label: 'App mount' },
+  { key: 'supportDetected', label: 'Detect' },
+  { key: 'engineReady', label: 'Engine ready' },
+  { key: 'pipelineRun', label: 'Pipeline run' },
+  { key: 'firstFrame', label: 'First frame' },
+  { key: 'firstTracking', label: 'First track' },
+];
 
 export const DebugHUD: React.FC = () => {
   const [snapshot, setSnapshot] = useState<TelemetrySnapshot>(() =>
@@ -28,6 +43,8 @@ export const DebugHUD: React.FC = () => {
 
   if (!snapshot.hudVisible) return null;
 
+  const subs = snapshot.subsystems;
+
   return (
     <div className="debug-hud" role="status" aria-label="Debug telemetry">
       <div className="debug-hud-row">
@@ -35,43 +52,33 @@ export const DebugHUD: React.FC = () => {
         <span>{snapshot.fps}</span>
       </div>
       <div className="debug-hud-row">
-        <span>Session</span>
-        <span>{snapshot.session}</span>
+        <span>Engine</span>
+        <span>{subs.engine}</span>
       </div>
       <div className="debug-hud-row">
-        <span>RefSpace</span>
-        <span>{snapshot.refSpace}</span>
+        <span>World track</span>
+        <span>{subs.worldTracking}</span>
       </div>
       <div className="debug-hud-row">
         <span>Hit-test</span>
         <span>{snapshot.hitTest ?? '—'}</span>
       </div>
       <div className="debug-hud-row">
-        <span>Planes</span>
-        <span>
-          {snapshot.planesTotal === null
-            ? 'n/a'
-            : `${snapshot.planesTotal} (${snapshot.planesHorizontal}H, ${snapshot.planesVertical}V)`}
-        </span>
+        <span>Surface</span>
+        <span>{subs.surface}</span>
       </div>
       <div className="debug-hud-row">
-        <span>Anchors</span>
-        <span>{snapshot.anchors}</span>
+        <span>Posters</span>
+        <span>{snapshot.posters}</span>
       </div>
-      <div className="debug-hud-row">
-        <span>Active</span>
-        <span className={`debug-stability debug-stability-${snapshot.activePlaneStability ?? 'none'}`}>
-          {snapshot.activePlaneStability ?? '—'}
-        </span>
-      </div>
-      <label className="debug-hud-toggle">
-        <input
-          type="checkbox"
-          checked={snapshot.showAllPlanes}
-          onChange={(e) => debugTelemetry.setShowAllPlanes(e.target.checked)}
-        />
-        Show all planes
-      </label>
+
+      <div className="debug-hud-section">Load timing</div>
+      {TIMING_ROWS.map(({ key, label }) => (
+        <div className="debug-hud-row" key={key}>
+          <span>{label}</span>
+          <span>{ms(snapshot.timing[key])}</span>
+        </div>
+      ))}
     </div>
   );
 };

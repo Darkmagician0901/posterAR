@@ -3,7 +3,6 @@ import { detectXRSupport } from '@/utils/deviceDetection';
 import { XRSupport } from '@/types';
 import { UI_TEXT } from '@/utils/constants';
 import { ARExperience } from '@/components/ar/ARExperience';
-import { IOSARFallback } from '@/components/ar/IOSARFallback';
 import { DesktopMockMode } from '@/components/ar/DesktopMockMode';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -14,29 +13,14 @@ import { debugTelemetry } from '@/xr/debugTelemetry';
 
 /**
  * Three branches:
- *   1. Native immersive-ar supported  → ARExperience (Android Chrome path)
- *   2. iOS Safari with camera + motion → IOSARFallback (3DoF AR-lite)
- *   3. Everything else                → explicit "AR Not Supported" panel
- *
- * Branch selection is gated on the result of navigator.xr.isSessionSupported.
- * There is no silent fallback — the user always sees which branch they
- * landed on.
+ *   1. hasAR8 (mobile + camera + secure context) → ARExperience via 8th Wall
+ *   2. isDesktop                                 → DesktopMockMode
+ *   3. Everything else                           → "AR Not Supported" panel
  */
-/**
- * URL flag: `?desktopMock=1` opts the desktop branch into the segmentation
- * sandbox (laptop webcam + DeepLab + mouse-driven orientation). Useful for
- * iterating on the iOS pipeline without an iPhone or WebXR Emulator.
- */
-const desktopMockRequested = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  return new URLSearchParams(window.location.search).get('desktopMock') === '1';
-};
-
 function App() {
   const [xrSupport, setXrSupport] = useState<XRSupport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showDeviceInfo, setShowDeviceInfo] = useState(false);
-  const useDesktopMock = desktopMockRequested();
 
   useEffect(() => {
     detectXRSupport()
@@ -47,7 +31,7 @@ function App() {
         // is meaningful even before any AR session is started.
         debugTelemetry.setSubsystem(
           'webxr',
-          support.hasWebXR ? 'ok' : 'unsupported'
+          support.hasAR8 ? 'ok' : 'unsupported'
         );
         debugTelemetry.setSubsystem(
           'camera',
@@ -58,13 +42,8 @@ function App() {
           support.hasGyroscope ? 'ok' : 'unavailable'
         );
 
-        if (support.hasWebXR) {
-          debugTelemetry.setSubsystem(
-            'platform',
-            support.hasWebXREmulator ? 'desktop-emulator' : 'android-webxr'
-          );
-        } else if (support.hasIOSFallback) {
-          debugTelemetry.setSubsystem('platform', 'ios-fallback');
+        if (support.hasAR8) {
+          debugTelemetry.setSubsystem('platform', 'android-webxr');
         } else if (support.isDesktop) {
           debugTelemetry.setSubsystem('platform', 'desktop-dev');
         } else {
@@ -84,10 +63,8 @@ function App() {
     );
   }
 
-  // Branch 1: native WebXR immersive-ar (Android Chrome, or desktop with the
-  // WebXR API Emulator extension).
-  if (xrSupport?.hasWebXR) {
-    const mode = xrSupport.hasWebXREmulator ? 'dev' : 'live';
+  // Branch 1: 8th Wall capable — mobile device with camera in a secure context.
+  if (xrSupport?.hasAR8) {
     return (
       <ErrorBoundary>
         <MainLayout>
@@ -96,8 +73,7 @@ function App() {
             <InstructionsOverlay />
             <DiagnosticPanel />
             <ARExperience
-              mode={mode}
-              hasEmulator={xrSupport.hasWebXREmulator}
+              mode="live"
               onSessionStart={() => console.log('AR session started')}
               onSessionEnd={() => console.log('AR session ended')}
             />
@@ -112,31 +88,8 @@ function App() {
     );
   }
 
-  // Branch 1b: desktop without the emulator extension. Two sub-modes:
-  //   - ?desktopMock=1  → DesktopMockMode (segmentation pipeline on the
-  //     laptop webcam, mouse-driven orientation). Lets the user iterate on
-  //     the iOS pipeline without an iPhone or WebXR Emulator extension.
-  //   - default         → ARExperience in dev mode (existing wall stub).
+  // Branch 2: desktop — always the mock mode.
   if (xrSupport?.isDesktop) {
-    if (useDesktopMock) {
-      return (
-        <ErrorBoundary>
-          <MainLayout>
-            <div className="app-container">
-              <Toast />
-              <InstructionsOverlay />
-              <DiagnosticPanel />
-              <DesktopMockMode />
-              <DeviceInfoButton
-                show={showDeviceInfo}
-                onToggle={() => setShowDeviceInfo((s) => !s)}
-                support={xrSupport}
-              />
-            </div>
-          </MainLayout>
-        </ErrorBoundary>
-      );
-    }
     return (
       <ErrorBoundary>
         <MainLayout>
@@ -144,35 +97,11 @@ function App() {
             <Toast />
             <InstructionsOverlay />
             <DiagnosticPanel />
-            <ARExperience
-              mode="dev"
-              hasEmulator={false}
-              onSessionStart={() => console.log('AR session started')}
-              onSessionEnd={() => console.log('AR session ended')}
-            />
+            <DesktopMockMode />
             <DeviceInfoButton
               show={showDeviceInfo}
               onToggle={() => setShowDeviceInfo((s) => !s)}
               support={xrSupport}
-            />
-          </div>
-        </MainLayout>
-      </ErrorBoundary>
-    );
-  }
-
-  // Branch 2: iOS Safari — no immersive-ar, but we can run camera + motion.
-  if (xrSupport?.hasIOSFallback) {
-    return (
-      <ErrorBoundary>
-        <MainLayout>
-          <div className="app-container">
-            <Toast />
-            <InstructionsOverlay />
-            <DiagnosticPanel />
-            <IOSARFallback
-              onSessionStart={() => console.log('iOS AR session started')}
-              onSessionEnd={() => console.log('iOS AR session ended')}
             />
           </div>
         </MainLayout>
@@ -193,14 +122,10 @@ function App() {
         <div className="error-message">
           <h2>AR Not Supported</h2>
           <p>This device or browser cannot run the AR experience.</p>
-          <p>To use this app:</p>
+          <p>To use this app, you need a mobile device with camera access:</p>
           <ul>
-            <li>Android: Chrome 90+ with ARCore installed</li>
-            <li>iOS: Safari with camera + motion permissions allowed</li>
+            <li>iOS 13+ Safari or Android Chrome, camera permission required</li>
           </ul>
-          <p style={{ marginTop: '12px', fontSize: '13px', opacity: 0.8 }}>
-            Required WebXR features: hit-test, anchors, dom-overlay.
-          </p>
         </div>
 
         <button
@@ -229,8 +154,7 @@ const DeviceInfoTable: React.FC<{ support: XRSupport }> = ({ support }) => (
   <div className="device-info" style={{ marginTop: '20px' }}>
     <h3>Device Information</h3>
     <ul>
-      <li>WebXR immersive-ar: {support.hasWebXR ? 'yes' : 'no'}</li>
-      <li>iOS Fallback eligible: {support.hasIOSFallback ? 'yes' : 'no'}</li>
+      <li>AR (8th Wall) capable: {support.hasAR8 ? 'yes' : 'no'}</li>
       <li>Camera Access: {support.hasCamera ? 'yes' : 'no'}</li>
       <li>Gyroscope: {support.hasGyroscope ? 'yes' : 'no'}</li>
       <li>Mobile Device: {support.isMobile ? 'yes' : 'no'}</li>
@@ -286,7 +210,7 @@ const DeviceInfoButton: React.FC<{
       >
         <h3 style={{ margin: '0 0 10px 0' }}>Device Info</h3>
         <ul style={{ margin: 0, paddingLeft: '20px' }}>
-          <li>WebXR: {support.hasWebXR ? 'yes' : 'no'}</li>
+          <li>AR (8th Wall): {support.hasAR8 ? 'yes' : 'no'}</li>
           <li>Camera: {support.hasCamera ? 'yes' : 'no'}</li>
           <li>Gyroscope: {support.hasGyroscope ? 'yes' : 'no'}</li>
           <li>

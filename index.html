@@ -16,20 +16,20 @@
     <meta name="theme-color" content="#6366f1" />
     
     <!-- SEO -->
-    <meta name="description" content="Place 2D posters in augmented reality using WebXR. Mobile-first AR web application." />
-    <meta name="keywords" content="AR, WebXR, augmented reality, posters, mobile, web app" />
+    <meta name="description" content="Place 2D posters in augmented reality using 8th Wall WebAR. Mobile-first AR web application." />
+    <meta name="keywords" content="AR, 8th Wall, WebAR, augmented reality, posters, mobile, web app" />
     <meta name="author" content="XR Poster Team" />
-    
+
     <!-- Open Graph / Social Media -->
     <meta property="og:type" content="website" />
     <meta property="og:title" content="XR Poster - AR Experience" />
-    <meta property="og:description" content="Place 2D posters in augmented reality using WebXR" />
+    <meta property="og:description" content="Place 2D posters in augmented reality using 8th Wall WebAR" />
     <meta property="og:url" content="https://xrposter.com" />
-    
+
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="XR Poster - AR Experience" />
-    <meta name="twitter:description" content="Place 2D posters in augmented reality using WebXR" />
+    <meta name="twitter:description" content="Place 2D posters in augmented reality using 8th Wall WebAR" />
     
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
@@ -46,6 +46,39 @@
         font-size: 16px !important;
       }
     </style>
+
+    <!-- 8th Wall engine scripts (pinned to 1.0.0 via @1 → latest resolution).
+         Load order matters: engine-binary first, then xrextras, then landing-page. -->
+
+    <!-- SRI NOTE for engine-binary: xr.js is a loader that fetches additional
+         runtime chunks (slam.js and other split chunks) via dynamic import at
+         start-up. An integrity= hash on the loader script does NOT cover those
+         fetched chunks, so a static SRI attribute here provides only partial
+         protection and could break silently if the chunk manifest changes between
+         CDN cache refreshes. Therefore SRI is intentionally omitted for this tag.
+         The loader hash for audit purposes is:
+         sha384-sH8AXfEATN+EQxSgGL852nRJGeh567wcA55RkkDGgi0cWoE5Zh0Mi8c2bxsLZuya
+         Pinned version: @8thwall/engine-binary@1.0.0 -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/@8thwall/engine-binary@1.0.0/dist/xr.js"
+      async
+      crossorigin="anonymous"
+      data-preload-chunks="slam"
+    ></script>
+
+    <!-- @8thwall/xrextras@1.0.0 — SRI sha384 pinned -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/@8thwall/xrextras@1.0.0/dist/xrextras.js"
+      crossorigin="anonymous"
+      integrity="sha384-FBP0ovMkbkCCSsc8IUC82onTsdqDZp9bDMSe37690NZnCXlfWk+hlupzHH7AsBVA"
+    ></script>
+
+    <!-- @8thwall/landing-page@1.0.0 — SRI sha384 pinned -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/@8thwall/landing-page@1.0.0/dist/landing-page.js"
+      crossorigin="anonymous"
+      integrity="sha384-AWtFm2UVSGxj0NlOo0nqxcVGwFopjKDImToiYfi1+T1p8TU6k/89tVAshCJtUW+d"
+    ></script>
   </head>
   <body>
     <!-- Root element for React -->

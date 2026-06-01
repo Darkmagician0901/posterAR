@@ -5,17 +5,36 @@
 import { XRSupport, DeviceCapability } from '@/types';
 
 /**
- * Check if camera access is available
+ * Camera *capability* check — does this browser expose the getUserMedia API?
+ *
+ * This is intentionally non-prompting: it does NOT open a camera stream, so
+ * it never triggers the OS permission dialog. We use it at startup so the app
+ * can decide its branch instantly and let 8th Wall own the actual camera
+ * permission prompt at "Start AR". (Opening + closing a stream during
+ * detection was the main cause of slow first paint on iOS — the app blocked
+ * behind the permission dialog before anything rendered.)
+ */
+export function hasCameraApi(): boolean {
+  return (
+    typeof navigator !== 'undefined' &&
+    !!navigator.mediaDevices &&
+    typeof navigator.mediaDevices.getUserMedia === 'function'
+  );
+}
+
+/**
+ * Explicit camera *permission* check — actually opens (and immediately stops)
+ * a stream, which prompts the user. NOT used during startup detection; kept
+ * for flows that genuinely need to confirm a grant up front.
  */
 export async function checkCameraAccess(): Promise<boolean> {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+  if (!hasCameraApi()) {
     return false;
   }
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    // Stop the stream immediately after checking
-    stream.getTracks().forEach(track => track.stop());
+    stream.getTracks().forEach((track) => track.stop());
     return true;
   } catch (error) {
     console.warn('Camera access denied or unavailable:', error);
@@ -119,7 +138,8 @@ export function getBrowserInfo(): { name: string; version: string } {
  * Comprehensive XR support detection for 8th Wall
  */
 export async function detectXRSupport(): Promise<XRSupport> {
-  const hasCamera = await checkCameraAccess();
+  // Non-prompting capability check — do not open a camera stream here.
+  const hasCamera = hasCameraApi();
   const hasGyroscope = checkGyroscope();
   const deviceIsIOS = isIOS();
   const deviceIsAndroid = isAndroid();

@@ -2,7 +2,8 @@
  * DiagnosticPanel
  *
  * Always-on subsystem health panel. Mounts at app root so it is present on
- * every branch (Android WebXR, iOS fallback, desktop dev, unsupported).
+ * every branch (iOS Safari, Android Chrome, desktop mock, unsupported). Also
+ * surfaces the startup load-timing track for diagnosing slow time-to-AR.
  *
  * Two visual states:
  *   - Collapsed: a small pill in top-left showing platform + a single dot
@@ -21,6 +22,8 @@ import {
   SubsystemStatus,
   SubsystemsSnapshot,
   PlatformLabel,
+  LoadStage,
+  LoadTiming,
 } from '@/xr/debugTelemetry';
 import './DiagnosticPanel.css';
 
@@ -36,17 +39,17 @@ const statusColor = (s: SubsystemStatus): DotColor => {
     case 'detected':
     case 'estimated':
     case 'ready':
-    case 'anchored':
+    case 'normal':
       return 'green';
     case 'searching':
     case 'loading':
-    case 'inferring':
-    case 'drifting':
+    case 'limited':
       return 'amber';
     case 'denied':
     case 'error':
     case 'unavailable':
     case 'unsupported':
+    case 'notavailable':
       return 'red';
     case 'idle':
     case 'unknown':
@@ -57,13 +60,30 @@ const statusColor = (s: SubsystemStatus): DotColor => {
 
 const platformLabel = (p: PlatformLabel): string => {
   switch (p) {
-    case 'android-webxr': return 'Android · WebXR';
-    case 'ios-fallback':  return 'iOS · Camera+Motion';
-    case 'desktop-dev':   return 'Desktop · Dev';
-    case 'desktop-emulator': return 'Desktop · WebXR Emulator';
-    case 'unsupported':   return 'Unsupported device';
-    default:              return 'Detecting…';
+    case 'ios-safari':     return 'iOS · Safari';
+    case 'android-chrome': return 'Android · Chrome';
+    case 'mobile-web':     return 'Mobile · Web';
+    case 'desktop-mock':   return 'Desktop · Mock';
+    case 'unsupported':    return 'Unsupported device';
+    default:               return 'Detecting…';
   }
+};
+
+const ms = (v: number | null): string => (v === null ? '—' : `${v} ms`);
+
+const TIMING_ROWS: { key: LoadStage; label: string }[] = [
+  { key: 'appMounted', label: 'App mount' },
+  { key: 'supportDetected', label: 'Support detect' },
+  { key: 'engineReady', label: 'Engine ready' },
+  { key: 'pipelineRun', label: 'Pipeline run' },
+  { key: 'firstFrame', label: 'First frame' },
+  { key: 'firstTracking', label: 'First tracking' },
+];
+
+/** Largest non-null timing value = effective time-to-AR so far. */
+const slowestStage = (t: LoadTiming): number | null => {
+  const vals = Object.values(t).filter((v): v is number => v !== null);
+  return vals.length ? Math.max(...vals) : null;
 };
 
 /**
@@ -72,17 +92,14 @@ const platformLabel = (p: PlatformLabel): string => {
  * at 'idle' / 'unavailable' so the user sees the full inventory.
  */
 const ROWS: { key: keyof Omit<SubsystemsSnapshot, 'platform'>; label: string }[] = [
-  { key: 'webxr',       label: 'WebXR' },
-  { key: 'session',     label: 'Session' },
-  { key: 'hitTest',     label: 'Hit-test' },
-  { key: 'planes',      label: 'Planes' },
-  { key: 'surface',     label: 'Surface' },
-  { key: 'anchors',     label: 'Anchors' },
-  { key: 'camera',      label: 'Camera' },
-  { key: 'motion',      label: 'Motion' },
-  { key: 'segmenter',   label: 'Segmenter' },
-  { key: 'stabilizer',  label: 'Stabilizer' },
-  { key: 'desktopMock', label: 'Desktop mock' },
+  { key: 'engine',        label: 'Engine (XR8)' },
+  { key: 'session',       label: 'Session' },
+  { key: 'camera',        label: 'Camera' },
+  { key: 'motion',        label: 'Motion' },
+  { key: 'worldTracking', label: 'World tracking' },
+  { key: 'hitTest',       label: 'Hit-test' },
+  { key: 'surface',       label: 'Surface' },
+  { key: 'desktopMock',   label: 'Desktop mock' },
 ];
 
 const worstColor = (subs: SubsystemsSnapshot): DotColor => {
@@ -103,43 +120,38 @@ const worstColor = (subs: SubsystemsSnapshot): DotColor => {
 
 const hint = (subs: SubsystemsSnapshot): string | null => {
   if (subs.platform === 'unsupported') {
-    return 'No AR-capable APIs detected. Try Android Chrome or iOS Safari.';
+    return 'No mobile AR-capable browser detected. Use iOS Safari or Android Chrome.';
   }
-  if (subs.camera === 'denied') return 'Allow camera access in browser settings, then reload.';
-  if (subs.motion === 'denied') return 'Allow motion access on the start screen.';
-  if (subs.webxr === 'unsupported' && subs.platform === 'ios-fallback') {
-    return 'iOS has no WebXR. Using camera+gyroscope estimated floor.';
+  if (subs.camera === 'denied') return 'Allow camera access, then reload.';
+  if (subs.motion === 'denied') return 'Allow motion access on the start screen (iOS).';
+  if (subs.engine === 'error') {
+    return '8th Wall engine failed to load. Check your connection or browser support.';
   }
-  // Active desktop-mock or in-flight segmentation takes precedence over the
-  // generic "WebXR unsupported" message — the user already knows that's why
-  // they're in this branch.
+  if (subs.engine === 'loading') {
+    return 'Loading 8th Wall engine + SLAM — first visit downloads several MB (slowest on iOS/cellular).';
+  }
   if (subs.desktopMock === 'active') {
-    return 'Drag the canvas to rotate the virtual camera; webcam frames drive segmentation.';
+    return 'Desktop mock — drag the canvas to rotate the view; the reticle/placement code runs against your webcam.';
   }
-  if (subs.segmenter === 'loading') {
-    return 'Downloading segmentation model (~10 MB) — first run only.';
-  }
-  if (subs.segmenter === 'error') {
-    return 'TensorFlow.js segmentation could not start. Falling back to estimated floor.';
-  }
-  if (subs.segmenter === 'ready' && subs.stabilizer === 'drifting') {
-    return 'Camera moved a lot since the last detection — re-scan slowly to re-anchor.';
-  }
-  if (subs.segmenter === 'ready' && subs.stabilizer === 'idle') {
-    return 'Model ready. Point camera at a wall or floor to detect a surface.';
-  }
-  if (subs.webxr === 'unsupported') return '8th Wall AR engine unavailable — use iOS Safari or Android Chrome with camera access.';
   if (subs.session === 'idle') return 'Tap "Start AR" to begin.';
-  if (subs.hitTest === 'searching') return 'Point at a flat surface 0.5–2 m away and move the phone slowly.';
-  if (subs.hitTest === 'unavailable') return 'Hit-test feature not granted — the session may have been requested without it.';
-  if (subs.planes === 'unavailable' && subs.hitTest === 'tracking') {
-    return 'No detected plane yet — placing on an estimated surface at the reticle.';
+  if (subs.worldTracking === 'limited') {
+    return 'SLAM stabilizing — move the phone slowly across textured surfaces.';
+  }
+  if (subs.worldTracking === 'notavailable') {
+    return 'World tracking unavailable on this device/session.';
+  }
+  if (subs.hitTest === 'searching') {
+    return 'Point at a surface 0.5–2 m away and move the phone slowly.';
+  }
+  if (subs.surface === 'estimated' && subs.hitTest === 'tracking') {
+    return 'Placing on an estimated surface at the reticle (no detected plane yet).';
   }
   return null;
 };
 
 export const DiagnosticPanel: React.FC = () => {
   const [snapshot, setSnapshot] = useState(() => debugTelemetry.read().subsystems);
+  const [timing, setTiming] = useState<LoadTiming>(() => debugTelemetry.read().timing);
   const [expanded, setExpanded] = useState(false);
   const [dismissed, setDismissed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -147,7 +159,10 @@ export const DiagnosticPanel: React.FC = () => {
   });
 
   useEffect(() => {
-    const refresh = () => setSnapshot({ ...debugTelemetry.read().subsystems });
+    const refresh = () => {
+      setSnapshot({ ...debugTelemetry.read().subsystems });
+      setTiming({ ...debugTelemetry.read().timing });
+    };
     const unsub = debugTelemetry.subscribe(refresh);
     // 1 Hz heartbeat so transient states (e.g. 'searching' updates) still
     // surface even if no setter notifies. Cheap.
@@ -205,6 +220,17 @@ export const DiagnosticPanel: React.FC = () => {
               </div>
             );
           })}
+
+          <div className="diagnostic-section">
+            <span>Load timing</span>
+            <span>{ms(slowestStage(timing))}</span>
+          </div>
+          {TIMING_ROWS.map(({ key, label }) => (
+            <div className="diagnostic-row diagnostic-row-timing" key={key}>
+              <span className="diagnostic-label">{label}</span>
+              <span className="diagnostic-timing-value">{ms(timing[key])}</span>
+            </div>
+          ))}
 
           {message && (
             <div className="diagnostic-hint">{message}</div>

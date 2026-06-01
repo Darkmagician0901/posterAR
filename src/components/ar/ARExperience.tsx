@@ -204,12 +204,10 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
 
           // Telemetry
           debugTelemetry.setSubsystem('session', 'active');
-          debugTelemetry.setSubsystem('webxr', 'ok');
+          debugTelemetry.setSubsystem('engine', 'ready');
           debugTelemetry.setSubsystem('camera', 'ok');
           debugTelemetry.setSubsystem('hitTest', 'searching');
-          debugTelemetry.setSubsystem('anchors', 'ok');
           debugTelemetry.setSubsystem('surface', 'searching');
-          debugTelemetry.setSubsystem('planes', 'searching');
 
           setShowLoading(false);
           setIsARActive(true);
@@ -217,6 +215,8 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
         },
 
         onUpdate() {
+          debugTelemetry.mark('firstFrame');
+
           const reticle = reticleRef.current;
           const placement = placementRef.current;
 
@@ -241,7 +241,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
           debugTelemetry.tick(now);
           debugTelemetry.write({
             hitTest: pose ? (pose.vertical ? 'vertical' : 'horizontal') : null,
-            anchors: placement?.size() ?? 0,
+            posters: placement?.size() ?? 0,
           });
         },
       };

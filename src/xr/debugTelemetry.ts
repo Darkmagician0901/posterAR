@@ -5,110 +5,132 @@
  * (writer) and the DebugHUD / DiagnosticPanel (readers). The HUD samples
  * this at 5 Hz; the loop writes at frame rate. Plain refs + a subscriber
  * callback list keep React out of the 60 fps path.
+ *
+ * This is the 8th Wall (XR8) telemetry model. The old WebXR/TFJS schema
+ * (planes, anchors, segmenter, stabilizer, refSpace) has been replaced by
+ * 8th Wall subsystems (engine, worldTracking) plus a load-timing track used
+ * to diagnose slow startup (notably on iOS, where the engine + SLAM WASM
+ * download dominates time-to-AR).
  */
 
-export type PlaneStability = 'stable' | 'forming' | 'reshaping' | null;
-
 /**
- * Subsystem health rollup — written by each platform path, read by the
- * always-on DiagnosticPanel. Status values map to dot colors:
- *   green  → 'ok' | 'active' | 'tracking' | 'detected'
- *   amber  → 'searching'
- *   red    → 'denied' | 'error' | 'unavailable' | 'unsupported'
+ * Subsystem health rollup — written by each path, read by the always-on
+ * DiagnosticPanel. Status values map to dot colors:
+ *   green  → 'ok' | 'active' | 'ready' | 'tracking' | 'detected' | 'estimated' | 'normal'
+ *   amber  → 'searching' | 'loading' | 'limited'
+ *   red    → 'denied' | 'error' | 'unavailable' | 'unsupported' | 'notavailable'
  *   gray   → 'idle' | 'unknown'
  */
 export type SubsystemStatus =
   | 'ok'
   | 'active'
+  | 'ready'
   | 'tracking'
   | 'detected'
   | 'estimated'
+  | 'normal'
   | 'searching'
+  | 'loading'
+  | 'limited'
   | 'denied'
   | 'error'
   | 'unavailable'
   | 'unsupported'
+  | 'notavailable'
   | 'idle'
-  | 'unknown'
-  // Segmentation pipeline (iOS path) — additional status values that read
-  // naturally for the segmenter / stabilizer / desktop-mock rows.
-  | 'loading'
-  | 'ready'
-  | 'inferring'
-  | 'anchored'
-  | 'drifting';
+  | 'unknown';
 
 export type PlatformLabel =
-  | 'android-webxr'
-  | 'ios-fallback'
-  | 'desktop-dev'
-  | 'desktop-emulator'
+  | 'ios-safari'
+  | 'android-chrome'
+  | 'mobile-web'
+  | 'desktop-mock'
   | 'unsupported'
   | 'unknown';
 
 export interface SubsystemsSnapshot {
-  webxr: SubsystemStatus;
+  /** 8th Wall engine (xr.js + SLAM WASM) load state. */
+  engine: SubsystemStatus;
+  /** Camera pipeline running (XR8.run). */
   session: SubsystemStatus;
-  hitTest: SubsystemStatus;
-  planes: SubsystemStatus;
+  /** Camera permission / feed. */
   camera: SubsystemStatus;
+  /** Device-motion permission (iOS gates this behind a gesture). */
   motion: SubsystemStatus;
-  anchors: SubsystemStatus;
+  /** SLAM world-tracking quality (reality.trackingstatus). */
+  worldTracking: SubsystemStatus;
+  /** Center-screen hit-test / reticle lock. */
+  hitTest: SubsystemStatus;
+  /** Surface under the reticle (estimated vs detected). */
   surface: SubsystemStatus;
-  segmenter: SubsystemStatus;
-  stabilizer: SubsystemStatus;
+  /** Desktop webcam mock sandbox. */
   desktopMock: SubsystemStatus;
   platform: PlatformLabel;
 }
 
+/**
+ * Load-timing track. Each stage stores ms since page navigation start
+ * (performance.now()), or null until reached. Used to answer "why is the
+ * first AR frame slow?" — the gap between stages localizes the cost.
+ */
+export type LoadStage =
+  | 'appMounted'
+  | 'supportDetected'
+  | 'engineReady'
+  | 'pipelineRun'
+  | 'firstFrame'
+  | 'firstTracking';
+
+export type LoadTiming = Record<LoadStage, number | null>;
+
 export interface TelemetrySnapshot {
   fps: number;
-  session: string;
-  refSpace: string;
+  /** Current hit orientation, or null when not tracking. */
   hitTest: 'horizontal' | 'vertical' | null;
-  planesTotal: number | null;
-  planesHorizontal: number;
-  planesVertical: number;
-  anchors: number;
-  activePlaneStability: PlaneStability;
-  showAllPlanes: boolean;
+  /** Number of posters currently placed. */
+  posters: number;
   hudVisible: boolean;
+  timing: LoadTiming;
   subsystems: SubsystemsSnapshot;
 }
 
 const initialSubsystems: SubsystemsSnapshot = {
-  webxr: 'unknown',
+  engine: 'idle',
   session: 'idle',
-  hitTest: 'idle',
-  planes: 'idle',
   camera: 'idle',
   motion: 'idle',
-  anchors: 'idle',
+  worldTracking: 'idle',
+  hitTest: 'idle',
   surface: 'idle',
-  segmenter: 'idle',
-  stabilizer: 'idle',
   desktopMock: 'idle',
   platform: 'unknown',
 };
 
+const initialTiming: LoadTiming = {
+  appMounted: null,
+  supportDetected: null,
+  engineReady: null,
+  pipelineRun: null,
+  firstFrame: null,
+  firstTracking: null,
+};
+
 const initial: TelemetrySnapshot = {
   fps: 0,
-  session: 'idle',
-  refSpace: '-',
   hitTest: null,
-  planesTotal: null,
-  planesHorizontal: 0,
-  planesVertical: 0,
-  anchors: 0,
-  activePlaneStability: null,
-  showAllPlanes: false,
+  posters: 0,
   hudVisible:
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('debug') === '1',
+  timing: { ...initialTiming },
   subsystems: { ...initialSubsystems },
 };
 
-let state: TelemetrySnapshot = { ...initial, subsystems: { ...initial.subsystems } };
+let state: TelemetrySnapshot = {
+  ...initial,
+  timing: { ...initial.timing },
+  subsystems: { ...initial.subsystems },
+};
 const subscribers = new Set<() => void>();
 const notify = () => subscribers.forEach((cb) => cb());
 
@@ -122,7 +144,7 @@ export const debugTelemetry = {
     Object.assign(state, partial);
   },
 
-  /** Roll FPS forward from an XRFrame timestamp. */
+  /** Roll FPS forward from a frame timestamp. */
   tick(timeMs: number): void {
     if (lastFrameTime !== null) {
       const dt = timeMs - lastFrameTime;
@@ -134,16 +156,26 @@ export const debugTelemetry = {
     lastFrameTime = timeMs;
   },
 
-  /** Cold path — only the HUD calls this, at 5 Hz. */
+  /**
+   * Record the first time a load stage is reached (ms since navigation
+   * start). Idempotent — later calls for the same stage are ignored, so
+   * `mark('firstFrame')` can be called every frame safely.
+   */
+  mark(stage: LoadStage): void {
+    if (state.timing[stage] !== null) return;
+    state.timing[stage] =
+      typeof performance !== 'undefined' ? Math.round(performance.now()) : 0;
+    notify();
+  },
+
+  /** Cold path — only the HUD/panel calls this. */
   read(): TelemetrySnapshot {
     return state;
   },
 
   /**
-   * Update a single subsystem's status. Used by every platform path to
-   * report health into the always-on DiagnosticPanel. Notifies subscribers
-   * so the panel can re-render on transition (it does not poll subsystems —
-   * they change rarely compared to FPS).
+   * Update a single subsystem's status. Notifies subscribers only on a real
+   * transition so the panel re-renders rarely.
    */
   setSubsystem<K extends keyof SubsystemsSnapshot>(
     name: K,
@@ -151,12 +183,6 @@ export const debugTelemetry = {
   ): void {
     if (state.subsystems[name] === status) return;
     state.subsystems[name] = status;
-    notify();
-  },
-
-  /** Used by the HUD toggle button. Mutates state and notifies subscribers. */
-  setShowAllPlanes(v: boolean): void {
-    state.showAllPlanes = v;
     notify();
   },
 
@@ -170,28 +196,28 @@ export const debugTelemetry = {
     notify();
   },
 
-  /** Subscribe for HUD visibility / showAllPlanes / subsystems changes (not for FPS). */
+  /** Subscribe for HUD visibility / subsystem / timing changes (not FPS). */
   subscribe(cb: () => void): () => void {
     subscribers.add(cb);
     return () => subscribers.delete(cb);
   },
 
   /**
-   * Called on session end. Keeps showAllPlanes, hudVisible, and platform
-   * across sessions. Resets ephemeral subsystem states to 'idle' so the
-   * panel reflects "session ended" cleanly.
+   * Called on session end. Preserves hudVisible, platform, engine readiness,
+   * and the load-timing track (a one-time startup measurement). Resets the
+   * ephemeral per-session subsystems to 'idle'.
    */
   reset(): void {
-    const { showAllPlanes, hudVisible } = state;
-    const { platform, webxr } = state.subsystems;
+    const { hudVisible, timing } = state;
+    const { platform, engine } = state.subsystems;
     state = {
       ...initial,
-      showAllPlanes,
       hudVisible,
+      timing: { ...timing },
       subsystems: {
         ...initialSubsystems,
         platform,
-        webxr,
+        engine,
       },
     };
     lastFrameTime = null;

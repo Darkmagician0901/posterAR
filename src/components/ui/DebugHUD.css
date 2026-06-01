@@ -28,21 +28,13 @@
   opacity: 0.65;
 }
 
-.debug-hud-toggle {
+.debug-hud-section {
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid rgba(255, 255, 255, 0.15);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
   font-size: 11px;
-}
-
-.debug-stability {
   font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.75;
 }
-.debug-stability-stable    { color: #22c55e; }
-.debug-stability-forming   { color: #f59e0b; }
-.debug-stability-reshaping { color: #ef4444; }
-.debug-stability-none      { color: #94a3b8; }

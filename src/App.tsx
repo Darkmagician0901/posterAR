@@ -23,15 +23,20 @@ function App() {
   const [showDeviceInfo, setShowDeviceInfo] = useState(false);
 
   useEffect(() => {
+    debugTelemetry.mark('appMounted');
     detectXRSupport()
       .then((support) => {
         setXrSupport(support);
+        debugTelemetry.mark('supportDetected');
 
         // Seed the diagnostic panel with platform-level facts so the panel
         // is meaningful even before any AR session is started.
+        // `engine` = 'loading' on a capable device because the XR8 binary +
+        // SLAM WASM begin downloading immediately; pipeline.ts flips it to
+        // 'ready' once the engine fires 'xrloaded'.
         debugTelemetry.setSubsystem(
-          'webxr',
-          support.hasAR8 ? 'ok' : 'unsupported'
+          'engine',
+          support.hasAR8 ? 'loading' : 'unsupported'
         );
         debugTelemetry.setSubsystem(
           'camera',
@@ -43,9 +48,12 @@ function App() {
         );
 
         if (support.hasAR8) {
-          debugTelemetry.setSubsystem('platform', 'android-webxr');
+          debugTelemetry.setSubsystem(
+            'platform',
+            support.isIOS ? 'ios-safari' : support.isAndroid ? 'android-chrome' : 'mobile-web'
+          );
         } else if (support.isDesktop) {
-          debugTelemetry.setSubsystem('platform', 'desktop-dev');
+          debugTelemetry.setSubsystem('platform', 'desktop-mock');
         } else {
           debugTelemetry.setSubsystem('platform', 'unsupported');
         }

@@ -83,20 +83,21 @@
       onerror="window.__xr8diag.engine='error'"
     ></script>
 
-    <!-- SRI intentionally omitted on the helper scripts below.
-         A static integrity= hash on a CDN-versioned 8th Wall file proved
-         fragile: landing-page.js was observed failing the SRI check on-device
-         (iOS Safari) even though the file is HTTP 200 and the hash matches when
-         fetched directly — an edge byte-variation / CORS / Safari SRI quirk
-         blocks the script. These are OPTIONAL modules (guarded in pipeline.ts),
-         but a blocked script still pollutes diagnostics. For consistency with
-         the engine-binary (also no SRI) and reliability, we omit SRI here and
-         keep crossorigin="anonymous". -->
+    <!-- SRI restored on the helper scripts below. The earlier on-device failure
+         was NOT an SRI mismatch — it was the Content-Security-Policy omitting
+         the CDN host from script-src, which blocked EVERY jsdelivr script
+         (including the no-SRI engine-binary). CSP now allows
+         https://cdn.jsdelivr.net, so integrity checks are safe to enforce on
+         these pinned 1.0.0 files (hashes verified against the served bytes via
+         curl | openssl dgst -sha384). The engine-binary keeps no SRI because
+         its loader fetches runtime chunks (slam.js) dynamically, which a static
+         hash cannot cover. -->
 
     <!-- @8thwall/xrextras@1.0.0 (optional helper) -->
     <script
       src="https://cdn.jsdelivr.net/npm/@8thwall/xrextras@1.0.0/dist/xrextras.js"
       crossorigin="anonymous"
+      integrity="sha384-FBP0ovMkbkCCSsc8IUC82onTsdqDZp9bDMSe37690NZnCXlfWk+hlupzHH7AsBVA"
       onload="window.__xr8diag.xrextras='loaded'"
       onerror="window.__xr8diag.xrextras='error'"
     ></script>
@@ -105,6 +106,7 @@
     <script
       src="https://cdn.jsdelivr.net/npm/@8thwall/landing-page@1.0.0/dist/landing-page.js"
       crossorigin="anonymous"
+      integrity="sha384-AWtFm2UVSGxj0NlOo0nqxcVGwFopjKDImToiYfi1+T1p8TU6k/89tVAshCJtUW+d"
       onload="window.__xr8diag.landingPage='loaded'"
       onerror="window.__xr8diag.landingPage='error'"
     ></script>

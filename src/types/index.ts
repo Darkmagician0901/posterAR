@@ -1,8 +1,10 @@
 /**
- * Core type definitions for XR Poster application
+ * Core type definitions for the XR Poster application.
+ *
+ * `XRSupport` and `CreatePosterOptions` / `Poster` are the load-bearing types
+ * used across the app; the `ARMode` / `DeviceCapability` / `ErrorType` enums
+ * and `AppError` are a shared taxonomy used by diagnostics and messaging.
  */
-
-import { Vector3, Euler } from 'three';
 
 /**
  * Poster interface - represents a 2D poster in AR space
@@ -66,28 +68,6 @@ export interface XRSupport {
 }
 
 /**
- * Gesture event data
- */
-export interface GestureEvent {
-  type: 'drag' | 'pinch' | 'rotate' | 'tap';
-  posterId: string;
-  delta?: [number, number];
-  scale?: number;
-  rotation?: number;
-  position?: [number, number];
-}
-
-/**
- * Hit test result from AR surface detection
- */
-export interface HitTestResult {
-  position: Vector3;
-  rotation: Euler;
-  distance: number;
-  confidence: number;
-}
-
-/**
  * App configuration
  */
 export interface AppConfig {
@@ -129,5 +109,3 @@ export interface AppError {
   details?: unknown;
   timestamp: number;
 }
-
-// Made with Bob

@@ -97,7 +97,7 @@ The `vercel.json` file is already configured with:
 - ✅ Security headers (CSP, HSTS, etc.)
 - ✅ HTTPS redirect
 - ✅ SPA routing
-- ✅ CORS headers for WebXR
+- ✅ CSP allowing the 8th Wall engine CDN (`https://cdn.jsdelivr.net`) in `script-src`
 - ✅ Cache optimization
 
 #### GitHub Actions Integration
@@ -220,7 +220,7 @@ Cloudflare Pages provides global CDN with excellent performance and DDoS protect
 
 The following files are configured:
 - `wrangler.toml` - Build configuration
-- `public/_headers` - Security and WebXR headers
+- `public/_headers` - Security headers (incl. CSP allowing the 8th Wall engine CDN)
 - `public/_redirects` - SPA routing and HTTPS redirect
 
 #### Deploy via Wrangler CLI
@@ -481,11 +481,10 @@ Add to `package.json` scripts:
    VITE_GA_TRACKING_ID=G-XXXXXXXXXX
    ```
 
-3. **Track custom events:**
+3. **Track custom events (example — not wired up by default):**
    ```typescript
-   // Already implemented in the app
    gtag('event', 'ar_session_start', {
-     session_type: 'immersive-ar',
+     session_type: '8thwall-ar',
      device: navigator.userAgent
    });
    ```
@@ -546,9 +545,9 @@ NODE_OPTIONS=--max-old-space-size=4096 npm run build
 - **Cause:** SPA routing not configured
 - **Solution:** Ensure `vercel.json`, `netlify.toml`, or `_redirects` is present
 
-**Issue:** WebXR not working
-- **Cause:** Not using HTTPS
-- **Solution:** All platforms provide automatic HTTPS - ensure you're accessing via `https://`
+**Issue:** AR won't start / engine stuck loading
+- **Cause:** Not using HTTPS; CSP blocking the engine CDN; or unsupported iOS (needs Safari 16.4+ / WebAssembly SIMD)
+- **Solution:** Access via `https://`; ensure CSP `script-src` allows `https://cdn.jsdelivr.net`; check the in-app Diagnostic Panel note for the specific cause
 
 **Issue:** Camera permission denied
 - **Cause:** Browser security restrictions
@@ -587,10 +586,10 @@ docker run --user $(id -u):$(id -g) -p 8080:80 xr-poster
 
 - [ ] Application loads successfully
 - [ ] HTTPS is enabled and working
-- [ ] WebXR session starts on mobile device
+- [ ] 8th Wall engine loads + AR session starts on a mobile device
 - [ ] Camera permission prompt appears
-- [ ] Posters can be placed in AR
-- [ ] Gestures work (drag, pinch, rotate)
+- [ ] Posters can be placed in AR (tap to place)
+- [ ] Scale slider + delete work on the selected poster
 - [ ] Screenshot feature works
 - [ ] Custom poster upload works
 - [ ] QR code generated and accessible

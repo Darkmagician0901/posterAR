@@ -1,4 +1,4 @@
-# Security and WebXR headers for Cloudflare Pages
+# Security headers for Cloudflare Pages (CSP allows the 8th Wall engine CDN)
 
 /*
   X-Frame-Options: DENY

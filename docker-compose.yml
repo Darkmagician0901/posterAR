@@ -51,5 +51,3 @@ networks:
 #
 # To run without SSL proxy (HTTP only):
 # docker-compose up -d
-
-# Made with Bob

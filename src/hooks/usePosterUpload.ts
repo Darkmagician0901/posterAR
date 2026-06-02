@@ -172,5 +172,3 @@ export const usePosterUpload = (): UsePosterUploadReturn => {
     triggerFileInput,
   };
 };
-
-// Made with Bob

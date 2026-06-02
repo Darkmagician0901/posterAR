@@ -39,5 +39,3 @@ export const Header: React.FC<HeaderProps> = ({ isARActive, onExitAR }) => {
     </header>
   );
 };
-
-// Made with Bob

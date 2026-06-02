@@ -69,5 +69,3 @@ docker-compose.yml
 # Logs
 logs
 *.log
-
-# Made with Bob

@@ -104,5 +104,3 @@ export const PosterControls: React.FC = () => {
     </div>
   );
 };
-
-// Made with Bob

@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Migrated AR engine from WebXR to 8th Wall (XR8)
+- **AR now runs on the 8th Wall (XR8) engine** with SLAM world-tracking,
+  loaded from CDN (`@8thwall/engine-binary`, `xrextras`, `landing-page` `@1.0.0`
+  via jsDelivr) instead of the WebXR Device API.
+- **Rendering is now plain three.js.** Removed `@react-three/fiber`,
+  `@react-three/xr`, `@react-three/drei`, and `@use-gesture/react` — runtime deps
+  are now just `react`, `react-dom`, `three`, `zustand`.
+- New `src/xr8/` layer: engine lifecycle (`pipeline.ts`), center-screen hit-test
+  (`hitTestController.ts`), poster meshes (`posterPlacement.ts`), ambient typings
+  (`globals.d.ts`). `src/xr/` now holds engine-agnostic helpers (reticle,
+  telemetry, desktop mock driver).
+
+### Added
+- **Desktop webcam mock mode** (`DesktopMockMode`) — exercise reticle + placement
+  on a laptop without a phone.
+- **Diagnostic Panel + Debug HUD + load-timing telemetry** to diagnose slow/failed
+  AR startup (notably the engine + SLAM WASM download on iOS); determinate loading
+  bar driven from telemetry milestones; engine watchdog with concrete failure notes.
+- CSP updated to allow the engine CDN; SRI on helper scripts (engine-binary omits
+  SRI by design — its loader fetches `slam.js` chunks dynamically).
+
+### Removed / Changed behavior
+- Drag / pinch / rotate gestures and tap-to-select are no longer implemented;
+  placement is tap-based and resizing uses a scale slider on the auto-selected poster.
+
+### Maintenance
+- Removed `// Made with Bob` trailers across the source tree, deprecated
+  `String.substr()` usages, redundant `XR8 as any` casts, and dead WebXR/gesture-era
+  constants/types; fixed `vite.config.ts` `optimizeDeps` referencing removed deps.
+- Rewrote README / ARCHITECTURE / TECH_STACK and updated CONTRIBUTING / TESTING /
+  DEPLOYMENT to reflect the 8th Wall architecture.
+
 ### Planned Features
 - Multi-user collaboration
 - Poster templates library

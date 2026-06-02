@@ -29,15 +29,15 @@ const INSTRUCTION_STEPS: InstructionStep[] = [
   },
   {
     id: 3,
-    title: 'Move & Scale',
-    description: 'Drag to move, pinch to scale, and rotate with two fingers',
-    icon: '✋',
+    title: 'Adjust Scale',
+    description: 'Your placed poster is selected automatically — use the scale slider to resize it',
+    icon: '🔧',
   },
   {
     id: 4,
-    title: 'Manage Posters',
-    description: 'Tap a poster to select it, then use controls to delete or adjust',
-    icon: '🎨',
+    title: 'Capture & Manage',
+    description: 'Take a photo of your scene, upload your own poster, or clear all posters from the control panel',
+    icon: '📷',
   },
 ];
 
@@ -185,5 +185,3 @@ export const InstructionsOverlay: React.FC = () => {
     </div>
   );
 };
-
-// Made with Bob

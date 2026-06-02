@@ -29,5 +29,3 @@
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
-
-// Made with Bob

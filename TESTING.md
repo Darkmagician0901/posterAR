@@ -104,23 +104,25 @@ npm run preview
 
 ## Feature Testing
 
-### 1. WebXR Session Initialization
+### 1. 8th Wall Engine + AR Session Initialization
 
 **Test Steps:**
 1. Open app on mobile device
-2. Tap "Enter AR" button
+2. Tap "Start AR" button
 3. Grant camera permission when prompted
 
 **Expected Results:**
+- [ ] Loading bar advances through engine download → camera start
 - [ ] Camera permission prompt appears
-- [ ] AR session starts successfully
+- [ ] 8th Wall engine initializes and the camera pipeline starts
 - [ ] Camera feed visible
-- [ ] Instructions overlay appears
+- [ ] Diagnostic Panel shows engine/session/camera green
 - [ ] No console errors
 
 **Common Issues:**
 - Permission denied → Check browser settings
-- Session fails → Ensure HTTPS enabled
+- Engine never initializes on iOS → needs Safari 16.4+ (WebAssembly SIMD); the Diagnostic Panel note explains why
+- Engine script blocked → ensure CSP allows `https://cdn.jsdelivr.net`
 - Black screen → Check camera access
 
 ---
@@ -168,52 +170,35 @@ npm run preview
 
 ---
 
-### 4. Gesture Controls
+### 4. Poster Controls (Scale & Delete)
 
-#### Drag Gesture
+> The 8th Wall path does **not** implement drag / pinch / rotate gestures.
+> Placement is tap-based and the placed poster is auto-selected; resizing is via
+> a slider and removal via a button (`PosterControls`).
 
-**Test Steps:**
-1. Place a poster
-2. Tap and hold poster
-3. Drag finger across screen
-
-**Expected Results:**
-- [ ] Poster follows finger movement
-- [ ] Smooth dragging motion
-- [ ] Poster stays on surface plane
-- [ ] No lag during drag
-- [ ] Poster deselects on release
-
-#### Pinch Gesture
+#### Scale Slider
 
 **Test Steps:**
-1. Select a poster
-2. Pinch with two fingers (zoom in/out)
+1. Place a poster (it is selected automatically)
+2. Drag the scale slider in the Poster Controls panel
 
 **Expected Results:**
-- [ ] Poster scales up/down
-- [ ] Smooth scaling animation
-- [ ] Maintains aspect ratio
-- [ ] Min/max scale limits enforced
-- [ ] No distortion
+- [ ] Poster scales up/down live as the slider moves
+- [ ] Aspect ratio is maintained
+- [ ] Min/max scale limits enforced (`MIN_POSTER_SCALE`..`MAX_POSTER_SCALE`)
 
-#### Rotate Gesture
+#### Delete
 
 **Test Steps:**
-1. Select a poster
-2. Rotate with two fingers
+1. With a poster selected, tap Delete and confirm
 
 **Expected Results:**
-- [ ] Poster rotates around Y-axis
-- [ ] Smooth rotation
-- [ ] 360° rotation possible
-- [ ] No snapping or jumping
-- [ ] Rotation persists after release
+- [ ] Poster is removed from the scene
+- [ ] Toast confirms deletion
 
 **Common Issues:**
-- Gestures conflict → Check gesture priority
-- Laggy gestures → Performance issue
-- Gestures don't work → Touch event handling
+- Slider does nothing → no poster selected (`selectedPosterId` is null)
+- Poster not removed from view → store→scene subscription not wired
 
 ---
 
@@ -383,13 +368,13 @@ npm run preview
 **Test Steps:**
 1. Start AR session
 2. Place 10 posters
-3. Perform gestures
-4. Monitor FPS
+3. Move/pan the device and adjust scale
+4. Monitor FPS (Debug HUD / `?debug=1`)
 
 **Expected Results:**
 - [ ] 60 FPS on high-end devices
 - [ ] 30+ FPS on mid-range devices
-- [ ] No dropped frames during gestures
+- [ ] No dropped frames while panning / scaling
 - [ ] Smooth animations
 - [ ] No stuttering
 
@@ -457,28 +442,28 @@ npm run build
 
 **Versions to Test:**
 - [ ] iOS 17 (latest)
-- [ ] iOS 16
-- [ ] iOS 15 (minimum)
+- [ ] iOS 16.4 (minimum — needs WebAssembly SIMD)
 
 **Features to Verify:**
-- [ ] WebXR session starts
+- [ ] 8th Wall engine loads + AR session starts
 - [ ] Camera access works
-- [ ] Touch gestures work
+- [ ] Tap-to-place works
+- [ ] Scale slider + delete work
 - [ ] File upload works
-- [ ] Screenshot works
+- [ ] Screenshot works (note the live-AR screenshot caveat in `src/utils/screenshot.ts`)
 - [ ] No console errors
 
 ### Android Chrome
 
 **Versions to Test:**
-- [ ] Chrome 120+ (latest)
-- [ ] Chrome 100
-- [ ] Chrome 79 (minimum)
+- [ ] Chrome (latest)
+- [ ] Chrome (recent)
 
 **Features to Verify:**
-- [ ] WebXR session starts
+- [ ] 8th Wall engine loads + AR session starts
 - [ ] Camera access works
-- [ ] Touch gestures work
+- [ ] Tap-to-place works
+- [ ] Scale slider + delete work
 - [ ] File upload works
 - [ ] Screenshot works
 - [ ] No console errors
@@ -491,8 +476,9 @@ npm run build
 - [ ] Safari (latest)
 
 **Expected:**
-- [ ] App loads
-- [ ] Shows "WebXR not supported" message
+- [ ] App loads and routes to the webcam **mock mode** (not the "AR Not Supported" panel)
+- [ ] "Start Desktop Mock" requests the webcam; mouse-drag rotates the view
+- [ ] Reticle tracks and tap/"Place poster" places a poster
 - [ ] UI functional
 - [ ] No errors
 
@@ -678,10 +664,10 @@ Any other relevant information
 
 ### Core Features ✅
 
-- [ ] WebXR session starts
-- [ ] Surface detection works
-- [ ] Poster placement works
-- [ ] All gestures work
+- [ ] 8th Wall AR session starts
+- [ ] Surface detection / reticle tracking works
+- [ ] Tap-to-place poster placement works
+- [ ] Scale slider resizes the selected poster
 - [ ] Poster deletion works
 - [ ] Gallery works
 - [ ] Upload works

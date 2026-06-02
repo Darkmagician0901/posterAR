@@ -1,20 +1,20 @@
 /**
  * desktopMockDriver
  *
- * Driver for the desktop "mock AR" sandbox. Provides:
+ * Driver for the desktop "mock AR" sandbox (DesktopMockMode). Provides:
  *
  *   - Pointer-driven orientation: dragging the cursor mimics rotating a
- *     phone, yielding a quaternion equivalent to what DeviceOrientation
- *     produces on iOS. Lets the rest of the pipeline (segmenter, lifter,
- *     stabilizer) run unchanged.
+ *     phone, writing a camera quaternion equivalent to what
+ *     DeviceOrientation produces on a real device. This lets the same
+ *     reticle + PosterPlacement code that runs under 8th Wall be exercised
+ *     on a laptop, with the camera pose coming from the mouse instead of SLAM.
  *
- *   - Single-call install() to attach pointer + keyboard listeners and
- *     a cleanup function to remove them.
+ *   - Single-call install() returning a handle whose dispose() removes the
+ *     pointer listeners.
  *
- * This is intentionally NOT a full WebXR session mock — that path turned
- * out to be a tarpit (the surface area is too wide). Instead we drive the
- * already-existing segmentation pipeline against the laptop webcam, which
- * is what the user actually wants for development: see what iOS will see.
+ * This is intentionally NOT a mock of the 8th Wall engine — it only feeds a
+ * camera orientation. DesktopMockMode supplies a fake floor hit-test pose so
+ * developers can place posters against the laptop webcam without a phone.
  */
 
 import { Quaternion, Euler } from 'three';

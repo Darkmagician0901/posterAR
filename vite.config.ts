@@ -33,25 +33,15 @@ export default defineConfig({
       output: {
         manualChunks: (id) => {
           if (id.includes('node_modules')) {
+            // three.js is the largest dependency — give it its own chunk.
             if (id.includes('/three/') || id.includes('\\three\\')) {
               return 'three';
             }
-            if (id.includes('@react-three')) {
-              return 'react-three';
-            }
-            // TFJS + DeepLab — dynamically imported by the segmenter on the
-            // iOS path only. Keeping them in their own chunk so Android /
-            // desktop loads don't pull them.
-            if (
-              id.includes('@tensorflow') ||
-              id.includes('\\@tensorflow\\') ||
-              id.includes('seedrandom') ||
-              id.includes('long')
-            ) {
-              return 'tfjs';
-            }
-            // ❌ REMOVED: React chunk splitting — was causing load order race
-            // React now stays in vendor, always available when other chunks run
+            // Everything else (incl. react/react-dom) stays in vendor.
+            // React is intentionally NOT split out: separate React chunks
+            // caused a load-order race where consumers ran before React was
+            // defined. The 8th Wall engine itself is loaded via <script> in
+            // index.html, so it is not part of the bundle graph.
             return 'vendor';
           }
         },
@@ -71,7 +61,8 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'three', '@react-three/fiber', '@react-three/xr', '@react-three/drei']
-    //         👆 also added react + react-dom here to pre-bundle them
+    // Pre-bundle the runtime deps. (The 8th Wall engine is loaded from CDN via
+    // <script> in index.html, so it is not listed here.)
+    include: ['react', 'react-dom', 'three']
   }
 });

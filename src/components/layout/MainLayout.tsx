@@ -20,5 +20,3 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     </div>
   );
 };
-
-// Made with Bob

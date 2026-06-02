@@ -1,6 +1,10 @@
 /**
- * useUIState Hook
- * Manages global UI state for the application
+ * useUIState — global UI-state store (Zustand).
+ *
+ * Holds cross-component UI concerns that don't belong in posterStore: overlay
+ * visibility (instructions, controls, loading, poster controls), the active
+ * modal, and the transient toast queue (auto-dismissed after `duration` ms).
+ * Despite the `use*` name it is a store, not a React hook — call it anywhere.
  */
 
 import { create } from 'zustand';
@@ -42,7 +46,7 @@ interface UIState {
  * Generate unique toast ID
  */
 const generateToastId = (): string => {
-  return `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `toast-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 };
 
 /**
@@ -126,5 +130,3 @@ export const useUIState = create<UIState>((set, get) => ({
 export const useTutorialCompleted = (): boolean => {
   return localStorage.getItem('xr-poster-tutorial-completed') === 'true';
 };
-
-// Made with Bob

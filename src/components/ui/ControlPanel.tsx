@@ -165,5 +165,3 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
     </>
   );
 };
-
-// Made with Bob

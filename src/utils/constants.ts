@@ -28,29 +28,12 @@ export const DEFAULT_PLACEMENT_DISTANCE = 2.0;
 export const MAX_POSTERS = parseInt(import.meta.env.VITE_MAX_POSTERS || '10', 10);
 
 /**
- * AR session configuration
- */
-export const AR_SESSION_CONFIG = {
-  requiredFeatures: ['hit-test', 'dom-overlay'],
-  optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
-};
-
-/**
- * Performance settings
+ * Performance targets (used by diagnostics / documentation, not enforced).
  */
 export const PERFORMANCE = {
   targetFPS: 60,
   minFPS: 30,
   maxMemoryMB: 150,
-};
-
-/**
- * Gesture sensitivity
- */
-export const GESTURE_SENSITIVITY = {
-  drag: 0.01,
-  pinch: 0.005,
-  rotate: 0.01,
 };
 
 /**
@@ -97,7 +80,7 @@ export const APP_CONFIG: AppConfig = {
  * Error messages
  */
 export const ERROR_MESSAGES = {
-  WEBXR_NOT_SUPPORTED: 'WebXR is not supported on this device. Please use a compatible browser.',
+  AR_NOT_SUPPORTED: 'AR is not supported on this device. Use a mobile device (iOS Safari or Android Chrome) with camera access over HTTPS.',
   CAMERA_PERMISSION_DENIED: 'Camera permission is required for AR experience.',
   SESSION_INIT_FAILED: 'Failed to initialize AR session. Please try again.',
   POSTER_LOAD_FAILED: 'Failed to load poster image.',
@@ -140,5 +123,3 @@ export const STORAGE_KEYS = {
   SETTINGS: 'xr-poster-settings',
   TUTORIAL_COMPLETED: 'xr-poster-tutorial-completed',
 };
-
-// Made with Bob

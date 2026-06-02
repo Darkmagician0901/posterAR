@@ -298,5 +298,3 @@ async function generateQRCode(url, config) {
   
   console.log('\n✨ QR code generation complete!\n');
 })();
-
-// Made with Bob

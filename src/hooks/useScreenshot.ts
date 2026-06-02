@@ -180,5 +180,3 @@ export const useScreenshot = (): UseScreenshotReturn => {
     resetScreenshot,
   };
 };
-
-// Made with Bob

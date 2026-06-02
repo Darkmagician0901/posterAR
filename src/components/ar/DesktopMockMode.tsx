@@ -2,8 +2,8 @@
  * DesktopMockMode
  *
  * Desktop development sandbox that lets a developer exercise the reticle +
- * poster-placement code on a laptop webcam, without a phone or WebXR
- * extension.
+ * poster-placement code on a laptop webcam, without a phone or the 8th Wall
+ * engine.
  *
  * Architecture:
  *  - <video> fullscreen — live webcam feed (getUserMedia).
@@ -12,8 +12,8 @@
  *  - createReticle — fake hit-test pose 1.5 m forward + 0.3 m down each frame.
  *  - PosterPlacement — place() on "Place poster" button click.
  *
- * Does NOT use @react-three/fiber, @react-three/drei, IOSSegmentationDriver,
- * IOSSurfaceMesh, or 8th Wall / XR8.
+ * Raw three.js only — does NOT use @react-three/fiber, @react-three/drei, or
+ * the 8th Wall / XR8 engine (which owns the canvas on the real mobile path).
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -78,6 +78,8 @@ export const DesktopMockMode: React.FC = () => {
   const rafIdRef = useRef<number | null>(null);
   const lastReticleMatrixRef = useRef<Float32Array | null>(null);
   const placingRef = useRef(false);
+  // Window 'resize' handler, stored so stopThreeJS can detach it.
+  const onResizeRef = useRef<(() => void) | null>(null);
 
   // The orientation quaternion the driver writes into. Allocated once.
   const orientationRef = useRef(new Quaternion());
@@ -148,6 +150,7 @@ export const DesktopMockMode: React.FC = () => {
       camera.updateProjectionMatrix();
     };
     window.addEventListener('resize', onResize);
+    onResizeRef.current = onResize;
 
     // rAF loop
     const loop = () => {
@@ -187,9 +190,6 @@ export const DesktopMockMode: React.FC = () => {
     debugTelemetry.setSubsystem('desktopMock', 'active');
     debugTelemetry.setSubsystem('hitTest', 'tracking');
     debugTelemetry.setSubsystem('surface', 'estimated');
-
-    // Store resize handler ref for cleanup
-    (rendererRef as any).__onResize = onResize;
   }, []);
 
   const stopThreeJS = useCallback(() => {
@@ -204,9 +204,12 @@ export const DesktopMockMode: React.FC = () => {
     placementRef.current?.clear();
     placementRef.current = null;
 
+    if (onResizeRef.current) {
+      window.removeEventListener('resize', onResizeRef.current);
+      onResizeRef.current = null;
+    }
+
     if (rendererRef.current) {
-      const onResize = (rendererRef as any).__onResize as (() => void) | undefined;
-      if (onResize) window.removeEventListener('resize', onResize);
       rendererRef.current.dispose();
       rendererRef.current = null;
     }
@@ -394,7 +397,7 @@ export const DesktopMockMode: React.FC = () => {
           >
             <strong>Desktop mock — exercises the reticle + placement code on your webcam.</strong>
             <br />
-            Mouse-drag rotates the view. No phone or WebXR extension required.
+            Mouse-drag rotates the view. No phone or AR engine required.
           </div>
 
           {permissionError && (

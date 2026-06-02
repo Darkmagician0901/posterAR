@@ -47,7 +47,7 @@ We are committed to providing a welcoming and inclusive environment for all cont
 - npm 9.0.0 or higher
 - Git
 - A code editor (VS Code recommended)
-- A mobile device with WebXR support for testing
+- A mobile device with a camera (iOS Safari 16.4+ / Android Chrome) for live AR testing — desktop runs the built-in webcam mock mode
 
 ### Fork and Clone
 
@@ -184,25 +184,25 @@ const MyComponent: React.FC<Props> = ({ data }) => {
 ```
 src/
 ├── components/       # React components
-│   ├── ar/          # AR-specific components
-│   ├── ui/          # UI components
-│   └── layout/      # Layout components
-├── hooks/           # Custom React hooks
-├── xr/              # WebXR utilities
+│   ├── ar/          # ARExperience (live 8th Wall), DesktopMockMode
+│   ├── ui/          # UI components (+ co-located .css)
+│   └── layout/      # Header, MainLayout
+├── hooks/           # Custom React hooks / UI store
+├── xr/              # Engine-agnostic 3D helpers (reticle, telemetry, mock driver)
+├── xr8/             # 8th Wall (XR8) engine integration
 ├── store/           # State management (Zustand)
 ├── utils/           # Utility functions
-├── types/           # TypeScript type definitions
-└── assets/          # Static assets
+└── types/           # TypeScript type definitions
 ```
 
 ### Naming Conventions
 
-- **Components:** PascalCase (`PosterMesh.tsx`)
-- **Hooks:** camelCase with `use` prefix (`useXRSession.ts`)
+- **Components:** PascalCase (`PosterGallery.tsx`)
+- **Hooks:** camelCase with `use` prefix (`useUIState.ts`)
 - **Utilities:** camelCase (`deviceDetection.ts`)
 - **Constants:** UPPER_SNAKE_CASE (`MAX_POSTERS`)
-- **Types/Interfaces:** PascalCase (`PosterData`)
-- **CSS files:** Match component name (`PosterMesh.css`)
+- **Types/Interfaces:** PascalCase (`Poster`, `XRSupport`)
+- **CSS files:** Match component name (`PosterGallery.css`)
 
 ### Code Style
 
@@ -274,10 +274,10 @@ Follow the [Conventional Commits](https://www.conventionalcommits.org/) specific
 
 ### Scopes
 
-- `ar` - AR functionality
+- `ar` - AR functionality (scene, reticle, placement)
 - `ui` - User interface
-- `xr` - WebXR integration
-- `gestures` - Gesture handling
+- `xr8` - 8th Wall (XR8) engine integration
+- `xr` - Engine-agnostic 3D helpers / telemetry
 - `upload` - Image upload
 - `screenshot` - Screenshot feature
 - `build` - Build configuration
@@ -444,18 +444,18 @@ npm run build
 ### Manual Testing
 
 For AR features, test on:
-- **iOS:** Safari 15+ on iPhone
-- **Android:** Chrome 79+ on Android device
+- **iOS:** Safari 16.4+ on iPhone (needs WebAssembly SIMD)
+- **Android:** Chrome on Android device
+- **Desktop:** webcam mock mode (for non-AR logic)
 
 ### Testing Checklist
 
-- [ ] WebXR session starts successfully
+- [ ] 8th Wall engine loads and AR session starts (Diagnostic Panel turns green)
 - [ ] Camera permission prompt appears
-- [ ] Hit testing works (surface detection)
-- [ ] Poster placement works
-- [ ] Gestures work (drag, pinch, rotate)
-- [ ] Screenshot capture works
-- [ ] Custom poster upload works
+- [ ] Hit-test reticle locks to a surface (searching → tracking)
+- [ ] Tap-to-place works; placed poster is selected
+- [ ] Scale slider resizes the poster; delete removes it
+- [ ] Custom poster upload + gallery selection work
 - [ ] UI is responsive
 - [ ] No console errors
 - [ ] Performance is acceptable (30+ FPS)

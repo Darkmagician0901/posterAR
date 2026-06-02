@@ -113,5 +113,3 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
     </div>
   );
 };
-
-// Made with Bob

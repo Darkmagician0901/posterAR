@@ -216,5 +216,3 @@ export async function meetsMinimumRequirements(): Promise<{
     missing,
   };
 }
-
-// Made with Bob

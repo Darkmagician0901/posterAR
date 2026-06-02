@@ -1,6 +1,17 @@
 /**
  * Screenshot Utility
- * Captures Three.js canvas as image and handles download
+ *
+ * Captures the live WebGL canvas as an image (data URL → Blob), then downloads
+ * and/or shares it. Used by useScreenshot.
+ *
+ * ⚠️ 8th Wall caveat: on the live mobile path the canvas (id="camerafeed") is
+ * owned by the XR8 engine, whose WebGLRenderer is created without
+ * `preserveDrawingBuffer: true`. Reading it with `toDataURL()` outside the
+ * render loop can yield an empty/black frame because the drawing buffer is
+ * cleared after compositing. Capturing the camera+scene reliably requires
+ * grabbing the pixels inside an engine `onRender`/`onUpdate` callback (or
+ * enabling preserveDrawingBuffer). The desktop mock path uses its own renderer
+ * and is unaffected.
  */
 
 /**
@@ -236,5 +247,3 @@ export const validateCanvas = (): { valid: boolean; error?: string } => {
 
   return { valid: true };
 };
-
-// Made with Bob

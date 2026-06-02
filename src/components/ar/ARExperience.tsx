@@ -139,7 +139,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
           // also have our own ref — use whichever is available.
           const activeCanvas = pipelineCanvas ?? canvas;
 
-          const { scene, camera } = (XR8 as any).Threejs.xrScene() as {
+          const { scene, camera } = XR8.Threejs.xrScene() as {
             scene: Scene;
             camera: Camera;
           };
@@ -160,17 +160,17 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
           scene.add(reticle.mesh);
           // Scanner is head-locked — attach to the camera so it follows the
           // user's view without any world-tracking math.
-          (camera as any).add(reticle.scanner);
+          camera.add(reticle.scanner);
           reticleRef.current = reticle;
 
           // Poster placement manager.
           placementRef.current = new PosterPlacement(sceneRoot);
 
           // Hint the XrController about the initial camera pose.
-          if (typeof (XR8 as any)?.XrController?.updateCameraProjectionMatrix === 'function') {
-            (XR8 as any).XrController.updateCameraProjectionMatrix({
-              origin: (camera as any).position,
-              facing: (camera as any).quaternion,
+          if (typeof XR8?.XrController?.updateCameraProjectionMatrix === 'function') {
+            XR8.XrController.updateCameraProjectionMatrix({
+              origin: camera.position,
+              facing: camera.quaternion,
             });
           }
 

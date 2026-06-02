@@ -1,5 +1,18 @@
 /**
- * Zustand store for poster state management
+ * posterStore — Zustand store for poster state.
+ *
+ * Single source of truth for:
+ *   - `posters`: the posters currently placed in the scene (capped at
+ *     `maxPosters`, from VITE_MAX_POSTERS). The AR layer mirrors mutations
+ *     here into the three.js scene via a store subscription (see
+ *     ARExperience.tsx) — removing or rescaling a poster in the store updates
+ *     the rendered mesh.
+ *   - `uploadedPosters`: user-uploaded images available in the gallery.
+ *   - `currentPosterImage`: the image the next placement will use.
+ *
+ * Note: `position`/`rotation`/`scale` on a placed poster mirror the values
+ * passed at creation; the authoritative world transform of a placed poster is
+ * the three.js group matrix owned by PosterPlacement, not this store.
  */
 
 import { create } from 'zustand';
@@ -45,7 +58,7 @@ interface PosterStore {
  * Generate unique poster ID
  */
 const generatePosterId = (): string => {
-  return `poster-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `poster-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 };
 
 /**
@@ -64,7 +77,7 @@ const DEFAULT_POSTER_IMAGE = '/posters/default-poster.png';
  * Generate unique uploaded poster ID
  */
 const generateUploadedPosterId = (): string => {
-  return `uploaded-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `uploaded-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 };
 
 /**
@@ -198,5 +211,3 @@ export const usePosterStore = create<PosterStore>((set, get) => ({
     return get().currentPosterImage;
   },
 }));
-
-// Made with Bob

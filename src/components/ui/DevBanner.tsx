@@ -1,17 +1,21 @@
 /**
  * DevBanner
  *
- * Shown only when the desktop dev-mode branch in App.tsx is active. Explains
- * how to mock an AR session via the WebXR API Emulator extension.
+ * Optional dev-mode banner, rendered by <ARExperience mode="dev"> only. The
+ * normal app always uses mode="live", so this is off by default; it exists for
+ * manually exercising the AR path on a development build.
+ *
+ * Note: the desktop development experience now lives in DesktopMockMode
+ * (webcam-based), which the App routes to automatically on desktop — no
+ * browser extension is required. The `hasEmulator` prop is retained for
+ * backward compatibility with the dev-mode flow.
  */
 
 import React, { useState } from 'react';
 import './DevBanner.css';
 
-const EMULATOR_URL =
-  'https://chromewebstore.google.com/detail/webxr-api-emulator/mjddjgeghkdijejnciaefnkjmkafnnje';
-
 interface DevBannerProps {
+  /** Reserved: indicates a mocked-session helper is present in dev mode. */
   hasEmulator: boolean;
 }
 
@@ -22,17 +26,13 @@ export const DevBanner: React.FC<DevBannerProps> = ({ hasEmulator }) => {
   return (
     <div className="dev-banner" role="status">
       <div className="dev-banner-content">
-        <strong>Desktop dev mode</strong>{' '}
+        <strong>Dev mode</strong>{' '}
         {hasEmulator ? (
-          <>WebXR Emulator detected — Start AR will open a mocked session.</>
+          <>Mock AR helper detected — Start AR will open a mocked session.</>
         ) : (
           <>
-            Install the{' '}
-            <a href={EMULATOR_URL} target="_blank" rel="noreferrer">
-              WebXR API Emulator
-            </a>{' '}
-            extension to mock AR sessions, or open this page on an ARCore
-            Android device.
+            Running the AR path on a development build. On desktop, open the app
+            normally to use the built-in webcam mock mode instead.
           </>
         )}
       </div>

@@ -31,12 +31,13 @@ export interface Reticle {
   /** The on-surface tracking ring. Add to the scene root. */
   mesh: Mesh;
   /** The head-locked searching ring + outer pulse. Add as a child of the
-   *  XR camera (renderer.xr.getCamera()) so it follows the user's view. */
+   *  active camera (from XR8.Threejs.xrScene(), or the mock camera) so it
+   *  follows the user's view. */
   scanner: Group;
   setPose(matrix: Float32Array): void;
   setVertical(vertical: boolean): void;
   setMode(mode: ReticleMode): void;
-  /** Drive the searching-mode pulse. Pass the XRFrame timestamp. */
+  /** Drive the searching-mode pulse. Pass a frame timestamp (performance.now()). */
   tick(timeMs: number): void;
 }
 
@@ -69,8 +70,8 @@ export const createReticle = (): Reticle => {
     opacity: 0.95,
     side: DoubleSide,
     depthWrite: false,
-    depthTest: false, // always on top so the user sees it even if WebXR
-                      // composes against an opaque clear
+    depthTest: false, // always render on top so the searching ring stays
+                      // visible regardless of scene depth / camera-feed compositing
   });
   const innerRing = new Mesh(innerGeom, innerMat);
   innerRing.renderOrder = 999;

@@ -51,9 +51,11 @@ server {
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "camera=*, microphone=(), geolocation=(), interest-cohort=()" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'none';" always;
-    
-    # CORS headers for WebXR
+    # script-src must allow the 8th Wall engine CDN (cdn.jsdelivr.net) + blob:,
+    # matching vercel.json and public/_headers — otherwise the engine is blocked.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: blob:; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'none';" always;
+
+    # CORS headers (engine scripts are loaded crossorigin from the CDN)
     add_header Access-Control-Allow-Origin "*" always;
     add_header Access-Control-Allow-Methods "GET, POST, OPTIONS" always;
     add_header Access-Control-Allow-Headers "X-Requested-With, Content-Type, Accept" always;
@@ -109,5 +111,3 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 # Start Nginx
 CMD ["nginx", "-g", "daemon off;"]
-
-# Made with Bob

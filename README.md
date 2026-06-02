@@ -1,532 +1,261 @@
-# 🎯 XR Poster - Mobile AR Web Application
+# 🎯 XR Poster — Mobile AR Web App (8th Wall)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-18.2-blue)](https://reactjs.org/)
+[![React](https://img.shields.io/badge/React-18.3-blue)](https://react.dev/)
 [![Three.js](https://img.shields.io/badge/Three.js-0.160-blue)](https://threejs.org/)
+[![8th Wall](https://img.shields.io/badge/AR-8th%20Wall%20(XR8)-7c3aed)](https://www.8thwall.com/)
 
-A production-ready mobile-first web application for placing 2D posters in augmented reality using WebXR. Experience immersive AR directly in your mobile browser—no app installation required!
+A mobile-first web app for placing 2D posters in augmented reality. AR runs
+directly in the mobile browser — no app install required — powered by the
+**8th Wall (XR8)** WebAR engine with SLAM world-tracking.
 
-![XR Poster Demo](https://via.placeholder.com/800x400/667eea/ffffff?text=XR+Poster+AR+Experience)
+> **Migrated off WebXR.** Earlier versions used the WebXR Device API with
+> `@react-three/fiber` / `@react-three/xr`. The app now uses the 8th Wall engine
+> (loaded from CDN) driving a plain **three.js** scene. See
+> [`CHANGELOG.md`](CHANGELOG.md) and [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## ✨ Features
 
-### Core AR Functionality
-- ✅ **WebXR-Powered AR** - Native AR experience using WebXR Device API
-- ✅ **Real-Time Surface Detection** - Intelligent hit testing for accurate poster placement
-- ✅ **Tap-to-Place** - Intuitive poster placement with a single tap
-- ✅ **Multiple Posters** - Place up to 10 posters simultaneously
-- ✅ **Poster Management** - Select, move, and delete placed posters
+### AR (live, mobile)
+- **8th Wall SLAM world-tracking** — stable AR without WebXR
+- **Center-screen hit-test reticle** — `searching` (head-locked, pulsing) vs.
+  `tracking` (locked to the surface); tints differently for horizontal vs.
+  vertical surfaces
+- **Tap to place** — tap anywhere to drop a poster at the reticle (up to
+  `VITE_MAX_POSTERS`, default 10)
+- **Per-poster controls** — the placed poster is auto-selected; a slider rescales
+  it and a button deletes it
 
-### Gesture Controls
-- ✅ **Drag Gesture** - Move posters freely in 3D space
-- ✅ **Pinch Gesture** - Scale posters up and down
-- ✅ **Rotate Gesture** - Rotate posters around the Y-axis
-- ✅ **Multi-Touch Support** - Smooth, responsive gesture handling
+### Content
+- **Custom upload** — JPEG/PNG/WebP/GIF; compressed client-side to WebP
+  (≤ 2 MB wire size, longest axis ≤ 2048 px); input cap 50 MB
+- **Poster gallery** — pick the default poster or any uploaded image
+- **Screenshot** — capture/download/share the canvas (see the
+  [screenshot caveat](#known-limitations))
 
-### User Interface
-- ✅ **Instructions Overlay** - First-time user guidance
-- ✅ **Control Panel** - Easy access to all features
-- ✅ **Poster Gallery** - Browse and select from default posters
-- ✅ **Loading Screen** - Smooth loading experience
-- ✅ **Toast Notifications** - Real-time user feedback
-- ✅ **Error Boundary** - Graceful error handling
+### Desktop development
+- **Webcam mock mode** — on desktop the app runs `DesktopMockMode`: a raw
+  three.js scene over the laptop webcam, mouse-drag to look around, with a fake
+  floor hit-test so the reticle + placement code can be exercised without a phone
 
-### Advanced Features
-- ✅ **Custom Poster Upload** - Upload your own images (JPEG, PNG, WebP)
-- ✅ **Screenshot Capture** - Take high-quality photos of your AR scene
-- ✅ **Image Optimization** - Automatic compression for optimal performance
-- ✅ **Responsive Design** - Works on all screen sizes
-
-### Performance
-- ✅ **Mobile Optimized** - Runs smoothly on mid-range devices
-- ✅ **60 FPS Target** - Smooth animations and interactions
-- ✅ **Code Splitting** - Optimized bundle loading
-- ✅ **Lazy Loading** - Load resources on demand
-- ✅ **Memory Management** - Efficient resource cleanup
+### Diagnostics & UX
+- **Always-on Diagnostic Panel** — subsystem health (engine, camera, motion,
+  world-tracking, hit-test, …) plus a startup load-timing track
+- **Debug HUD** — FPS + live subsystem state (toggle in-app, or `?debug=1`)
+- **Determinate loading bar** — tracks 8th Wall engine + SLAM WASM download
+- Instructions overlay, toast notifications, and a React error boundary
 
 ## 🚀 Quick Start
 
 ### Prerequisites
+- **Node.js** ≥ 18
+- A **mobile device** for live AR:
+  - iOS Safari (16.4+ recommended — needs WebAssembly SIMD)
+  - Android Chrome (recent)
+- Desktop browsers run the **webcam mock mode** for development
 
-- **Node.js** 18.0.0 or higher
-- **npm** 9.0.0 or higher
-- **Mobile Device** with WebXR support:
-  - iOS: Safari 15+ on iPhone/iPad
-  - Android: Chrome 79+ on Android device
-
-### Installation
-
+### Install & run
 ```bash
-# Clone the repository
 git clone https://github.com/yourusername/xr-poster.git
 cd xr-poster
-
-# Install dependencies
 npm install
-
-# Start development server (with HTTPS)
-npm run dev
+npm run dev        # Vite dev server over HTTPS, exposed on the LAN (--host)
 ```
 
-The app will be available at:
+The dev server serves HTTPS via `@vitejs/plugin-basic-ssl` (required for camera
+access and 8th Wall). Open:
 - **Local:** `https://localhost:5173`
-- **Network:** `https://[your-ip]:5173` (for mobile testing)
+- **Network:** `https://<your-lan-ip>:5173` (for on-device testing)
 
-> **Note:** You may see a browser warning about the self-signed certificate. This is normal for local development. Click "Advanced" and proceed to the site.
+> You'll see a self-signed-certificate warning in the browser — expected for
+> local dev. Choose "Advanced" → proceed.
 
-### Testing on Mobile
+### Testing on a phone
+1. Put the phone on the same network as your machine.
+2. Find your LAN IP (`ipconfig` on Windows, `ifconfig`/`ip addr` on macOS/Linux).
+3. Open `https://<your-lan-ip>:5173`, accept the cert warning, allow camera.
 
-1. Ensure your mobile device is on the same network as your development machine
-2. Find your local IP address:
-   - Windows: `ipconfig`
-   - Mac/Linux: `ifconfig` or `ip addr`
-3. Open `https://[your-ip]:5173` on your mobile device
-4. Accept the security warning
-5. Grant camera permissions when prompted
+## 🧩 How it works (in brief)
+
+`App.tsx` detects capabilities once at startup and renders one of three branches:
+
+| Condition | Branch | Component |
+|-----------|--------|-----------|
+| Mobile + camera API + secure context (`hasAR8`) | Live AR | `ARExperience` (8th Wall) |
+| Desktop | Webcam mock | `DesktopMockMode` |
+| Otherwise | "AR Not Supported" panel | — |
+
+On the live path the 8th Wall engine (loaded via `<script>` in `index.html`)
+owns the canvas, camera feed, three.js renderer, and the render loop. The app
+registers a **custom camera-pipeline module** (`onStart`/`onUpdate`) that builds
+the scene, runs a center-screen hit-test each frame, drives the reticle, and
+places posters on tap. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full flow.
 
 ## 📦 Tech Stack
 
-### Core Technologies
-- **[React 18](https://reactjs.org/)** - UI framework with concurrent features
-- **[TypeScript](https://www.typescriptlang.org/)** - Type-safe development
-- **[Vite](https://vitejs.dev/)** - Lightning-fast build tool
-- **[Three.js](https://threejs.org/)** - 3D graphics library
+| Layer | Choice |
+|-------|--------|
+| UI | **React 18.3** + **TypeScript 5.3** |
+| Build | **Vite 5** (`@vitejs/plugin-react`, `@vitejs/plugin-basic-ssl`) |
+| 3D | **three.js 0.160** (plain, no react-three-fiber) |
+| AR engine | **8th Wall / XR8** `engine-binary`, `xrextras`, `landing-page` `@1.0.0`, loaded from jsDelivr |
+| State | **Zustand 4** (`posterStore`, `useUIState`) |
 
-### AR & 3D
-- **[@react-three/fiber](https://docs.pmnd.rs/react-three-fiber)** - React renderer for Three.js
-- **[@react-three/xr](https://github.com/pmndrs/xr)** - WebXR integration for React
-- **[@react-three/drei](https://github.com/pmndrs/drei)** - Useful Three.js helpers
+There are **no** `@react-three/*` or `@use-gesture/*` dependencies — they were
+removed in the 8th Wall migration. See [`TECH_STACK.md`](TECH_STACK.md).
 
-### State & Gestures
-- **[Zustand](https://github.com/pmndrs/zustand)** - Lightweight state management
-- **[@use-gesture/react](https://use-gesture.netlify.app/)** - Touch gesture handling
-
-## 🎮 Usage
-
-### Starting an AR Session
-
-1. Open the app on your mobile device
-2. Tap the **"Enter AR"** button
-3. Grant camera permission when prompted
-4. Point your device at a flat surface (floor, table, wall)
-5. Wait for the reticle to appear on the detected surface
-
-### Placing Posters
-
-1. Tap the screen where the reticle appears
-2. A poster will be placed at that location
-3. The poster automatically faces the camera
-4. Repeat to place more posters (up to 10)
-
-### Manipulating Posters
-
-**Select a Poster:**
-- Tap on any placed poster to select it
-- Selected poster will be highlighted
-
-**Move a Poster:**
-- Tap and drag the selected poster
-- Poster follows your finger in 3D space
-
-**Scale a Poster:**
-- Use pinch gesture (two fingers) to scale up/down
-- Maintains aspect ratio
-
-**Rotate a Poster:**
-- Use rotate gesture (two fingers) to rotate
-- Rotates around the Y-axis
-
-**Delete a Poster:**
-- Select the poster
-- Tap the delete button in the control panel
-
-### Using the Poster Gallery
-
-1. Tap the gallery icon in the control panel
-2. Browse available posters
-3. Tap a poster to select it
-4. Place the selected poster in AR
-
-### Uploading Custom Posters
-
-1. Tap the upload button
-2. Select an image from your device
-3. Supported formats: JPEG, PNG, WebP (max 10MB)
-4. The uploaded poster appears in the gallery
-5. Place it like any other poster
-
-### Taking Screenshots
-
-1. Arrange your posters in AR
-2. Tap the camera button
-3. The screenshot is automatically downloaded
-4. Share on social media or save for later
-
-## 🏗️ Project Structure
+## 🗂️ Project Structure
 
 ```
 xr_poster/
-├── public/                      # Static assets
-│   ├── posters/                # Default poster images
-│   ├── _headers                # Cloudflare Pages headers
-│   └── _redirects              # Cloudflare Pages redirects
+├── index.html                  # Loads 8th Wall engine scripts (jsDelivr) + engine-load diagnostics
+├── public/
+│   ├── posters/default-poster.png
+│   ├── _headers / _redirects   # Cloudflare Pages config
+│   └── vite.svg
 ├── src/
-│   ├── components/             # React components
-│   │   ├── ar/                # AR-specific components
-│   │   │   ├── ARExperience.tsx
-│   │   │   └── PosterMesh.tsx
-│   │   ├── ui/                # UI components
-│   │   │   ├── ControlPanel.tsx
-│   │   │   ├── PosterGallery.tsx
-│   │   │   ├── LoadingScreen.tsx
-│   │   │   ├── Toast.tsx
-│   │   │   └── InstructionsOverlay.tsx
-│   │   └── layout/            # Layout components
-│   │       ├── Header.tsx
-│   │       └── MainLayout.tsx
-│   ├── hooks/                 # Custom React hooks
-│   │   ├── useXRSession.ts
-│   │   ├── useHitTest.ts
-│   │   ├── useGestures.ts
-│   │   ├── usePosterPlacement.ts
-│   │   ├── usePosterUpload.ts
+│   ├── App.tsx                 # 3-branch root (live AR / desktop mock / unsupported)
+│   ├── main.tsx                # React entry point
+│   ├── index.css               # Global styles
+│   ├── components/
+│   │   ├── ar/
+│   │   │   ├── ARExperience.tsx       # Live 8th Wall camera pipeline + scene
+│   │   │   └── DesktopMockMode.tsx    # Desktop webcam sandbox
+│   │   ├── layout/             # Header, MainLayout
+│   │   └── ui/                 # ControlPanel, PosterControls, PosterGallery,
+│   │       │                   #   LoadingScreen, Toast, InstructionsOverlay,
+│   │       │                   #   DiagnosticPanel, DebugHUD, DevBanner, ErrorBoundary
+│   ├── hooks/
+│   │   ├── useArLoadProgress.ts       # Startup loading-bar progress
+│   │   ├── usePosterUpload.ts         # File select → validate/compress
 │   │   ├── useScreenshot.ts
-│   │   └── useUIState.ts
-│   ├── xr/                    # WebXR utilities
-│   │   ├── sessionManager.ts
-│   │   └── hitTest.ts
-│   ├── store/                 # State management
-│   │   └── posterStore.ts
-│   ├── utils/                 # Utility functions
-│   │   ├── deviceDetection.ts
+│   │   └── useUIState.ts              # Global UI store (overlays, toasts)
+│   ├── store/posterStore.ts           # Placed + uploaded posters (Zustand)
+│   ├── types/index.ts
+│   ├── utils/
 │   │   ├── constants.ts
-│   │   ├── imageUpload.ts
+│   │   ├── deviceDetection.ts          # XR8 capability detection
+│   │   ├── imageUpload.ts              # Client-side WebP compression
 │   │   └── screenshot.ts
-│   ├── types/                 # TypeScript definitions
-│   │   └── index.ts
-│   ├── assets/                # App assets
-│   ├── App.tsx                # Main app component
-│   ├── main.tsx               # Entry point
-│   └── index.css              # Global styles
-├── scripts/                   # Build scripts
-│   └── generate-qr.js         # QR code generator
-├── .github/                   # GitHub configuration
-│   └── workflows/
-│       └── deploy.yml         # CI/CD pipeline
-├── vercel.json                # Vercel config
-├── netlify.toml               # Netlify config
-├── wrangler.toml              # Cloudflare config
-├── Dockerfile                 # Docker config
-├── docker-compose.yml         # Docker Compose
-├── vite.config.ts             # Vite configuration
-├── tsconfig.json              # TypeScript config
-├── package.json               # Dependencies
-├── README.md                  # This file
-├── ARCHITECTURE.md            # Technical architecture
-├── DEPLOYMENT.md              # Deployment guide
-├── CONTRIBUTING.md            # Contribution guidelines
-├── TESTING.md                 # Testing procedures
-└── CHANGELOG.md               # Version history
+│   ├── xr/                     # Engine-agnostic 3D helpers
+│   │   ├── debugTelemetry.ts          # Telemetry singleton (HUD/panel source)
+│   │   ├── desktopMockDriver.ts        # Mouse-drag → camera orientation
+│   │   └── reticle.ts                  # Surface reticle (searching/tracking)
+│   └── xr8/                    # 8th Wall (XR8) integration
+│       ├── globals.d.ts                # Ambient XR8/XRExtras/LandingPage typings
+│       ├── pipeline.ts                 # Engine lifecycle: onXr8Ready/runXr8/stopXr8
+│       ├── hitTestController.ts        # XrController.hitTest → reticle pose
+│       └── posterPlacement.ts          # Places/removes poster meshes in the scene
+├── scripts/generate-qr.js
+├── vite.config.ts · tsconfig*.json
+├── vercel.json · netlify.toml · wrangler.toml · Dockerfile · docker-compose.yml
+└── README.md · ARCHITECTURE.md · TECH_STACK.md · DEPLOYMENT.md · CONTRIBUTING.md · TESTING.md · CHANGELOG.md
 ```
 
 ## 🔧 Development
 
-### Available Scripts
-
+### Scripts
 ```bash
-# Development
-npm run dev              # Start dev server with HTTPS
-npm run type-check       # Run TypeScript type checking
-npm run build            # Production build
-npm run build:prod       # Production build with env
-npm run preview          # Preview production build
-npm run preview:prod     # Build and preview
+npm run dev          # Dev server (HTTPS, --host)
+npm run type-check   # tsc --noEmit
+npm run build        # tsc && vite build  →  dist/
+npm run build:prod   # production-mode build
+npm run preview      # Serve the production build
+npm run analyze      # Build with mode=analyze
 
-# Deployment
-npm run deploy:vercel           # Deploy to Vercel
-npm run deploy:vercel:preview   # Deploy preview to Vercel
-npm run deploy:netlify          # Deploy to Netlify
-npm run deploy:netlify:preview  # Deploy preview to Netlify
+# Deploy
+npm run deploy:vercel            # vercel --prod
+npm run deploy:vercel:preview
+npm run deploy:netlify           # netlify deploy --prod
+npm run deploy:netlify:preview
 
 # Docker
-npm run docker:build     # Build Docker image
-npm run docker:run       # Run Docker container
-npm run docker:compose   # Start with Docker Compose
-npm run docker:compose:down  # Stop Docker Compose
+npm run docker:build / docker:run / docker:compose / docker:compose:down
 
 # Utilities
-npm run generate-qr      # Generate QR code for deployment
-npm run analyze          # Analyze bundle size
-```
-
-### Environment Variables
-
-Create a `.env.local` file for local development:
-
-```env
-# Feature Flags
-VITE_ENABLE_DEBUG_MODE=false
-VITE_MAX_POSTERS=10
-
-# Analytics (Optional)
-VITE_GA_TRACKING_ID=G-XXXXXXXXXX
-
-# Error Tracking (Optional)
-VITE_SENTRY_DSN=https://xxxxx@xxxxx.ingest.sentry.io/xxxxx
-```
-
-See `.env.production.example` for all available variables.
-
-## 🚀 Deployment
-
-### One-Click Deployment
-
-#### Vercel (Recommended)
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/xr-poster)
-
-#### Netlify
-
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/yourusername/xr-poster)
-
-### Manual Deployment
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions for:
-- Vercel
-- Netlify
-- Cloudflare Pages
-- Docker
-- Custom hosting
-
-### QR Code Generation
-
-Generate QR codes for easy mobile access:
-
-```bash
-# Basic usage
 npm run generate-qr -- https://your-deployment-url.com
-
-# Custom options
-npm run generate-qr -- https://your-deployment-url.com --size 500 --format png
 ```
+
+### Environment variables
+Create `.env.local` (all optional):
+```env
+VITE_MAX_POSTERS=10              # Max simultaneously placed posters
+VITE_ENABLE_DEBUG_MODE=false     # Surfaces APP_CONFIG.enableDebugMode
+VITE_GA_TRACKING_ID=G-XXXXXXXXXX # (optional) analytics
+VITE_SENTRY_DSN=...              # (optional) error tracking
+VITE_API_URL=...                 # (optional)
+```
+Tip: append `?debug=1` to the URL to open the app with the Debug HUD visible.
 
 ## 📱 Browser Support
 
-### Fully Supported
+| Platform | Browser | Mode |
+|----------|---------|------|
+| iOS | Safari 16.4+ | Live AR (8th Wall) |
+| Android | Chrome (recent) | Live AR (8th Wall) |
+| Desktop | Chrome/Edge/Safari | Webcam mock mode (dev) |
 
-| Browser | Version | Platform | WebXR Support |
-|---------|---------|----------|---------------|
-| Safari | 15.0+ | iOS | ✅ Full |
-| Chrome | 79+ | Android | ✅ Full |
-
-### Partially Supported
-
-| Browser | Version | Platform | Notes |
-|---------|---------|----------|-------|
-| Safari | 17+ | macOS | Development only |
-| Chrome | Latest | Desktop | Development only |
-| Edge | Latest | Desktop | Development only |
-
-### Requirements
-
-- **HTTPS** - Required for WebXR API access
-- **Camera Permission** - Required for AR functionality
-- **Modern Browser** - ES2020+ support
-- **WebGL 2.0** - For 3D rendering
-
-## 🎨 Features in Detail
-
-### WebXR Integration
-
-The app uses the WebXR Device API for native AR experiences:
-
-```typescript
-// Request AR session
-const session = await navigator.xr.requestSession('immersive-ar', {
-  requiredFeatures: ['hit-test', 'dom-overlay'],
-  optionalFeatures: ['light-estimation', 'anchors']
-});
-```
-
-### Hit Testing
-
-Real-time surface detection for accurate poster placement:
-
-```typescript
-// Perform hit test
-const hitTestResults = frame.getHitTestResults(hitTestSource);
-if (hitTestResults.length > 0) {
-  const hit = hitTestResults[0];
-  const pose = hit.getPose(referenceSpace);
-  // Place poster at hit location
-}
-```
-
-### Gesture System
-
-Multi-touch gesture recognition for intuitive controls:
-
-```typescript
-// Drag gesture
-const bind = useGesture({
-  onDrag: ({ offset: [x, y] }) => {
-    updatePosterPosition(posterId, x, y);
-  },
-  onPinch: ({ offset: [scale] }) => {
-    updatePosterScale(posterId, scale);
-  },
-  onRotate: ({ offset: [angle] }) => {
-    updatePosterRotation(posterId, angle);
-  }
-});
-```
-
-## 🧪 Testing
-
-### Running Tests
-
-```bash
-# Type checking
-npm run type-check
-
-# Build verification
-npm run build
-
-# Preview build
-npm run preview
-```
-
-### Testing Checklist
-
-See [TESTING.md](TESTING.md) for comprehensive testing procedures including:
-- Device testing matrix
-- Feature testing steps
-- Performance benchmarks
-- Browser compatibility
-- Accessibility testing
-
-## 📊 Performance
-
-### Target Metrics
-
-- **First Contentful Paint:** < 1.5s
-- **Largest Contentful Paint:** < 2.5s
-- **Time to Interactive:** < 3.5s
-- **Frame Rate:** 60 FPS (30 FPS minimum)
-- **Bundle Size:** < 200KB gzipped
-- **Memory Usage:** < 150MB
-
-### Optimization Techniques
-
-- Code splitting by route and vendor
-- Lazy loading of components
-- Image optimization and compression
-- Aggressive tree-shaking
-- Efficient memory management
-- GPU-accelerated rendering
+Requirements: **HTTPS** (or `localhost`), **camera permission**, **WebGL 2.0**,
+and — on iOS — **WebAssembly SIMD** (the engine + SLAM WASM won't initialize on
+older iOS). The Diagnostic Panel explains *why* AR didn't start when it doesn't.
 
 ## 🔒 Security
 
-### Security Features
+- HTTPS enforced in production; HSTS preload
+- Content-Security-Policy allows the engine CDN (`https://cdn.jsdelivr.net`) in
+  `script-src`; see `vercel.json` / `public/_headers`
+- Engine helper scripts (`xrextras`, `landing-page`) are pinned with SRI hashes;
+  `engine-binary` omits SRI because its loader fetches runtime chunks (`slam.js`)
+  dynamically that a static hash cannot cover (documented inline in `index.html`)
+- Uploaded images are processed entirely client-side — nothing is sent to a server
 
-- **HTTPS Enforced** - All traffic encrypted
-- **Content Security Policy** - XSS protection
-- **Input Validation** - File upload restrictions
-- **No Server Storage** - Client-side only processing
-- **Camera Privacy** - Permission-based access
+## <a id="known-limitations"></a>⚠️ Known Limitations
 
-### Security Headers
+- **Screenshots on live AR may be blank.** The 8th Wall canvas is created
+  without `preserveDrawingBuffer`, so `canvas.toDataURL()` outside the render
+  loop can read an empty frame. Reliable capture needs to read pixels inside an
+  engine render callback. The desktop mock path is unaffected. (See
+  `src/utils/screenshot.ts`.)
+- **No move/pinch/rotate gestures.** Posters are placed by tapping and resized
+  via the scale slider; free-hand manipulation was part of the old gesture stack
+  and is not implemented on the 8th Wall path.
 
-```
-Content-Security-Policy: default-src 'self'; ...
-X-Frame-Options: DENY
-X-Content-Type-Options: nosniff
-Strict-Transport-Security: max-age=63072000
-Permissions-Policy: camera=*
-```
+## 🚀 Deployment
 
-## ♿ Accessibility
+Static SPA → any static host. Build output is `dist/`. Configs are included for
+Vercel (`vercel.json`), Netlify (`netlify.toml`), Cloudflare Pages
+(`wrangler.toml`, `public/_headers`, `public/_redirects`), and Docker
+(`Dockerfile`, `docker-compose.yml`). See [`DEPLOYMENT.md`](DEPLOYMENT.md).
 
-- **Keyboard Navigation** - Full keyboard support
-- **Screen Reader** - ARIA labels and announcements
-- **Color Contrast** - WCAG 2.1 AA compliant
-- **Motion Sensitivity** - Respects prefers-reduced-motion
-- **Focus Indicators** - Clear focus states
+The GitHub Actions workflow (`.github/workflows/deploy.yml`) type-checks, builds,
+and deploys to Netlify on pushes to `main` (Vercel auto-deploys from Git; its
+job is left commented out).
 
-## 🐛 Troubleshooting
+## 🧪 Testing
 
-### Common Issues
-
-**WebXR not supported:**
-- Ensure you're using a supported browser (iOS Safari 15+ or Android Chrome 79+)
-- Check that you're accessing via HTTPS
-- Verify device has ARCore/ARKit support
-
-**Camera permission denied:**
-- Check browser settings
-- Grant camera access for the site
-- Reload the page after granting permission
-
-**Poor performance:**
-- Reduce number of placed posters
-- Close other apps to free memory
-- Ensure good lighting conditions
-- Try on a more powerful device
-
-**Posters not placing correctly:**
-- Ensure good lighting
-- Point at flat, textured surfaces
-- Move device slowly to improve tracking
-- Avoid reflective or transparent surfaces
-
-See [TESTING.md](TESTING.md) for more troubleshooting tips.
+There is no automated test suite yet; verification is `npm run type-check` +
+`npm run build` plus on-device manual testing. See [`TESTING.md`](TESTING.md)
+for the manual checklist and device matrix.
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
-- Code of conduct
-- Development workflow
-- Coding standards
-- Commit guidelines
-- Pull request process
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for workflow, coding standards, and
+commit conventions.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- [Three.js](https://threejs.org/) - 3D graphics library
-- [React Three Fiber](https://docs.pmnd.rs/react-three-fiber) - React renderer for Three.js
-- [Poimandres](https://github.com/pmndrs) - Amazing React Three ecosystem
-- [WebXR Community](https://www.w3.org/community/webxr/) - WebXR standards
+MIT — see [`LICENSE`](LICENSE).
 
 ## 📚 Documentation
 
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Technical architecture and design decisions
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Comprehensive deployment guide
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution guidelines
-- **[TESTING.md](TESTING.md)** - Testing procedures and checklist
-- **[CHANGELOG.md](CHANGELOG.md)** - Version history and release notes
-
-## 🔗 Links
-
-- **Repository:** https://github.com/yourusername/xr-poster
-- **Issues:** https://github.com/yourusername/xr-poster/issues
-- **Discussions:** https://github.com/yourusername/xr-poster/discussions
-- **Live Demo:** https://xr-poster.vercel.app
-
-## 📞 Support
-
-- 📧 Email: support@xr-poster.com
-- 💬 Discord: [Join our community](https://discord.gg/xrposter)
-- 🐦 Twitter: [@xrposter](https://twitter.com/xrposter)
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — system design & data flow
+- [`TECH_STACK.md`](TECH_STACK.md) — stack reference & rationale
+- [`DEPLOYMENT.md`](DEPLOYMENT.md) — deployment guide
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution guidelines
+- [`TESTING.md`](TESTING.md) — manual testing procedures
+- [`CHANGELOG.md`](CHANGELOG.md) — version history
 
 ---
 
-**Made with ❤️ by the XR Poster Team**
-
-**Version:** 1.0.0  
-**Status:** Production Ready ✅  
-**Last Updated:** 2026-05-21
+**Status:** Active · **AR engine:** 8th Wall (XR8) · **Last updated:** 2026-06-02

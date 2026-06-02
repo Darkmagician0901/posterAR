@@ -76,5 +76,3 @@ export const Toast: React.FC = () => {
     </div>
   );
 };
-
-// Made with Bob

@@ -218,5 +218,3 @@ jobs:
             echo "❌ Deployment failed!"
             exit 1
           fi
-
-# Made with Bob

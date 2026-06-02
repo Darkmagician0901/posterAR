@@ -136,5 +136,3 @@ export const PosterGallery: React.FC<PosterGalleryProps> = ({ onClose }) => {
     </div>
   );
 };
-
-// Made with Bob

@@ -16,10 +16,9 @@ import {
   DirectionalLight,
   Group,
   Scene,
-  Texture,
-  TextureLoader,
 } from 'three';
 
+import { createPosterTexture } from '@/xr8/gifAnimator';
 import { onXr8Ready, runXr8, stopXr8 } from '@/xr8/pipeline';
 import { readReticlePose } from '@/xr8/hitTestController';
 import { PosterPlacement } from '@/xr8/posterPlacement';
@@ -65,6 +64,8 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
   const unsubscribeStoreRef = useRef<(() => void) | null>(null);
   const pointerListenerRef = useRef<(() => void) | null>(null);
   const placingRef = useRef(false);
+  const lastFrameTimeRef = useRef<number | null>(null);
+  const firstFrameMarkedRef = useRef(false);
 
   // Default-on HUD in dev mode (once per mount).
   useEffect(() => {
@@ -80,11 +81,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
     placingRef.current = true;
     try {
       const { currentPosterImage } = usePosterStore.getState();
-      const texture = await loadTexture(currentPosterImage);
-      const aspect =
-        texture.image && texture.image.height
-          ? texture.image.height / texture.image.width
-          : 1;
+      const { texture, animator, aspect } = await createPosterTexture(currentPosterImage);
 
       const posterId = usePosterStore.getState().addPoster({
         imageUrl: currentPosterImage,
@@ -95,25 +92,21 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
 
       if (!posterId) {
         addToast({ type: 'info', message: 'Poster limit reached' });
+        texture.dispose();
+        animator?.dispose();
         return;
       }
 
       const placement = placementRef.current;
-      if (!placement) {
-        usePosterStore.getState().removePoster(posterId);
-        return;
-      }
-
       const matrix = lastReticleMatrixRef.current;
-      if (!matrix) {
+      if (!placement || !matrix) {
         usePosterStore.getState().removePoster(posterId);
+        texture.dispose();
+        animator?.dispose();
         return;
       }
 
-      const placedId = placement.place(matrix, texture, aspect, posterId);
-      if (!placedId) {
-        usePosterStore.getState().removePoster(posterId);
-      }
+      placement.place(matrix, texture, aspect, posterId, animator);
     } catch (error) {
       console.error('Poster placement failed:', error);
       addToast({ type: 'error', message: 'Failed to place poster' });
@@ -219,7 +212,16 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
         },
 
         onUpdate() {
-          debugTelemetry.mark('firstFrame');
+          const now = performance.now();
+
+          if (!firstFrameMarkedRef.current) {
+            debugTelemetry.mark('firstFrame');
+            firstFrameMarkedRef.current = true;
+          }
+
+          const last = lastFrameTimeRef.current;
+          const deltaMs = last == null ? 0 : now - last;
+          lastFrameTimeRef.current = now;
 
           const reticle = reticleRef.current;
           const placement = placementRef.current;
@@ -240,7 +242,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
             debugTelemetry.setSubsystem('surface', 'searching');
           }
 
-          const now = performance.now();
+          placement?.tick(deltaMs);
           reticle?.tick(now);
           debugTelemetry.tick(now);
           debugTelemetry.write({
@@ -287,6 +289,8 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
     sceneRootRef.current = null;
     lastReticleMatrixRef.current = null;
     placingRef.current = false;
+    lastFrameTimeRef.current = null;
+    firstFrameMarkedRef.current = false;
 
     debugTelemetry.reset();
     setIsARActive(false);
@@ -365,27 +369,3 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
     </>
   );
 };
-
-// ── texture helpers ───────────────────────────────────────────────────────────
-
-const textureCache = new Map<string, Texture>();
-
-const loadTexture = (url: string): Promise<Texture> =>
-  new Promise((resolve, reject) => {
-    const cached = textureCache.get(url);
-    if (cached) {
-      resolve(cached);
-      return;
-    }
-    new TextureLoader().load(
-      url,
-      (tex) => {
-        tex.anisotropy = 4;
-        textureCache.set(url, tex);
-        resolve(tex);
-      },
-      undefined,
-      (err) =>
-        reject(err instanceof Error ? err : new Error('Texture load failed'))
-    );
-  });

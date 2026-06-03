@@ -20,9 +20,12 @@
     "docker:compose": "docker-compose up -d",
     "docker:compose:down": "docker-compose down",
     "generate-qr": "node scripts/generate-qr.js",
-    "analyze": "vite build --mode analyze"
+    "analyze": "vite build --mode analyze",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
+    "gifuct-js": "^2.1.2",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "three": "^0.160.0",
@@ -35,8 +38,10 @@
     "@types/three": "^0.160.0",
     "@vitejs/plugin-basic-ssl": "^1.0.1",
     "@vitejs/plugin-react": "^4.2.1",
+    "happy-dom": "^20.9.0",
     "typescript": "^5.3.3",
-    "vite": "^5.0.8"
+    "vite": "^5.0.8",
+    "vitest": "^4.1.8"
   },
   "overrides": {
     "react": "18.3.1",

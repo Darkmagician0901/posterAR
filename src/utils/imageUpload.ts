@@ -1,8 +1,8 @@
 /**
  * Image Upload Utility
- * Validates input up to 50MB, compresses on the client to <2MB wire size,
- * normalizes output to image/webp, and reports the compression ratio.
- * Animated GIFs bypass compression and are stored as-is.
+ * Validates input up to 50MB, compresses non-GIF input on the client to <2MB
+ * wire size, normalizes that output to image/webp, and reports the compression
+ * ratio. Animated GIFs bypass compression and are stored as-is (max 8MB).
  */
 
 import { readGifSize } from '@/utils/gifDecode';

@@ -84,9 +84,6 @@ export const usePosterUpload = (): UsePosterUploadReturn => {
         // Update progress
         setUploadState((prev) => ({ ...prev, progress: 75 }));
 
-        // Simulate final processing delay
-        await new Promise((resolve) => setTimeout(resolve, 200));
-
         // Complete
         setUploadState({
           isUploading: false,

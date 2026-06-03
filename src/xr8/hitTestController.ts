@@ -12,7 +12,7 @@ import { Matrix4, Quaternion, Vector3 } from 'three'
 export interface ReticlePose {
   /** Column-major Float32Array suitable for Matrix4.fromArray / mesh.matrix. */
   matrix: Float32Array
-  /** True when the surface normal is roughly horizontal (i.e. a wall). */
+  /** True when the surface is a wall (its normal is roughly horizontal). */
   vertical: boolean
 }
 
@@ -65,8 +65,9 @@ export function readReticlePose(): ReticlePose | null {
   _scale.set(1, 1, 1)
   _m4.compose(_pos, _quat, _scale)
 
-  // Determine verticality: rotate world-up (0,1,0) by the hit quaternion.
-  // If the resulting normal is close to horizontal the surface is a wall.
+  // Determine verticality: rotate world-up (0,1,0) by the hit quaternion to get
+  // the surface normal. A wall's normal is roughly horizontal, so |normal.y| is
+  // small — treat that as a vertical surface.
   _normal.set(0, 1, 0).applyQuaternion(_quat)
   const vertical = Math.abs(_normal.y) < 0.5
 

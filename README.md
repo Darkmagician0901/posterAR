@@ -28,8 +28,10 @@ directly in the mobile browser — no app install required — powered by the
   it and a button deletes it
 
 ### Content
-- **Custom upload** — JPEG/PNG/WebP/GIF; compressed client-side to WebP
-  (≤ 2 MB wire size, longest axis ≤ 2048 px); input cap 50 MB
+- **Custom upload** — JPEG/PNG/WebP compressed client-side to WebP
+  (≤ 2 MB wire size, longest axis ≤ 2048 px); input cap 50 MB. **Animated GIFs
+  are preserved and played back** as posters (decoded per-frame to a
+  `CanvasTexture`; max 8 MB)
 - **Poster gallery** — pick the default poster or any uploaded image
 - **Screenshot** — capture/download/share the canvas (see the
   [screenshot caveat](#known-limitations))

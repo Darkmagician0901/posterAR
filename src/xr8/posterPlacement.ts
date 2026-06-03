@@ -1,10 +1,10 @@
 /**
  * posterPlacement.ts
  *
- * Replaces the old AnchorManager. Because 8th Wall SLAM keeps the world
- * frame stable, a poster placed at a world transform simply stays there —
- * no per-frame anchor update is required, so there is intentionally no
- * update() method.
+ * Because 8th Wall SLAM keeps the world frame stable, a poster placed at a
+ * world transform simply stays there — no per-frame anchor update is required.
+ * Animated (GIF) posters carry a PosterAnimator that is ticked each frame and
+ * disposed with the poster.
  */
 
 import {
@@ -16,10 +16,14 @@ import {
   Texture,
 } from 'three'
 
+import type { PosterAnimator } from '@/xr8/gifAnimator'
+
 export interface PlacedPoster {
   id: string
   group: Group
   mesh: Mesh
+  texture: Texture
+  animator: PosterAnimator | null
   size: { width: number; height: number }
 }
 
@@ -33,50 +37,56 @@ export class PosterPlacement {
   }
 
   /**
-   * Place a poster in the scene at the world transform described by `matrix`.
+   * Place a poster at the world transform described by `matrix`.
    *
-   * @param matrix      Column-major Float32Array from readReticlePose().matrix.
-   * @param texture     The poster image texture.
-   * @param aspectRatio width / height of the source image (falls back to 1).
-   * @param id          Optional stable id; one is generated if omitted.
-   * @returns The poster id, or null if placement failed.
+   * @param matrix          Column-major Float32Array from readReticlePose().matrix.
+   * @param texture         The poster image texture (static or animated).
+   * @param heightOverWidth height / width of the source image (falls back to 1).
+   * @param id              Optional stable id; one is generated if omitted.
+   * @param animator        Optional per-frame animator (GIF); null for static.
+   * @returns The poster id.
    */
   place(
     matrix: Float32Array,
     texture: Texture,
-    aspectRatio: number,
+    heightOverWidth: number,
     id?: string,
-  ): string | null {
-    try {
-      const width = 0.5
-      const height = width * (aspectRatio || 1)
+    animator: PosterAnimator | null = null,
+  ): string {
+    const width = 0.5
+    const height = width * (heightOverWidth || 1)
 
-      const geometry = new PlaneGeometry(width, height)
-      const material = new MeshBasicMaterial({ map: texture })
-      const mesh = new Mesh(geometry, material)
+    const geometry = new PlaneGeometry(width, height)
+    const material = new MeshBasicMaterial({ map: texture })
+    const mesh = new Mesh(geometry, material)
 
-      const group = new Group()
-      group.matrixAutoUpdate = false
-      this._tmpMatrix.fromArray(matrix)
-      group.matrix.copy(this._tmpMatrix)
+    const group = new Group()
+    group.matrixAutoUpdate = false
+    this._tmpMatrix.fromArray(matrix)
+    group.matrix.copy(this._tmpMatrix)
 
-      group.add(mesh)
-      this._sceneRoot.add(group)
+    group.add(mesh)
+    this._sceneRoot.add(group)
 
-      const posterId =
-        id ?? `poster-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const posterId =
+      id ?? `poster-${Date.now()}-${Math.random().toString(36).slice(2)}`
 
-      const record: PlacedPoster = {
-        id: posterId,
-        group,
-        mesh,
-        size: { width, height },
-      }
-      this._posters.set(posterId, record)
+    this._posters.set(posterId, {
+      id: posterId,
+      group,
+      mesh,
+      texture,
+      animator,
+      size: { width, height },
+    })
 
-      return posterId
-    } catch {
-      return null
+    return posterId
+  }
+
+  /** Advance all animated posters by `deltaMs`. Static posters are no-ops. */
+  tick(deltaMs: number): void {
+    for (const { animator } of this._posters.values()) {
+      animator?.update(deltaMs)
     }
   }
 
@@ -91,18 +101,20 @@ export class PosterPlacement {
     mesh.scale.set(scaleX / size.width, scaleY / size.height, 1)
   }
 
-  /** Remove a single poster from the scene and free its GPU resources. */
+  /** Remove a single poster and free its GPU resources (incl. texture + animator). */
   remove(id: string): void {
     const record = this._posters.get(id)
     if (!record) return
-    const { group, mesh } = record
+    const { group, mesh, texture, animator } = record
     group.removeFromParent()
     mesh.geometry.dispose()
     ;(mesh.material as MeshBasicMaterial).dispose()
+    texture.dispose()
+    animator?.dispose()
     this._posters.delete(id)
   }
 
-  /** Remove every poster from the scene and free all GPU resources. */
+  /** Remove every poster and free all GPU resources. */
   clear(): void {
     for (const id of this._posters.keys()) {
       this.remove(id)

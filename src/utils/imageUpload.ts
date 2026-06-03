@@ -2,7 +2,10 @@
  * Image Upload Utility
  * Validates input up to 50MB, compresses on the client to <2MB wire size,
  * normalizes output to image/webp, and reports the compression ratio.
+ * Animated GIFs bypass compression and are stored as-is.
  */
+
+import { readGifSize } from '@/utils/gifDecode';
 
 export const SUPPORTED_FORMATS = [
   'image/png',
@@ -14,6 +17,9 @@ export const SUPPORTED_FORMATS = [
 
 /** Max accepted source file size — 50 MB. */
 export const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
+/** Max accepted GIF size — 8 MB. GIFs are stored uncompressed, so cap tighter. */
+export const MAX_GIF_SIZE = 8 * 1024 * 1024;
 
 /** Wire-size target after compression — 2 MB. */
 export const TARGET_WIRE_SIZE = 2 * 1024 * 1024;
@@ -60,6 +66,13 @@ export const validateImageFile = (file: File): ImageValidationResult => {
     return {
       valid: false,
       error: 'Unsupported format. Use PNG, JPEG, WebP, or GIF.',
+    };
+  }
+
+  if (file.type === 'image/gif' && file.size > MAX_GIF_SIZE) {
+    return {
+      valid: false,
+      error: `Animated GIF too large — keep it under 8 MB (${(file.size / (1024 * 1024)).toFixed(1)}MB).`,
     };
   }
 
@@ -150,6 +163,14 @@ const blobToDataUrl = (blob: Blob): Promise<string> =>
     reader.readAsDataURL(blob);
   });
 
+const fileToDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+
 /**
  * Iteratively shrink dimensions and quality until the WebP payload fits under
  * TARGET_WIRE_SIZE. Returns the best blob produced (last iteration if nothing
@@ -187,6 +208,26 @@ const compressToTarget = async (
 };
 
 export const processImage = async (file: File): Promise<ProcessedImage> => {
+  // Animated GIFs must NOT be flattened: createImageBitmap + canvas.toBlob
+  // would collapse them to a single static frame. Keep the original bytes and
+  // let the renderer decode/animate them.
+  if (file.type === 'image/gif') {
+    const buffer = await file.arrayBuffer();
+    const { width, height } = readGifSize(buffer);
+    const dataUrl = await fileToDataUrl(file);
+    return {
+      dataUrl,
+      width,
+      height,
+      compressedBytes: file.size,
+      originalBytes: file.size,
+      ratio: 1,
+      quality: 1,
+      mimeType: 'image/gif',
+      originalName: file.name,
+    };
+  }
+
   const source = await loadImageBitmap(file);
   const srcW = 'width' in source ? source.width : (source as HTMLImageElement).naturalWidth;
   const srcH = 'height' in source ? source.height : (source as HTMLImageElement).naturalHeight;

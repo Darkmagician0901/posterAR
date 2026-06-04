@@ -182,24 +182,60 @@ const loadStaticTexture = (url: string): Promise<Texture> =>
   })
 
 /**
+ * Diagnostic: prefix the GIF-pipeline stage that threw onto the error message,
+ * so a minified production stack (no source maps on-device) still localizes the
+ * failure when it surfaces on the DebugHUD. Preserves the original stack.
+ */
+function stageError(stage: 'fetch' | 'decode' | 'composite', err: unknown): Error {
+  const base = err instanceof Error ? err.message : String(err)
+  const tagged = new Error(`[gif:${stage}] ${base}`)
+  if (err instanceof Error && err.stack) tagged.stack = err.stack
+  return tagged
+}
+
+function decodeGif(buffer: ArrayBuffer): {
+  width: number
+  height: number
+  frames: DecodedFrame[]
+} {
+  try {
+    const { width, height } = readGifSize(buffer)
+    const frames = decodeGifFrames(buffer)
+    return { width, height, frames }
+  } catch (err) {
+    throw stageError('decode', err)
+  }
+}
+
+function makeAnimator(frames: DecodedFrame[], width: number, height: number): GifAnimator {
+  try {
+    return new GifAnimator(frames, width, height)
+  } catch (err) {
+    throw stageError('composite', err)
+  }
+}
+
+/**
  * Build a poster texture from any supported URL. GIFs animate; everything else
  * is static. The caller owns disposal (PosterPlacement.remove handles it).
  */
 export async function createPosterTexture(url: string): Promise<PosterTexture> {
   if (isGifUrl(url)) {
-    const buffer = await fetchArrayBuffer(url)
-    const { width, height } = readGifSize(buffer)
-    const frames = decodeGifFrames(buffer)
+    const buffer = await fetchArrayBuffer(url).catch((err) => {
+      throw stageError('fetch', err)
+    })
+    const { width, height, frames } = decodeGif(buffer)
+    const aspect = height / Math.max(1, width)
 
     // Degenerate / single-frame GIF: fall back to static so we don't pay the
     // per-frame upload cost for nothing.
     if (frames.length <= 1) {
       const texture = await loadStaticTexture(url)
-      return { texture, animator: null, aspect: height / Math.max(1, width) }
+      return { texture, animator: null, aspect }
     }
 
-    const animator = new GifAnimator(frames, width, height)
-    return { texture: animator.canvasTexture, animator, aspect: height / Math.max(1, width) }
+    const animator = makeAnimator(frames, width, height)
+    return { texture: animator.canvasTexture, animator, aspect }
   }
 
   const texture = await loadStaticTexture(url)

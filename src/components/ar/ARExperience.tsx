@@ -41,6 +41,20 @@ interface ARExperienceProps {
   mode?: 'dev' | 'live';
 }
 
+/**
+ * Flatten an unknown thrown value into a readable multi-line string for the
+ * on-device DebugHUD note (name + message + top stack frames). Used to surface
+ * placement failures on the phone when no desktop inspector is available.
+ */
+const describeError = (err: unknown): string => {
+  if (err instanceof Error) {
+    const lines = [`${err.name}: ${err.message}`];
+    if (err.stack) lines.push(err.stack.split('\n').slice(0, 6).join('\n'));
+    return lines.join('\n');
+  }
+  return String(err);
+};
+
 export const ARExperience: React.FC<ARExperienceProps> = ({
   onSessionStart,
   onSessionEnd,
@@ -109,7 +123,18 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
       placement.place(matrix, texture, aspect, posterId, animator);
     } catch (error) {
       console.error('Poster placement failed:', error);
-      addToast({ type: 'error', message: 'Failed to place poster' });
+      // On-device trace sensing: we have no desktop inspector, so surface the
+      // real error to the persistent HUD note and force it visible. The stage
+      // tag ([gif:fetch|decode|composite]) localizes the failure. TEMPORARY —
+      // removed/refined once the GIF placement fix lands.
+      const detail = describeError(error);
+      debugTelemetry.setNote(`Poster place failed\n${detail}`);
+      debugTelemetry.setHudVisible(true);
+      addToast({
+        type: 'error',
+        message: `Failed to place: ${detail.split('\n')[0]}`,
+        duration: 8000,
+      });
     } finally {
       placingRef.current = false;
     }

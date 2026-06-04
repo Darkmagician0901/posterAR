@@ -47,6 +47,23 @@ export const DebugHUD: React.FC = () => {
 
   return (
     <div className="debug-hud" role="status" aria-label="Debug telemetry">
+      {snapshot.note && (
+        <div className="debug-hud-note">
+          <div className="debug-hud-note-head">
+            <span>Last error</span>
+            <button
+              type="button"
+              className="debug-hud-copy"
+              onClick={() => {
+                void navigator.clipboard?.writeText(snapshot.note ?? '');
+              }}
+            >
+              Copy
+            </button>
+          </div>
+          <pre className="debug-hud-note-body">{snapshot.note}</pre>
+        </div>
+      )}
       <div className="debug-hud-row">
         <span>FPS</span>
         <span>{snapshot.fps}</span>

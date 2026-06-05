@@ -131,12 +131,15 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
         `createPosterTexture: start — ${isGif ? 'GIF' : 'static'} ${urlKind}`
       );
 
-      const { texture, animator, aspect } = await createPosterTexture(currentPosterImage);
+      const { texture, animator, aspect, fallbackReason } = await createPosterTexture(currentPosterImage);
 
       // TEMPORARY: log successful texture creation.
       debugTelemetry.logEvent(
         `createPosterTexture: ok — aspect=${aspect.toFixed(3)} animated=${animator !== null}`
       );
+      if (fallbackReason) {
+        debugTelemetry.logEvent(`gif: fell back to static frame-0 — ${fallbackReason}`);
+      }
 
       const posterId = usePosterStore.getState().addPoster({
         imageUrl: currentPosterImage,

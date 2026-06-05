@@ -18,7 +18,7 @@ import {
   Scene,
 } from 'three';
 
-import { createPosterTexture } from '@/xr8/gifAnimator';
+import { acquirePosterTexture, releasePosterTexture } from '@/xr8/posterTextureCache';
 import { onXr8Ready, runXr8, stopXr8 } from '@/xr8/pipeline';
 import { readReticlePose } from '@/xr8/hitTestController';
 import { PosterPlacement } from '@/xr8/posterPlacement';
@@ -112,9 +112,11 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
     // TEMPORARY: log entry + reticle lock confirmation.
     debugTelemetry.logEvent('placePoster: entered (reticle locked)');
 
-    try {
-      const { currentPosterImage } = usePosterStore.getState();
+    // Captured once here so the catch block releases the exact same URL we
+    // acquired, even if the user changes selection during the async decode.
+    const { currentPosterImage } = usePosterStore.getState();
 
+    try {
       // TEMPORARY: log image kind + rough size so we can tell "GIF vs static"
       // and "data-URL vs blob: vs http" without needing DevTools.
       const isGif =
@@ -131,7 +133,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
         `createPosterTexture: start — ${isGif ? 'GIF' : 'static'} ${urlKind}`
       );
 
-      const { texture, animator, aspect, fallbackReason } = await createPosterTexture(currentPosterImage);
+      const { texture, animator, aspect, fallbackReason } = await acquirePosterTexture(currentPosterImage);
 
       // TEMPORARY: log successful texture creation.
       debugTelemetry.logEvent(
@@ -152,8 +154,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
         // TEMPORARY: log poster-limit hit.
         debugTelemetry.logEvent('addPoster: null — poster limit reached');
         addToast({ type: 'info', message: 'Poster limit reached' });
-        texture.dispose();
-        animator?.dispose();
+        releasePosterTexture(currentPosterImage);
         return;
       }
 
@@ -168,14 +169,13 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
           `placement.place: skipped — placement=${placement !== null} matrix=${matrix !== null}`
         );
         usePosterStore.getState().removePoster(posterId);
-        texture.dispose();
-        animator?.dispose();
+        releasePosterTexture(currentPosterImage);
         return;
       }
 
       // TEMPORARY: log that placement.place is about to be called.
       debugTelemetry.logEvent('placement.place: calling…');
-      placement.place(matrix, texture, aspect, posterId, animator);
+      placement.place(matrix, texture, aspect, posterId, currentPosterImage, animator);
 
       // TEMPORARY: log success with updated poster count.
       const posterCount = placement.size();
@@ -183,6 +183,10 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
 
     } catch (error) {
       console.error('Poster placement failed:', error);
+      // Balance the acquirePosterTexture() refcount if we acquired but threw
+      // before the poster was placed. Safe no-op when nothing was cached (e.g.
+      // acquire itself threw) since release() ignores unknown URLs.
+      releasePosterTexture(currentPosterImage);
       // On-device trace sensing: we have no desktop inspector, so surface the
       // real error to the persistent HUD note and force it visible. The stage
       // tag ([gif:fetch|decode|composite]) localizes the failure. TEMPORARY —

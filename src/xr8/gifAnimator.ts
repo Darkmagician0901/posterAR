@@ -33,6 +33,11 @@ export interface PosterTexture {
   aspect: number
   /** Set when the GIF could not animate and we fell back to a static frame-0 texture. */
   fallbackReason?: string
+  /**
+   * Bytes of decoded RGBA frame data held in memory by this animator.
+   * 0 for static textures and budget-exceeded fallbacks.
+   */
+  decodedBytes: number
 }
 
 const isGifUrl = (url: string): boolean =>
@@ -245,8 +250,15 @@ function makeAnimator(frames: DecodedFrame[], width: number, height: number): Gi
 /**
  * Build a poster texture from any supported URL. GIFs animate; everything else
  * is static. The caller owns disposal (PosterPlacement.remove handles it).
+ *
+ * @param opts.animationByteBudget  When provided, animated GIFs that exceed this
+ *   number of decoded bytes are silently demoted to a static frame-0 texture
+ *   instead, saving memory. Pass the *remaining* budget from the global cap.
  */
-export async function createPosterTexture(url: string): Promise<PosterTexture> {
+export async function createPosterTexture(
+  url: string,
+  opts?: { animationByteBudget?: number },
+): Promise<PosterTexture> {
   if (isGifUrl(url)) {
     try {
       const buffer = await loadGifBuffer(url).catch((err) => {
@@ -259,11 +271,25 @@ export async function createPosterTexture(url: string): Promise<PosterTexture> {
       // per-frame upload cost for nothing.
       if (frames.length <= 1 || width < 1 || height < 1) {
         const texture = await loadStaticTexture(url)
-        return { texture, animator: null, aspect }
+        return { texture, animator: null, aspect, decodedBytes: 0 }
+      }
+
+      // Compute how many bytes this animation would hold in memory.
+      const bytes = frames.reduce((s, f) => s + f.patch.byteLength, 0)
+
+      // Budget guard: if remaining budget is specified and this GIF would exceed
+      // it, degrade to a static frame-0 to stay within the memory cap.
+      if (opts?.animationByteBudget !== undefined && bytes > opts.animationByteBudget) {
+        const texture = await loadStaticTexture(url)
+        const img = texture.image as { width?: number; naturalWidth?: number; height?: number; naturalHeight?: number }
+        const w = img.naturalWidth ?? img.width ?? 1
+        const h = img.naturalHeight ?? img.height ?? 1
+        const fallbackReason = `memory budget — ${(bytes / 1048576).toFixed(0)}MB GIF exceeds remaining cap`
+        return { texture, animator: null, aspect: h / Math.max(1, w), fallbackReason, decodedBytes: 0 }
       }
 
       const animator = makeAnimator(frames, width, height)
-      return { texture: animator.canvasTexture, animator, aspect }
+      return { texture: animator.canvasTexture, animator, aspect, decodedBytes: bytes }
     } catch (err) {
       // No-regret fallback: never do worse than the old static-frame-0 path.
       const reason = err instanceof Error ? err.message : String(err)
@@ -271,7 +297,7 @@ export async function createPosterTexture(url: string): Promise<PosterTexture> {
       const img = texture.image as { width?: number; naturalWidth?: number; height?: number; naturalHeight?: number }
       const w = img.naturalWidth ?? img.width ?? 1
       const h = img.naturalHeight ?? img.height ?? 1
-      return { texture, animator: null, aspect: h / Math.max(1, w), fallbackReason: reason }
+      return { texture, animator: null, aspect: h / Math.max(1, w), fallbackReason: reason, decodedBytes: 0 }
     }
   }
 
@@ -279,5 +305,5 @@ export async function createPosterTexture(url: string): Promise<PosterTexture> {
   const img = texture.image as { width?: number; naturalWidth?: number; height?: number; naturalHeight?: number }
   const w = img.naturalWidth ?? img.width ?? 1
   const h = img.naturalHeight ?? img.height ?? 1
-  return { texture, animator: null, aspect: h / Math.max(1, w) }
+  return { texture, animator: null, aspect: h / Math.max(1, w), decodedBytes: 0 }
 }

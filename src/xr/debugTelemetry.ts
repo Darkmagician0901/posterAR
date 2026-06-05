@@ -87,6 +87,20 @@ export type LoadStage =
 
 export type LoadTiming = Record<LoadStage, number | null>;
 
+// ---------------------------------------------------------------------------
+// TEMPORARY — tap→place breadcrumb log. Removed / refined once GIF fix lands.
+// ---------------------------------------------------------------------------
+
+/** A single timestamped placement breadcrumb entry. */
+export interface BreadcrumbEntry {
+  /** ms since navigation start (performance.now()). */
+  t: number;
+  msg: string;
+}
+
+/** Max entries kept in the ring buffer. */
+const BREADCRUMB_MAX = 20;
+
 export interface TelemetrySnapshot {
   fps: number;
   /** Current hit orientation, or null when not tracking. */
@@ -98,6 +112,8 @@ export interface TelemetrySnapshot {
   hudVisible: boolean;
   timing: LoadTiming;
   subsystems: SubsystemsSnapshot;
+  /** TEMPORARY: ring-buffered breadcrumbs for the tap→place diagnostic path. */
+  breadcrumbs: BreadcrumbEntry[];
 }
 
 const initialSubsystems: SubsystemsSnapshot = {
@@ -133,6 +149,8 @@ const initial: TelemetrySnapshot = {
     new URLSearchParams(window.location.search).get('debug') === '1',
   timing: { ...initialTiming },
   subsystems: { ...initialSubsystems },
+  // TEMPORARY: starts empty; populated by placement breadcrumbs.
+  breadcrumbs: [],
 };
 
 let state: TelemetrySnapshot = {
@@ -218,6 +236,36 @@ export const debugTelemetry = {
     return () => subscribers.delete(cb);
   },
 
+  // ---------------------------------------------------------------------------
+  // TEMPORARY — breadcrumb helpers for the tap→place diagnostic path.
+  // Remove / refine once the GIF placement bug is fixed.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Append a timestamped diagnostic message to the ring buffer. If the buffer
+   * is full the oldest entry is dropped. Notifies subscribers so the HUD
+   * refreshes within its 200ms polling interval.
+   */
+  logEvent(msg: string): void {
+    const entry: BreadcrumbEntry = {
+      t: typeof performance !== 'undefined' ? Math.round(performance.now()) : 0,
+      msg,
+    };
+    if (state.breadcrumbs.length >= BREADCRUMB_MAX) {
+      state.breadcrumbs = [...state.breadcrumbs.slice(1), entry];
+    } else {
+      state.breadcrumbs = [...state.breadcrumbs, entry];
+    }
+    notify();
+  },
+
+  /** Wipe breadcrumbs (e.g. on session reset). Notifies subscribers. */
+  clearEvents(): void {
+    if (state.breadcrumbs.length === 0) return;
+    state.breadcrumbs = [];
+    notify();
+  },
+
   /**
    * Called on session end. Preserves hudVisible, platform, engine readiness,
    * and the load-timing track (a one-time startup measurement). Resets the
@@ -235,6 +283,7 @@ export const debugTelemetry = {
         platform,
         engine,
       },
+      breadcrumbs: [],
     };
     lastFrameTime = null;
     emaDt = 1000 / 60;

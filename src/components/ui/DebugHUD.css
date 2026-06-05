@@ -1,3 +1,32 @@
+/*
+ * TEMPORARY — debug toggle chip + breadcrumb log styles.
+ * Remove / refine once GIF placement fix lands.
+ */
+
+/* Always-visible 🐞 chip that toggles the HUD. Positioned bottom-right to
+   stay clear of the poster gallery and control panel. 44×44 px minimum tap
+   target recommended by WCAG / Apple HIG for mobile touch. */
+.debug-hud-toggle {
+  position: fixed;
+  bottom: 88px;
+  right: 16px;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+  line-height: 1;
+  background-color: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  cursor: pointer;
+  pointer-events: auto;
+  /* Subtle shadow so it's visible on light backgrounds. */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
 .debug-hud {
   position: fixed;
   top: 70px;
@@ -82,4 +111,15 @@
   color: #fecaca;
   font-size: 11px;
   line-height: 1.35;
+}
+
+/* TEMPORARY: breadcrumb section — neutral color (not red) since it shows
+   normal trace steps, not just errors. */
+.debug-hud-crumbs .debug-hud-note-head {
+  color: #93c5fd; /* blue-300 — distinguishes breadcrumbs from the red error note */
+}
+
+.debug-hud-crumbs-body {
+  color: #cbd5e1; /* slate-300 */
+  max-height: 30vh;
 }

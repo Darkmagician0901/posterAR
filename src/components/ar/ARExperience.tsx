@@ -87,15 +87,56 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
   }, [mode]);
 
   // ── placePoster ─────────────────────────────────────────────────────────────
+  // TEMPORARY breadcrumb helpers — all logEvent calls in this function are
+  // diagnostic-only instrumentation removed/refined once GIF fix lands.
 
   const placePoster = async () => {
-    if (placingRef.current) return;
-    if (!lastReticleMatrixRef.current) return;
+    // TEMPORARY: first placement attempt forces the HUD visible so the user
+    // sees the trace without needing to find the toggle button.
+    debugTelemetry.setHudVisible(true);
+
+    if (placingRef.current) {
+      // TEMPORARY: log the "already placing" early-return so it's visible.
+      debugTelemetry.logEvent('tap: already placing — ignored');
+      return;
+    }
+    if (!lastReticleMatrixRef.current) {
+      // TEMPORARY: log the "no reticle lock" early-return (most likely iOS
+      // cause of silent failure — surface not yet detected by SLAM).
+      debugTelemetry.logEvent('tap: no reticle lock — surface not yet detected');
+      return;
+    }
 
     placingRef.current = true;
+
+    // TEMPORARY: log entry + reticle lock confirmation.
+    debugTelemetry.logEvent('placePoster: entered (reticle locked)');
+
     try {
       const { currentPosterImage } = usePosterStore.getState();
+
+      // TEMPORARY: log image kind + rough size so we can tell "GIF vs static"
+      // and "data-URL vs blob: vs http" without needing DevTools.
+      const isGif =
+        currentPosterImage.startsWith('data:image/gif') ||
+        /\.gif($|\?)/i.test(currentPosterImage);
+      const urlKind = currentPosterImage.startsWith('data:')
+        ? `data(${currentPosterImage.length} chars)`
+        : currentPosterImage.startsWith('blob:')
+          ? 'blob:'
+          : currentPosterImage.startsWith('http')
+            ? 'http'
+            : 'other';
+      debugTelemetry.logEvent(
+        `createPosterTexture: start — ${isGif ? 'GIF' : 'static'} ${urlKind}`
+      );
+
       const { texture, animator, aspect } = await createPosterTexture(currentPosterImage);
+
+      // TEMPORARY: log successful texture creation.
+      debugTelemetry.logEvent(
+        `createPosterTexture: ok — aspect=${aspect.toFixed(3)} animated=${animator !== null}`
+      );
 
       const posterId = usePosterStore.getState().addPoster({
         imageUrl: currentPosterImage,
@@ -105,22 +146,38 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
       });
 
       if (!posterId) {
+        // TEMPORARY: log poster-limit hit.
+        debugTelemetry.logEvent('addPoster: null — poster limit reached');
         addToast({ type: 'info', message: 'Poster limit reached' });
         texture.dispose();
         animator?.dispose();
         return;
       }
 
+      // TEMPORARY: log poster ID assigned.
+      debugTelemetry.logEvent(`addPoster: ok — id=${posterId}`);
+
       const placement = placementRef.current;
       const matrix = lastReticleMatrixRef.current;
       if (!placement || !matrix) {
+        // TEMPORARY: log loss of placement ref / matrix between async await.
+        debugTelemetry.logEvent(
+          `placement.place: skipped — placement=${placement !== null} matrix=${matrix !== null}`
+        );
         usePosterStore.getState().removePoster(posterId);
         texture.dispose();
         animator?.dispose();
         return;
       }
 
+      // TEMPORARY: log that placement.place is about to be called.
+      debugTelemetry.logEvent('placement.place: calling…');
       placement.place(matrix, texture, aspect, posterId, animator);
+
+      // TEMPORARY: log success with updated poster count.
+      const posterCount = placement.size();
+      debugTelemetry.logEvent(`placement.place: ok — total posters=${posterCount}`);
+
     } catch (error) {
       console.error('Poster placement failed:', error);
       // On-device trace sensing: we have no desktop inspector, so surface the
@@ -128,6 +185,8 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
       // tag ([gif:fetch|decode|composite]) localizes the failure. TEMPORARY —
       // removed/refined once the GIF placement fix lands.
       const detail = describeError(error);
+      // TEMPORARY: also log error into breadcrumbs so it appears in Tap trace.
+      debugTelemetry.logEvent(`ERROR: ${detail.split('\n')[0]}`);
       debugTelemetry.setNote(`Poster place failed\n${detail}`);
       debugTelemetry.setHudVisible(true);
       addToast({
@@ -218,7 +277,12 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
 
           // Touch/mouse listener for poster placement.
           const onPointerDown = () => {
-            placePoster();
+            // TEMPORARY: log every tap so we know the event reached JS even
+            // when placePoster silently early-returns.
+            debugTelemetry.logEvent(
+              `tap: received — reticle=${lastReticleMatrixRef.current !== null ? 'locked' : 'not-locked'}`
+            );
+            void placePoster();
           };
           activeCanvas.addEventListener('touchstart', onPointerDown, { passive: true });
           activeCanvas.addEventListener('mousedown', onPointerDown);

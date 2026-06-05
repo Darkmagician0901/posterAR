@@ -1,3 +1,32 @@
+/*
+ * TEMPORARY — debug toggle chip + breadcrumb log styles.
+ * Remove / refine once GIF placement fix lands.
+ */
+
+/* Always-visible 🐞 chip that toggles the HUD. Positioned bottom-right to
+   stay clear of the poster gallery and control panel. 44×44 px minimum tap
+   target recommended by WCAG / Apple HIG for mobile touch. */
+.debug-hud-toggle {
+  position: fixed;
+  bottom: 88px;
+  right: 16px;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+  line-height: 1;
+  background-color: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  cursor: pointer;
+  pointer-events: auto;
+  /* Subtle shadow so it's visible on light backgrounds. */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
 .debug-hud {
   position: fixed;
   top: 70px;
@@ -8,6 +37,7 @@
   gap: 4px;
   padding: 10px 12px;
   min-width: 200px;
+  max-width: min(92vw, 380px);
   background-color: rgba(0, 0, 0, 0.78);
   color: #e2e8f0;
   border-radius: 8px;
@@ -37,4 +67,59 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   opacity: 0.75;
+}
+
+.debug-hud-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.debug-hud-note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fca5a5;
+}
+
+.debug-hud-copy {
+  font: inherit;
+  font-size: 11px;
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.debug-hud-note-body {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  -webkit-user-select: text;
+  user-select: text;
+  max-height: 42vh;
+  overflow: auto;
+  color: #fecaca;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+/* TEMPORARY: breadcrumb section — neutral color (not red) since it shows
+   normal trace steps, not just errors. */
+.debug-hud-crumbs .debug-hud-note-head {
+  color: #93c5fd; /* blue-300 — distinguishes breadcrumbs from the red error note */
+}
+
+.debug-hud-crumbs-body {
+  color: #cbd5e1; /* slate-300 */
+  max-height: 30vh;
 }

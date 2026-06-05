@@ -31,6 +31,8 @@ export interface PosterTexture {
   animator: PosterAnimator | null
   /** height / width of the source image. */
   aspect: number
+  /** Set when the GIF could not animate and we fell back to a static frame-0 texture. */
+  fallbackReason?: string
 }
 
 const isGifUrl = (url: string): boolean =>
@@ -163,7 +165,32 @@ class GifAnimator implements PosterAnimator {
   }
 }
 
-const fetchArrayBuffer = async (url: string): Promise<ArrayBuffer> => {
+/**
+ * Decode a base64 data: URL to an ArrayBuffer WITHOUT fetch(). iOS Safari can
+ * reject or stall on fetch() of large (~10 MB) data URLs — atob is synchronous,
+ * local, and what the old <img> path effectively relied on.
+ */
+export function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
+  const comma = dataUrl.indexOf(',')
+  if (comma === -1) throw new Error('malformed data URL')
+  const meta = dataUrl.slice(0, comma)
+  const payload = dataUrl.slice(comma + 1)
+  if (meta.includes(';base64')) {
+    const bin = atob(payload)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    return bytes.buffer
+  }
+  // Non-base64 (percent-encoded) data URL — rare for GIFs.
+  const decoded = decodeURIComponent(payload)
+  const bytes = new Uint8Array(decoded.length)
+  for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i)
+  return bytes.buffer
+}
+
+/** Get GIF bytes: decode data: URLs locally; fetch only real network URLs. */
+async function loadGifBuffer(url: string): Promise<ArrayBuffer> {
+  if (url.startsWith('data:')) return dataUrlToArrayBuffer(url)
   const res = await fetch(url)
   return res.arrayBuffer()
 }
@@ -182,24 +209,70 @@ const loadStaticTexture = (url: string): Promise<Texture> =>
   })
 
 /**
+ * Diagnostic: prefix the GIF-pipeline stage that threw onto the error message,
+ * so a minified production stack (no source maps on-device) still localizes the
+ * failure when it surfaces on the DebugHUD. Preserves the original stack.
+ */
+function stageError(stage: 'fetch' | 'decode' | 'composite', err: unknown): Error {
+  const base = err instanceof Error ? err.message : String(err)
+  const tagged = new Error(`[gif:${stage}] ${base}`)
+  if (err instanceof Error && err.stack) tagged.stack = err.stack
+  return tagged
+}
+
+function decodeGif(buffer: ArrayBuffer): {
+  width: number
+  height: number
+  frames: DecodedFrame[]
+} {
+  try {
+    const { width, height } = readGifSize(buffer)
+    const frames = decodeGifFrames(buffer)
+    return { width, height, frames }
+  } catch (err) {
+    throw stageError('decode', err)
+  }
+}
+
+function makeAnimator(frames: DecodedFrame[], width: number, height: number): GifAnimator {
+  try {
+    return new GifAnimator(frames, width, height)
+  } catch (err) {
+    throw stageError('composite', err)
+  }
+}
+
+/**
  * Build a poster texture from any supported URL. GIFs animate; everything else
  * is static. The caller owns disposal (PosterPlacement.remove handles it).
  */
 export async function createPosterTexture(url: string): Promise<PosterTexture> {
   if (isGifUrl(url)) {
-    const buffer = await fetchArrayBuffer(url)
-    const { width, height } = readGifSize(buffer)
-    const frames = decodeGifFrames(buffer)
+    try {
+      const buffer = await loadGifBuffer(url).catch((err) => {
+        throw stageError('fetch', err)
+      })
+      const { width, height, frames } = decodeGif(buffer)
+      const aspect = height / Math.max(1, width)
 
-    // Degenerate / single-frame GIF: fall back to static so we don't pay the
-    // per-frame upload cost for nothing.
-    if (frames.length <= 1) {
+      // Degenerate / single-frame GIF: fall back to static so we don't pay the
+      // per-frame upload cost for nothing.
+      if (frames.length <= 1 || width < 1 || height < 1) {
+        const texture = await loadStaticTexture(url)
+        return { texture, animator: null, aspect }
+      }
+
+      const animator = makeAnimator(frames, width, height)
+      return { texture: animator.canvasTexture, animator, aspect }
+    } catch (err) {
+      // No-regret fallback: never do worse than the old static-frame-0 path.
+      const reason = err instanceof Error ? err.message : String(err)
       const texture = await loadStaticTexture(url)
-      return { texture, animator: null, aspect: height / Math.max(1, width) }
+      const img = texture.image as { width?: number; naturalWidth?: number; height?: number; naturalHeight?: number }
+      const w = img.naturalWidth ?? img.width ?? 1
+      const h = img.naturalHeight ?? img.height ?? 1
+      return { texture, animator: null, aspect: h / Math.max(1, w), fallbackReason: reason }
     }
-
-    const animator = new GifAnimator(frames, width, height)
-    return { texture: animator.canvasTexture, animator, aspect: height / Math.max(1, width) }
   }
 
   const texture = await loadStaticTexture(url)

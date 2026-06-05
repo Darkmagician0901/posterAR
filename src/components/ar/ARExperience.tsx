@@ -112,9 +112,11 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
     // TEMPORARY: log entry + reticle lock confirmation.
     debugTelemetry.logEvent('placePoster: entered (reticle locked)');
 
-    try {
-      const { currentPosterImage } = usePosterStore.getState();
+    // Captured once here so the catch block releases the exact same URL we
+    // acquired, even if the user changes selection during the async decode.
+    const { currentPosterImage } = usePosterStore.getState();
 
+    try {
       // TEMPORARY: log image kind + rough size so we can tell "GIF vs static"
       // and "data-URL vs blob: vs http" without needing DevTools.
       const isGif =
@@ -181,6 +183,10 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
 
     } catch (error) {
       console.error('Poster placement failed:', error);
+      // Balance the acquirePosterTexture() refcount if we acquired but threw
+      // before the poster was placed. Safe no-op when nothing was cached (e.g.
+      // acquire itself threw) since release() ignores unknown URLs.
+      releasePosterTexture(currentPosterImage);
       // On-device trace sensing: we have no desktop inspector, so surface the
       // real error to the persistent HUD note and force it visible. The stage
       // tag ([gif:fetch|decode|composite]) localizes the failure. TEMPORARY —

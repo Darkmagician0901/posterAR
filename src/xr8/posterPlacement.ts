@@ -17,9 +17,11 @@ import {
 } from 'three'
 
 import type { PosterAnimator } from '@/xr8/gifAnimator'
+import { releasePosterTexture } from '@/xr8/posterTextureCache'
 
 export interface PlacedPoster {
   id: string
+  url: string
   group: Group
   mesh: Mesh
   texture: Texture
@@ -43,6 +45,8 @@ export class PosterPlacement {
    * @param texture         The poster image texture (static or animated).
    * @param heightOverWidth height / width of the source image (falls back to 1).
    * @param id              Optional stable id; one is generated if omitted.
+   * @param url             Source URL the texture was acquired from (used to release
+   *                        the cache entry on removal).
    * @param animator        Optional per-frame animator (GIF); null for static.
    * @returns The poster id.
    */
@@ -51,6 +55,7 @@ export class PosterPlacement {
     texture: Texture,
     heightOverWidth: number,
     id?: string,
+    url: string = '',
     animator: PosterAnimator | null = null,
   ): string {
     const width = 0.5
@@ -73,6 +78,7 @@ export class PosterPlacement {
 
     this._posters.set(posterId, {
       id: posterId,
+      url,
       group,
       mesh,
       texture,
@@ -83,10 +89,16 @@ export class PosterPlacement {
     return posterId
   }
 
-  /** Advance all animated posters by `deltaMs`. Static posters are no-ops. */
+  /** Advance all animated posters by `deltaMs`. Static posters are no-ops.
+   *  Each distinct animator is updated at most once per frame even when
+   *  multiple posters share the same animator instance. */
   tick(deltaMs: number): void {
+    const seen = new Set<PosterAnimator>()
     for (const { animator } of this._posters.values()) {
-      animator?.update(deltaMs)
+      if (animator && !seen.has(animator)) {
+        seen.add(animator)
+        animator.update(deltaMs)
+      }
     }
   }
 
@@ -101,16 +113,17 @@ export class PosterPlacement {
     mesh.scale.set(scaleX / size.width, scaleY / size.height, 1)
   }
 
-  /** Remove a single poster and free its GPU resources (incl. texture + animator). */
+  /** Remove a single poster and release its shared texture back to the cache.
+   *  Geometry and material are disposed here; texture + animator lifetime is
+   *  managed by posterTextureCache (released via releasePosterTexture). */
   remove(id: string): void {
     const record = this._posters.get(id)
     if (!record) return
-    const { group, mesh, texture, animator } = record
+    const { group, mesh, url } = record
     group.removeFromParent()
     mesh.geometry.dispose()
     ;(mesh.material as MeshBasicMaterial).dispose()
-    texture.dispose()
-    animator?.dispose()
+    releasePosterTexture(url)
     this._posters.delete(id)
   }
 

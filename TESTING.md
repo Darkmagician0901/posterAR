@@ -4,6 +4,7 @@ Comprehensive testing procedures and checklist for the XR Poster AR web applicat
 
 ## Table of Contents
 
+- [Automated Tests](#automated-tests)
 - [Testing Overview](#testing-overview)
 - [Device Testing Matrix](#device-testing-matrix)
 - [Pre-Deployment Testing](#pre-deployment-testing)
@@ -17,11 +18,41 @@ Comprehensive testing procedures and checklist for the XR Poster AR web applicat
 
 ---
 
+## Automated Tests
+
+**Tooling:** [Vitest](https://vitest.dev/) ^4.1.8 with [happy-dom](https://github.com/capricorn86/happy-dom) ^20.9.0. Config: `vitest.config.ts` (happy-dom environment).
+
+```bash
+# One-shot run (CI / pre-push)
+npm run test
+
+# Watch mode (development)
+npm run test:watch
+```
+
+**6 test files, 29 tests, all passing, runs in < 1 s:**
+
+| File | What it covers |
+|------|----------------|
+| `src/utils/gifDecode.test.ts` | GIF decode adapter (gifuct-js), size reading, data: URL decode |
+| `src/utils/imageUpload.test.ts` | Upload validation + WebP compression rules (formats, size caps) |
+| `src/xr8/gifPlayhead.test.ts` | Pure frame-timing playhead math |
+| `src/xr8/gifAnimator.test.ts` | CanvasTexture animator behavior |
+| `src/xr8/posterPlacement.test.ts` | Poster mesh placement / removal in the scene |
+| `src/xr8/posterTextureCache.test.ts` | Refcounted shared animator cache, memory budget, texture disposal |
+
+### Testing philosophy
+
+- **Automated (vitest)** — pure logic that is device-independent: timing math, decode adapters, upload validation, placement calculations, cache refcounting.
+- **Manual (on-device)** — anything that requires the live camera, SLAM tracking, 8th Wall engine, or on-device rendering. See the sections below for those checklists.
+
+---
+
 ## Testing Overview
 
 ### Testing Levels
 
-1. **Unit Testing** - Individual functions and components
+1. **Unit Testing** - Pure logic (timing, decode, validation, placement, cache) — covered by the vitest suite above
 2. **Integration Testing** - Component interactions
 3. **System Testing** - End-to-end functionality
 4. **Acceptance Testing** - User experience validation
@@ -77,15 +108,19 @@ Comprehensive testing procedures and checklist for the XR Poster AR web applicat
 rm -rf node_modules package-lock.json
 npm install
 
-# 2. Type checking
+# 2. Automated tests (must all pass)
+npm run test
+# Expected: 29 tests pass, no failures
+
+# 3. Type checking
 npm run type-check
 # Expected: No errors
 
-# 3. Production build
+# 4. Production build
 npm run build
 # Expected: Build succeeds, no errors
 
-# 4. Preview build
+# 5. Preview build
 npm run preview
 # Expected: Server starts, app loads
 ```
@@ -93,6 +128,7 @@ npm run preview
 ### Checklist
 
 - [ ] Clean install succeeds
+- [ ] All automated tests pass (`npm run test`)
 - [ ] No TypeScript errors
 - [ ] Production build succeeds
 - [ ] No build warnings
@@ -260,10 +296,11 @@ npm run preview
 
 **Expected Results:**
 - [ ] File picker opens
-- [ ] Can select JPEG/PNG/WebP
-- [ ] File size validation (max 10MB)
+- [ ] Can select JPEG/PNG/WebP/GIF
+- [ ] File size validation enforced (GIF: max 8 MB input; non-GIF: max 50 MB input, compressed to WebP ≤ 2 MB wire, longest axis ≤ 2048 px)
+- [ ] GIFs are preserved as-is (not converted/flattened)
 - [ ] Image loads and displays
-- [ ] Image optimized for performance
+- [ ] Non-GIF images optimized via WebP compression
 - [ ] Uploaded poster appears in gallery
 - [ ] Can place uploaded poster
 
@@ -271,9 +308,11 @@ npm run preview
 - [ ] Valid JPEG image
 - [ ] Valid PNG image
 - [ ] Valid WebP image
-- [ ] Image > 10MB (should reject)
+- [ ] Valid GIF (animated) — preserved as-is
+- [ ] GIF > 8 MB (should reject)
+- [ ] Non-GIF > 50 MB (should reject)
 - [ ] Invalid file type (should reject)
-- [ ] Very large resolution (should compress)
+- [ ] Very large resolution non-GIF (should compress + resize to ≤ 2048 px)
 
 **Common Issues:**
 - Upload fails → Check file size/type
@@ -657,6 +696,7 @@ Any other relevant information
 ### Pre-Deployment ✅
 
 - [ ] Clean install succeeds
+- [ ] All automated tests pass (`npm run test`)
 - [ ] Type checking passes
 - [ ] Production build succeeds
 - [ ] No console errors
@@ -696,5 +736,5 @@ Any other relevant information
 
 ---
 
-**Last Updated:** 2026-05-21  
+**Last Updated:** 2026-06-08  
 **Version:** 1.0.0

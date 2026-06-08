@@ -39,6 +39,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rewrote README / ARCHITECTURE / TECH_STACK and updated CONTRIBUTING / TESTING /
   DEPLOYMENT to reflect the 8th Wall architecture.
 
+### Added — Animated GIF poster support
+- **Animated GIF posters** — GIFs are decoded client-side via `gifuct-js ^2.1.2` and
+  animated frame-by-frame onto a three.js `CanvasTexture`; new source files
+  `gifDecode.ts`, `gifPlayhead.ts`, `gifAnimator.ts`, `posterTextureCache.ts`.
+- GIF files are preserved as-is on upload (not flattened to WebP); non-GIF images
+  continue to be compressed to WebP < 2 MB. GIF limit: 8 MB.
+- `data:` URL GIFs are decoded without `fetch`; a graceful static fallback is used
+  if decoding fails.
+
+### Added — Automated test suite
+- **Vitest** (`^4.1.8`) + **happy-dom** (`^20.9.0`) test environment; run via
+  `npm run test` (single pass) or `npm run test:watch` (watch mode).
+- 6 test files, 29 tests covering: GIF timing/decode, upload validation,
+  poster placement, and texture cache behaviour.
+
+### Added — Diagnostics improvements
+- **Full tap→place breadcrumb tracing** — every step from tap event to AR placement
+  is logged so failures can be isolated.
+- **On-device error HUD** surfaces poster-placement errors without a desktop DevTools
+  connection.
+- **On-demand Debug HUD toggle** — the diagnostic overlay can be shown/hidden at
+  runtime on device.
+
+### Changed — Texture lifecycle & memory
+- **Refcounted shared animator cache** with an animation memory budget; GIF animators
+  are shared across placements of the same source and evicted when the budget is
+  exceeded.
+- Textures are fully released on the placement error path (previously leaked on error).
+- Full `dispose()` coverage for all three.js textures on poster removal.
+
 ### Planned Features
 - Multi-user collaboration
 - Poster templates library
@@ -280,4 +310,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to th
 
 **Maintained by:** XR Poster Team  
 **License:** MIT  
-**Last Updated:** 2026-05-21
+**Last Updated:** 2026-06-08

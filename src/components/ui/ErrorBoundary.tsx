@@ -80,11 +80,15 @@ export class ErrorBoundary extends Component<Props, State> {
               We're sorry, but something unexpected happened. Please try again.
             </p>
 
-            {/* Error details (in development) */}
-            {import.meta.env.DEV && error && (
-              <details className="error-details">
+            {/* TEMPORARY diagnostic — surface the error + React component stack
+                on-device (no desktop inspector available on the phone). Shown in
+                ALL builds and expanded by default so the failing component is
+                readable. Remove with the rest of the diag instrumentation once
+                the placement crash is fixed. */}
+            {error && (
+              <details className="error-details" open>
                 <summary className="error-details-summary">
-                  Technical Details (Development Only)
+                  Technical Details
                 </summary>
                 <div className="error-details-content">
                   <p className="error-name">{error.toString()}</p>

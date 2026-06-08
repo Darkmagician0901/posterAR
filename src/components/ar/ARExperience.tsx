@@ -411,18 +411,31 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
       <DebugHUD />
 
       {/* The 8th Wall engine draws the camera feed + 3D scene here.
-          XRExtras.FullWindowCanvas handles resizing. */}
-      <canvas
-        id="camerafeed"
-        ref={canvasRef}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          zIndex: 1,
-        }}
-      />
+          XRExtras.FullWindowCanvas handles resizing.
+
+          The canvas is wrapped in a stable holder <div> on purpose. 8th Wall's
+          FullWindowCanvas module reparents this canvas to document.body on
+          session start, which moves it OUT of .app-container. React fragments
+          are flattened, so without this wrapper the canvas would be a direct
+          sibling of the other overlays in .app-container — and React would use
+          the (now-moved) canvas as the insertBefore anchor whenever a sibling
+          mounts just before it (e.g. the DebugHUD panel toggled on the first
+          placement tap). That throws "NotFoundError: The object can not be
+          found here." on WebKit. The holder stays put in .app-container, so
+          React always has a valid anchor; only the canvas inside it moves. */}
+      <div className="ar-canvas-holder">
+        <canvas
+          id="camerafeed"
+          ref={canvasRef}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            zIndex: 1,
+          }}
+        />
+      </div>
 
       {/* UI overlay — ordinary DOM on top of the canvas (no WebXR dom-overlay). */}
       <div

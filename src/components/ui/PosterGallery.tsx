@@ -30,6 +30,7 @@ export const PosterGallery: React.FC<PosterGalleryProps> = ({ onClose }) => {
       type: 'success',
       message: 'Poster selected',
     });
+    onClose();
   };
 
   const handleDeletePoster = (id: string, event: React.MouseEvent) => {
@@ -50,6 +51,7 @@ export const PosterGallery: React.FC<PosterGalleryProps> = ({ onClose }) => {
       type: 'success',
       message: 'Default poster selected',
     });
+    onClose();
   };
 
   return (

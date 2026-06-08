@@ -103,6 +103,7 @@ git checkout -b feature/your-feature-name
 
 2. **Test your changes:**
    ```bash
+   npm run test
    npm run type-check
    npm run build
    ```
@@ -275,10 +276,14 @@ Follow the [Conventional Commits](https://www.conventionalcommits.org/) specific
 ### Scopes
 
 - `ar` - AR functionality (scene, reticle, placement)
+- `gif` - GIF decode, animation, playhead
+- `poster` - Poster mesh, texture cache, placement
+- `upload` - Image upload and validation
 - `ui` - User interface
 - `xr8` - 8th Wall (XR8) engine integration
 - `xr` - Engine-agnostic 3D helpers / telemetry
-- `upload` - Image upload
+- `csp` - Content-Security-Policy headers
+- `diag` - Diagnostic HUD / breadcrumb tracing
 - `screenshot` - Screenshot feature
 - `build` - Build configuration
 - `deps` - Dependencies
@@ -287,22 +292,26 @@ Follow the [Conventional Commits](https://www.conventionalcommits.org/) specific
 
 ```bash
 # Feature
-git commit -m "feat(ar): add poster rotation gesture"
+git commit -m "feat(gif): add CanvasTexture animator"
 
 # Bug fix
-git commit -m "fix(gestures): prevent pinch zoom on iOS Safari"
+git commit -m "fix(xr8): expose window.THREE for 8th Wall pipeline"
 
 # Documentation
 git commit -m "docs: update deployment guide for Cloudflare Pages"
 
-# Performance
-git commit -m "perf(ar): optimize poster rendering for low-end devices"
+# Chore / diagnostics
+git commit -m "chore(diag): full tap→place breadcrumbs + on-demand HUD toggle"
+
+# Test
+git commit -m "test(poster): unit tests for placement and texture cache"
 
 # With body
-git commit -m "feat(upload): add image compression before upload
+git commit -m "feat(upload): add GIF support with animated CanvasTexture
 
-Compress uploaded images to reduce memory usage and improve
-performance on mobile devices. Uses canvas API for compression.
+Preserve GIF frames through gifuct-js decode and drive playback
+via a shared refcounted animator cache. Non-GIF images continue
+to be compressed to WebP before placement.
 
 Closes #123"
 ```
@@ -323,6 +332,7 @@ Closes #123"
 
 1. **Ensure all tests pass:**
    ```bash
+   npm run test
    npm run type-check
    npm run build
    ```
@@ -380,10 +390,11 @@ Relates to #456
 - Refactored Z component
 
 ## Testing
-- [ ] Tested on iOS Safari 15+
-- [ ] Tested on Android Chrome 79+
-- [ ] Type checking passes
+- [ ] `npm run test` passes (all 29 automated tests)
+- [ ] `npm run type-check` passes
 - [ ] Build succeeds
+- [ ] Tested on iOS Safari 16.4+ (for AR features)
+- [ ] Tested on Android Chrome (for AR features)
 - [ ] No console errors
 
 ## Screenshots/Videos
@@ -400,7 +411,7 @@ Relates to #456
 
 ### Review Process
 
-1. **Automated checks** must pass (type check, build)
+1. **Automated checks** must pass (tests, type check, build)
 2. **Code review** by at least one maintainer
 3. **Testing** on mobile devices (if applicable)
 4. **Address feedback** and push updates
@@ -425,6 +436,21 @@ Relates to #456
 
 ## Testing Requirements
 
+### Automated Tests
+
+Run the full vitest suite before every push or PR:
+
+```bash
+npm run test
+# Expected: 29 tests pass, no failures
+```
+
+During active development, watch mode is useful:
+
+```bash
+npm run test:watch
+```
+
 ### Type Checking
 
 All code must pass TypeScript type checking:
@@ -443,13 +469,15 @@ npm run build
 
 ### Manual Testing
 
-For AR features, test on:
+Automated tests cover pure logic only. For anything that requires the live camera, SLAM, or on-device rendering, test manually:
+
 - **iOS:** Safari 16.4+ on iPhone (needs WebAssembly SIMD)
 - **Android:** Chrome on Android device
 - **Desktop:** webcam mock mode (for non-AR logic)
 
 ### Testing Checklist
 
+- [ ] All automated tests pass (`npm run test`)
 - [ ] 8th Wall engine loads and AR session starts (Diagnostic Panel turns green)
 - [ ] Camera permission prompt appears
 - [ ] Hit-test reticle locks to a surface (searching → tracking)
@@ -572,5 +600,5 @@ Thank you for contributing to XR Poster! 🎯
 
 ---
 
-**Last Updated:** 2026-05-21  
+**Last Updated:** 2026-06-08  
 **Version:** 1.0.0

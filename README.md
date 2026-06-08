@@ -103,6 +103,8 @@ places posters on tap. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full flo
 | 3D | **three.js 0.160** (plain, no react-three-fiber) |
 | AR engine | **8th Wall / XR8** `engine-binary`, `xrextras`, `landing-page` `@1.0.0`, loaded from jsDelivr |
 | State | **Zustand 4** (`posterStore`, `useUIState`) |
+| GIF decode | **gifuct-js ^2.1.2** (frame-by-frame GIF decode; data: URL support) |
+| Testing | **vitest ^4.1.8** + **happy-dom ^20.9.0** |
 
 There are **no** `@react-three/*` or `@use-gesture/*` dependencies — they were
 removed in the 8th Wall migration. See [`TECH_STACK.md`](TECH_STACK.md).
@@ -138,7 +140,8 @@ xr_poster/
 │   ├── utils/
 │   │   ├── constants.ts
 │   │   ├── deviceDetection.ts          # XR8 capability detection
-│   │   ├── imageUpload.ts              # Client-side WebP compression
+│   │   ├── imageUpload.ts + .test.ts   # Client-side WebP compression; GIFs preserved as-is
+│   │   ├── gifDecode.ts + .test.ts     # Typed gifuct-js adapter; decodes data: URLs
 │   │   └── screenshot.ts
 │   ├── xr/                     # Engine-agnostic 3D helpers
 │   │   ├── debugTelemetry.ts          # Telemetry singleton (HUD/panel source)
@@ -148,7 +151,10 @@ xr_poster/
 │       ├── globals.d.ts                # Ambient XR8/XRExtras/LandingPage typings
 │       ├── pipeline.ts                 # Engine lifecycle: onXr8Ready/runXr8/stopXr8
 │       ├── hitTestController.ts        # XrController.hitTest → reticle pose
-│       └── posterPlacement.ts          # Places/removes poster meshes in the scene
+│       ├── posterPlacement.ts + .test.ts  # Places/removes poster meshes in the scene
+│       ├── gifAnimator.ts + .test.ts   # Drives a CanvasTexture per-frame for GIF posters
+│       ├── gifPlayhead.ts + .test.ts   # Pure frame-timing playhead
+│       └── posterTextureCache.ts + .test.ts  # createPosterTexture + refcounted animator cache
 ├── scripts/generate-qr.js
 ├── vite.config.ts · tsconfig*.json
 ├── vercel.json · netlify.toml · wrangler.toml · Dockerfile · docker-compose.yml
@@ -160,6 +166,8 @@ xr_poster/
 ### Scripts
 ```bash
 npm run dev          # Dev server (HTTPS, --host)
+npm run test         # vitest run (one-shot; 29 tests across 6 files)
+npm run test:watch   # vitest (interactive watch mode)
 npm run type-check   # tsc --noEmit
 npm run build        # tsc && vite build  →  dist/
 npm run build:prod   # production-mode build
@@ -236,9 +244,26 @@ job is left commented out).
 
 ## 🧪 Testing
 
-There is no automated test suite yet; verification is `npm run type-check` +
-`npm run build` plus on-device manual testing. See [`TESTING.md`](TESTING.md)
-for the manual checklist and device matrix.
+The project has a **vitest** unit test suite (environment: happy-dom) covering
+pure logic:
+
+| File | Coverage |
+|------|----------|
+| `src/utils/gifDecode.test.ts` | GIF size reading, data: URL decode |
+| `src/utils/imageUpload.test.ts` | Upload validation, compression rules |
+| `src/xr8/gifAnimator.test.ts` | CanvasTexture frame-update logic |
+| `src/xr8/gifPlayhead.test.ts` | Frame-timing playhead |
+| `src/xr8/posterPlacement.test.ts` | Poster mesh placement/removal |
+| `src/xr8/posterTextureCache.test.ts` | Refcounted animator cache + memory budget |
+
+```bash
+npm run test         # vitest run  (29 tests, all passing, < 1 s)
+npm run test:watch   # vitest interactive watch
+```
+
+End-to-end verification is still `npm run type-check` + `npm run build` + on-device
+manual testing. See [`TESTING.md`](TESTING.md) for the manual checklist and device
+matrix.
 
 ## 🤝 Contributing
 
@@ -260,4 +285,4 @@ MIT — see [`LICENSE`](LICENSE).
 
 ---
 
-**Status:** Active · **AR engine:** 8th Wall (XR8) · **Last updated:** 2026-06-02
+**Status:** Active · **AR engine:** 8th Wall (XR8) · **Last updated:** 2026-06-08

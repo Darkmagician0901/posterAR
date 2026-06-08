@@ -85,7 +85,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/png,image/jpeg,image/jpg,image/webp"
+        accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
         onChange={handleFileChange}
         style={{ display: 'none' }}
         aria-hidden="true"

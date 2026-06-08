@@ -17,6 +17,7 @@ Reference for the libraries, tools, and platform APIs the app actually uses.
 │  React 18.3  +  TypeScript 5.3        UI / components / state             │
 │  three.js 0.160                       3D scene (plain, no R3F)            │
 │  Zustand 4                            posterStore + useUIState            │
+│  gifuct-js 2.1                        Animated GIF decode (poster pipeline)│
 ├───────────────────────────────────────────────────────────────────────── │
 │  8th Wall / XR8 (loaded via <script> from jsDelivr, NOT an npm dep)       │
 │   @8thwall/engine-binary@1.0.0   xr.js loader + SLAM WASM (world-tracking)│
@@ -24,6 +25,7 @@ Reference for the libraries, tools, and platform APIs the app actually uses.
 │   @8thwall/landing-page@1.0.0    device-permission landing helper         │
 ├───────────────────────────────────────────────────────────────────────── │
 │  Vite 5  (@vitejs/plugin-react, @vitejs/plugin-basic-ssl)                 │
+│  Vitest 4  +  happy-dom 20            unit / integration tests            │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -37,9 +39,9 @@ Reference for the libraries, tools, and platform APIs the app actually uses.
 | `react` / `react-dom` | 18.3.1 | UI framework |
 | `three` | ^0.160.0 | 3D rendering (plain three.js; the 8th Wall `Threejs` pipeline module renders the scene) |
 | `zustand` | ^4.4.7 | State (`posterStore`, `useUIState`) |
+| `gifuct-js` | ^2.1.2 | GIF decoding — parses frame data and delays from an `ArrayBuffer`; used by `gifDecode.ts` to animate GIF posters without a server round-trip |
 
-That's the entire runtime dependency list. The AR engine is **not** an npm
-package — it is loaded from CDN at runtime (see below).
+The AR engine is **not** an npm package — it is loaded from CDN at runtime (see below).
 
 ### Dev
 | Package | Version | Role |
@@ -48,6 +50,8 @@ package — it is loaded from CDN at runtime (see below).
 | `vite` | ^5.0.8 | Build tool + dev server |
 | `@vitejs/plugin-react` | ^4.2.1 | React Fast Refresh / JSX |
 | `@vitejs/plugin-basic-ssl` | ^1.0.1 | Self-signed HTTPS for local dev (camera/8th Wall require a secure context) |
+| `vitest` | ^4.1.8 | Unit/integration test runner; config in `vitest.config.ts` |
+| `happy-dom` | ^20.9.0 | Fast DOM environment for Vitest (replaces jsdom; supports Canvas 2D API needed by GIF animator tests) |
 | `@types/node`, `@types/react`, `@types/react-dom`, `@types/three` | — | Type definitions |
 
 `overrides` pin `react`/`react-dom` to 18.3.1; `engines.node` requires ≥ 18.
@@ -98,6 +102,28 @@ Two stores, no Provider/context:
 
 The 3D scene mirrors `posterStore` mutations via a store subscription in
 `ARExperience` (see [`ARCHITECTURE.md`](ARCHITECTURE.md) §5).
+
+---
+
+## Testing (Vitest + happy-dom)
+
+Tests run with `npm run test` (single pass) or `npm run test:watch` (interactive).
+Config: `vitest.config.ts` — `environment: 'happy-dom'`, includes
+`src/**/*.{test,spec}.{ts,tsx}`.
+
+6 test files / 29 tests, all in `src/`:
+
+```
+utils/gifDecode.test.ts        GIF header parsing + data: URL decode
+utils/imageUpload.test.ts      Validation, GIF pass-through, WebP compression
+xr8/gifPlayhead.test.ts        Frame-timing math
+xr8/gifAnimator.test.ts        createPosterTexture branching + static fallback
+xr8/posterTextureCache.test.ts Refcount + budget enforcement + dispose
+xr8/posterPlacement.test.ts    place / remove / tick / clear
+```
+
+The test environment does not load the 8th Wall engine; `XR8` globals are absent
+by design — the pipeline tests rely only on three.js and gifuct-js.
 
 ---
 
@@ -158,4 +184,4 @@ Static SPA → Vercel (`vercel.json`), Netlify (`netlify.toml`), Cloudflare Page
 
 ---
 
-**Last updated:** 2026-06-02
+**Last updated:** 2026-06-08

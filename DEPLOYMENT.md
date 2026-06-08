@@ -102,17 +102,24 @@ The `vercel.json` file is already configured with:
 
 #### GitHub Actions Integration
 
-The project includes a GitHub Actions workflow (`.github/workflows/deploy.yml`) that automatically:
-- Runs type checking
-- Builds the application
-- Deploys to Vercel on push to `main`
-- Creates preview deployments for pull requests
+The project includes a GitHub Actions workflow (`.github/workflows/deploy.yml`). It triggers on pushes to `main`/`develop` and on PRs to `main`, with these jobs:
 
-**Required GitHub Secrets:**
+- **build-and-test** — type-check (`npm run type-check`) + production build + uploads the `dist/` artifact (retained 7 days). Note: this job does **not** run the vitest suite — run `npm run test` locally before pushing.
+- **deploy-netlify** — **active**; rebuilds and deploys `dist/` to Netlify on pushes to `main`. Requires the `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID` secrets.
+- **docker-build** — builds and pushes a Docker image, but only when `DOCKER_USERNAME` / `DOCKER_PASSWORD` secrets are set (skipped otherwise).
+- **notify** — reports the Netlify deploy status.
+
+> **Note:** The two Vercel deploy jobs are commented out because Vercel auto-deploys directly from its GitHub integration (pushes to `main` → production; PRs → preview). Uncomment them only if you want CI to drive Vercel deployments instead.
+
+**Secrets:**
 ```
-VERCEL_TOKEN          # Get from vercel.com/account/tokens
-VERCEL_ORG_ID         # Found in .vercel/project.json after first deploy
-VERCEL_PROJECT_ID     # Found in .vercel/project.json after first deploy
+NETLIFY_AUTH_TOKEN    # required — the active Netlify deploy job
+NETLIFY_SITE_ID       # required — the active Netlify deploy job
+DOCKER_USERNAME       # optional — enables the Docker build/push job
+DOCKER_PASSWORD       # optional — enables the Docker build/push job
+VERCEL_TOKEN          # only if you uncomment the Vercel CI jobs
+VERCEL_ORG_ID         # only if you uncomment the Vercel CI jobs
+VERCEL_PROJECT_ID     # only if you uncomment the Vercel CI jobs
 ```
 
 ---
@@ -649,5 +656,5 @@ For deployment issues:
 
 ---
 
-**Last Updated:** 2026-05-21  
+**Last Updated:** 2026-06-08  
 **Version:** 1.0.0

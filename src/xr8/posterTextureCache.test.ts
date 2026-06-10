@@ -131,6 +131,65 @@ describe('releasePosterTexture — refcounting', () => {
   })
 })
 
+// ── concurrent acquires ────────────────────────────────────────────────────
+
+describe('concurrent acquires of the same URL', () => {
+  it('shares a single decode between overlapping acquires', async () => {
+    const result = makeResult()
+    let resolveLoad!: (r: ReturnType<typeof makeResult>) => void
+    mockCreate.mockImplementation(
+      () => new Promise((resolve) => { resolveLoad = resolve }),
+    )
+
+    const url = 'https://example.com/poster.gif'
+    const p1 = acquirePosterTexture(url)
+    const p2 = acquirePosterTexture(url) // starts before the first decode resolves
+
+    resolveLoad(result)
+    const [a1, a2] = await Promise.all([p1, p2])
+
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+    expect(a1.texture).toBe(a2.texture)
+
+    // Both references must be released before disposal happens.
+    releasePosterTexture(url)
+    expect(result.texture.dispose).not.toHaveBeenCalled()
+    releasePosterTexture(url)
+    expect(result.texture.dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('disposes the decode result when every ref is released before it resolves', async () => {
+    const result = makeResult()
+    let resolveLoad!: (r: ReturnType<typeof makeResult>) => void
+    mockCreate.mockImplementation(
+      () => new Promise((resolve) => { resolveLoad = resolve }),
+    )
+
+    const url = 'https://example.com/poster.gif'
+    const p1 = acquirePosterTexture(url)
+    releasePosterTexture(url) // released while still decoding — nobody owns the result
+
+    resolveLoad(result)
+    await p1
+
+    expect(result.texture.dispose).toHaveBeenCalledTimes(1)
+    expect(result.animator!.dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('evicts a failed decode so a later acquire can retry', async () => {
+    mockCreate.mockRejectedValueOnce(new Error('decode failed'))
+    const url = 'https://example.com/poster.gif'
+    await expect(acquirePosterTexture(url)).rejects.toThrow('decode failed')
+
+    const result = makeResult()
+    mockCreate.mockResolvedValueOnce(result)
+    const a = await acquirePosterTexture(url)
+
+    expect(a.texture).toBe(result.texture)
+    expect(mockCreate).toHaveBeenCalledTimes(2)
+  })
+})
+
 // ── byte budget ────────────────────────────────────────────────────────────
 
 describe('animation byte budget', () => {

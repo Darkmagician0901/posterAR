@@ -31,9 +31,32 @@ export function readGifSize(buffer: ArrayBuffer): { width: number; height: numbe
   return { width: gif.lsd.width, height: gif.lsd.height }
 }
 
-/** Decode all frames (with built image patches) into our DecodedFrame shape. */
+/**
+ * Decoding expands every frame to RGBA, so a small file can declare huge
+ * dimensions and explode in memory ("decode bomb") before any byte-budget
+ * check can run. Refuse to decompress when the worst-case estimate (logical
+ * screen × 4 bytes × frame count) exceeds this cap. It sits far above
+ * ANIMATION_BYTE_BUDGET (64 MB), so a rejected GIF could never have animated
+ * anyway — callers fall back to a static frame-0 texture.
+ */
+export const MAX_ESTIMATED_DECODE_BYTES = 1024 * 1024 * 1024 // 1 GiB
+
+/** Decode all frames (with built image patches) into our DecodedFrame shape.
+ *  Throws (before any frame is decompressed) when the declared size would
+ *  exceed MAX_ESTIMATED_DECODE_BYTES. */
 export function decodeGifFrames(buffer: ArrayBuffer): DecodedFrame[] {
   const gif = parseGIF(buffer)
+
+  // gif.frames mixes image frames and extension blocks — count only images.
+  const frameCount = gif.frames.filter((f) => 'image' in f).length
+  const estimatedBytes = gif.lsd.width * gif.lsd.height * 4 * frameCount
+  if (estimatedBytes > MAX_ESTIMATED_DECODE_BYTES) {
+    throw new Error(
+      `GIF too large to decode safely — ${gif.lsd.width}×${gif.lsd.height} × ` +
+      `${frameCount} frames ≈ ${(estimatedBytes / 1048576).toFixed(0)} MB decoded`,
+    )
+  }
+
   const frames = decompressFrames(gif, true)
   return frames.map((f: ParsedFrame) => ({
     patch: f.patch,

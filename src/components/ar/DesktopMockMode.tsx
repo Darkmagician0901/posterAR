@@ -45,8 +45,10 @@ import { usePosterStore } from '@/store/posterStore';
 // Texture loader helper (mirrors ARExperience loadTexture)
 // ---------------------------------------------------------------------------
 
+/** Module-level cache so re-placing the same image reuses one GPU texture. */
 const textureCache = new Map<string, Texture>();
 
+/** Load (or return cached) three.js Texture for an image URL. */
 const loadTexture = (url: string): Promise<Texture> =>
   new Promise((resolve, reject) => {
     const cached = textureCache.get(url);
@@ -67,6 +69,11 @@ const loadTexture = (url: string): Promise<Texture> =>
 // Component
 // ---------------------------------------------------------------------------
 
+/**
+ * Desktop webcam sandbox for the AR placement flow: renders a transparent
+ * three.js canvas over a getUserMedia <video> and drives the reticle from a
+ * mouse-look camera instead of the 8th Wall engine.
+ */
 export const DesktopMockMode: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -171,6 +178,9 @@ export const DesktopMockMode: React.FC = () => {
       tmpMatrix.makeRotationX(-Math.PI / 2);
       tmpMatrix.setPosition(tmpPos);
 
+      // Fresh array each frame on purpose: handlePlacePoster reads this ref
+      // asynchronously (after an awaited texture load), so reusing one buffer
+      // would let later frames mutate the pose out from under a pending place.
       const flatArray = new Float32Array(16);
       tmpMatrix.toArray(flatArray);
       lastReticleMatrixRef.current = flatArray;

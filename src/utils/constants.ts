@@ -1,125 +1,39 @@
 /**
- * Application constants and configuration
+ * constants.ts — application-wide configuration values.
+ *
+ * Single source of truth for poster sizing, the placement cap, user-visible
+ * copy, and localStorage keys. Limits that belong to one subsystem only live
+ * next to their code instead (upload sizes in imageUpload.ts, the GIF
+ * animation budget in posterTextureCache.ts).
  */
 
-import { AppConfig } from '@/types';
-
 /**
- * Default poster dimensions (in meters for AR space)
+ * Default poster dimensions in meters of AR space (width × height × depth).
+ * Height assumes the classic 5:7 poster ratio; live placements override the
+ * height from the uploaded image's actual aspect ratio.
  */
 export const DEFAULT_POSTER_WIDTH = 0.5;
 export const DEFAULT_POSTER_HEIGHT = 0.7;
 export const DEFAULT_POSTER_DEPTH = 0.01;
 
-/**
- * Poster scale limits
- */
+/** Poster scale-slider limits (multiplier applied to the default size). */
 export const MIN_POSTER_SCALE = 0.1;
 export const MAX_POSTER_SCALE = 3.0;
 
-/**
- * Default poster placement distance from camera (in meters)
- */
-export const DEFAULT_PLACEMENT_DISTANCE = 2.0;
-
-/**
- * Maximum number of posters allowed in scene
- */
+/** Maximum number of posters allowed in the scene at once. */
 export const MAX_POSTERS = parseInt(import.meta.env.VITE_MAX_POSTERS || '10', 10);
 
-/**
- * Performance targets (used by diagnostics / documentation, not enforced).
- */
-export const PERFORMANCE = {
-  targetFPS: 60,
-  minFPS: 30,
-  maxMemoryMB: 150,
-};
-
-/**
- * Animation durations (in milliseconds)
- */
-export const ANIMATION_DURATION = {
-  short: 150,
-  medium: 300,
-  long: 500,
-};
-
-/**
- * Default poster image (placeholder)
- */
+/** Bundled placeholder poster used until the user uploads their own. */
 export const DEFAULT_POSTER_IMAGE = '/posters/default-poster.png';
 
-/**
- * Supported image formats
- */
-export const SUPPORTED_IMAGE_FORMATS = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-];
-
-/**
- * Maximum image file size accepted by the uploader before compression.
- */
-export const MAX_IMAGE_SIZE = 50 * 1024 * 1024;
-
-/**
- * Application configuration
- */
-export const APP_CONFIG: AppConfig = {
-  maxPosters: MAX_POSTERS,
-  defaultPosterSize: [DEFAULT_POSTER_WIDTH, DEFAULT_POSTER_HEIGHT, DEFAULT_POSTER_DEPTH],
-  minPosterScale: MIN_POSTER_SCALE,
-  maxPosterScale: MAX_POSTER_SCALE,
-  enableDebugMode: import.meta.env.VITE_ENABLE_DEBUG_MODE === 'true',
-};
-
-/**
- * Error messages
- */
-export const ERROR_MESSAGES = {
-  AR_NOT_SUPPORTED: 'AR is not supported on this device. Use a mobile device (iOS Safari or Android Chrome) with camera access over HTTPS.',
-  CAMERA_PERMISSION_DENIED: 'Camera permission is required for AR experience.',
-  SESSION_INIT_FAILED: 'Failed to initialize AR session. Please try again.',
-  POSTER_LOAD_FAILED: 'Failed to load poster image.',
-  MAX_POSTERS_REACHED: `Maximum number of posters (${MAX_POSTERS}) reached.`,
-  UNKNOWN: 'An unknown error occurred.',
-};
-
-/**
- * Success messages
- */
-export const SUCCESS_MESSAGES = {
-  POSTER_ADDED: 'Poster added successfully!',
-  POSTER_REMOVED: 'Poster removed.',
-  SESSION_STARTED: 'AR session started.',
-};
-
-/**
- * UI text constants
- */
+/** User-visible copy. */
 export const UI_TEXT = {
   APP_TITLE: 'XR Poster',
   APP_SUBTITLE: 'Place posters in AR',
-  START_AR: 'Start AR Experience',
-  STOP_AR: 'Exit AR',
-  ADD_POSTER: 'Add Poster',
-  REMOVE_POSTER: 'Remove Poster',
-  CLEAR_ALL: 'Clear All',
   LOADING: 'Loading...',
-  TAP_TO_PLACE: 'Tap to place poster',
-  DRAG_TO_MOVE: 'Drag to move',
-  PINCH_TO_SCALE: 'Pinch to scale',
-  ROTATE_TO_TURN: 'Rotate to turn',
 };
 
-/**
- * Local storage keys
- */
+/** localStorage keys (namespaced to avoid collisions on shared origins). */
 export const STORAGE_KEYS = {
-  POSTERS: 'xr-poster-posters',
-  SETTINGS: 'xr-poster-settings',
   TUTORIAL_COMPLETED: 'xr-poster-tutorial-completed',
 };

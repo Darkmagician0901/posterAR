@@ -7,6 +7,7 @@
 
 import { readGifSize } from '@/utils/gifDecode';
 
+/** MIME types accepted by validateImageFile. */
 export const SUPPORTED_FORMATS = [
   'image/png',
   'image/jpeg',
@@ -33,13 +34,19 @@ export const MIN_IMAGE_DIMENSION = 512;
 /** Initial WebP quality; reduced iteratively until the target is met. */
 const INITIAL_QUALITY = 0.92;
 const MIN_QUALITY = 0.5;
+/** How much quality drops per compression attempt (0.92 → 0.82 → …). */
+const QUALITY_STEP = 0.1;
+/** Dimension shrink factor applied once quality bottoms out (20% per pass). */
+const DIMENSION_SCALE_STEP = 0.8;
 
+/** Result of validateImageFile — either { valid: true, file } or an error. */
 export interface ImageValidationResult {
   valid: boolean;
   error?: string;
   file?: File;
 }
 
+/** Output of processImage: the final payload plus compression statistics. */
 export interface ProcessedImage {
   dataUrl: string;
   width: number;
@@ -57,6 +64,10 @@ export interface ProcessedImage {
   originalName: string;
 }
 
+/**
+ * Validate format and size limits (GIFs have a tighter 8 MB cap because they
+ * are stored uncompressed). Returns a result object — never throws.
+ */
 export const validateImageFile = (file: File): ImageValidationResult => {
   if (!file) {
     return { valid: false, error: 'No file provided' };
@@ -87,6 +98,11 @@ export const validateImageFile = (file: File): ImageValidationResult => {
   return { valid: true, file };
 };
 
+/**
+ * Decode a File into a drawable source. Prefers createImageBitmap (faster,
+ * off-main-thread decode) but falls back to an HTMLImageElement because some
+ * browsers (notably older Safari) lack it or fail on certain inputs.
+ */
 const loadImageBitmap = async (file: File): Promise<ImageBitmap | HTMLImageElement> => {
   if ('createImageBitmap' in window) {
     try {
@@ -99,6 +115,8 @@ const loadImageBitmap = async (file: File): Promise<ImageBitmap | HTMLImageEleme
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
+    // Revoke the object URL on BOTH paths — each createObjectURL pins the
+    // file in memory until revoked or the page unloads.
     img.onload = () => {
       URL.revokeObjectURL(url);
       resolve(img);
@@ -111,6 +129,7 @@ const loadImageBitmap = async (file: File): Promise<ImageBitmap | HTMLImageEleme
   });
 };
 
+/** Scale (width, height) down proportionally so the longest side ≤ maxDim. */
 const fitWithin = (
   width: number,
   height: number,
@@ -143,6 +162,11 @@ const drawToCanvas = (
   return canvas;
 };
 
+/**
+ * Encode a canvas to a WebP Blob. canvas.toBlob is callback-based and may
+ * invoke the callback with null (e.g. canvas too large or encoding failed)
+ * rather than throwing — we convert that to a rejected promise.
+ */
 const canvasToWebp = (canvas: HTMLCanvasElement, quality: number): Promise<Blob> =>
   new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -155,6 +179,10 @@ const canvasToWebp = (canvas: HTMLCanvasElement, quality: number): Promise<Blob>
     );
   });
 
+/**
+ * Read a Blob as a base64 data URL. FileReader is event-based, so we wrap it
+ * in a promise; readAsDataURL guarantees `result` is a string, hence the cast.
+ */
 const blobToDataUrl = (blob: Blob): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -163,6 +191,7 @@ const blobToDataUrl = (blob: Blob): Promise<string> =>
     reader.readAsDataURL(blob);
   });
 
+/** Same as blobToDataUrl but for an unmodified File (used for GIF passthrough). */
 const fileToDataUrl = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -175,6 +204,11 @@ const fileToDataUrl = (file: File): Promise<string> =>
  * Iteratively shrink dimensions and quality until the WebP payload fits under
  * TARGET_WIRE_SIZE. Returns the best blob produced (last iteration if nothing
  * meets the budget — better an over-budget WebP than failing the upload).
+ *
+ * Strategy: lower quality first (cheap — re-encode only), and only when
+ * quality bottoms out at MIN_QUALITY shrink the canvas by DIMENSION_SCALE_STEP
+ * and restart quality from INITIAL_QUALITY. The loop terminates because each
+ * pass either lowers quality or shrinks dimensions until MIN_IMAGE_DIMENSION.
  */
 const compressToTarget = async (
   source: ImageBitmap | HTMLImageElement,
@@ -188,14 +222,15 @@ const compressToTarget = async (
 
   while (blob.size > TARGET_WIRE_SIZE) {
     if (quality > MIN_QUALITY) {
-      quality = Math.max(MIN_QUALITY, quality - 0.1);
+      quality = Math.max(MIN_QUALITY, quality - QUALITY_STEP);
       blob = await canvasToWebp(canvas, quality);
       continue;
     }
 
+    // Quality is at the floor — give up only once dimensions hit the floor too.
     const longest = Math.max(width, height);
     if (longest <= MIN_IMAGE_DIMENSION) break;
-    const next = Math.max(MIN_IMAGE_DIMENSION, Math.round(longest * 0.8));
+    const next = Math.max(MIN_IMAGE_DIMENSION, Math.round(longest * DIMENSION_SCALE_STEP));
     const scale = next / longest;
     width = Math.max(1, Math.round(width * scale));
     height = Math.max(1, Math.round(height * scale));
@@ -207,6 +242,10 @@ const compressToTarget = async (
   return { blob, width, height, quality };
 };
 
+/**
+ * Decode + compress a (pre-validated) image file to a WebP data URL, or pass
+ * GIFs through untouched. Throws on decode/encode failure.
+ */
 export const processImage = async (file: File): Promise<ProcessedImage> => {
   // Animated GIFs must NOT be flattened: createImageBitmap + canvas.toBlob
   // would collapse them to a single static frame. Keep the original bytes and
@@ -253,6 +292,10 @@ export const processImage = async (file: File): Promise<ProcessedImage> => {
   };
 };
 
+/**
+ * One-call entry point used by the upload hook: validate, then process.
+ * Throws an Error with a user-facing message if validation fails.
+ */
 export const validateAndProcessImage = async (file: File): Promise<ProcessedImage> => {
   const validation = validateImageFile(file);
   if (!validation.valid) {
@@ -261,9 +304,7 @@ export const validateAndProcessImage = async (file: File): Promise<ProcessedImag
   return processImage(file);
 };
 
-export const createPreviewUrl = (file: File): string => URL.createObjectURL(file);
-export const revokePreviewUrl = (url: string): void => URL.revokeObjectURL(url);
-
+/** Format a byte count for display: "512 B", "12.3 KB", or "1.25 MB". */
 export const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;

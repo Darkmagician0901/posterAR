@@ -19,8 +19,11 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    // Trigger slide-in animation
-    setTimeout(() => setIsVisible(true), 10);
+    // Mount invisible, then flip visible a tick later so the CSS transition
+    // runs. Cleared on unmount so a fast-dismissed toast doesn't set state
+    // after the component is gone.
+    const timer = setTimeout(() => setIsVisible(true), 10);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleClose = () => {

@@ -1,6 +1,16 @@
 /**
  * Poster Upload Hook
- * Handles file upload, validation, and processing
+ *
+ * React hook that drives the poster image upload flow: takes a File (from a
+ * hidden <input type="file"> or drag-and-drop), validates and compresses it
+ * via @/utils/imageUpload, tracks progress/error state for the UI, and shows
+ * success/error toasts via useUIState.
+ *
+ * Main export: usePosterUpload — returns { uploadState, handleFileSelect,
+ * handleFileInputChange, resetUpload, fileInputRef, triggerFileInput }.
+ *
+ * Note: everything runs client-side; "upload" here means decode + compress to
+ * a data URL, not a network transfer.
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -8,7 +18,8 @@ import { validateAndProcessImage, ProcessedImage, formatBytes } from '@/utils/im
 import { useUIState } from './useUIState';
 
 /**
- * Upload state
+ * Snapshot of the upload flow: in-flight flag, coarse progress (0–100), and
+ * the last error message (null when none).
  */
 export interface UploadState {
   isUploading: boolean;
@@ -17,7 +28,8 @@ export interface UploadState {
 }
 
 /**
- * Upload result
+ * Outcome of a single upload attempt. On success, imageUrl is a data URL ready
+ * for texturing and processedImage carries the compression details.
  */
 export interface UploadResult {
   success: boolean;
@@ -27,7 +39,9 @@ export interface UploadResult {
 }
 
 /**
- * Hook return type
+ * Value returned by usePosterUpload. Attach fileInputRef to a hidden file
+ * input and wire handleFileInputChange to its onChange; triggerFileInput
+ * opens the OS file picker programmatically.
  */
 export interface UsePosterUploadReturn {
   uploadState: UploadState;
@@ -39,7 +53,9 @@ export interface UsePosterUploadReturn {
 }
 
 /**
- * Custom hook for poster upload functionality
+ * Hook handling poster file selection, validation, client-side compression,
+ * and toast feedback. Errors are reported via toasts and the returned
+ * UploadResult — the callbacks never throw.
  */
 export const usePosterUpload = (): UsePosterUploadReturn => {
   const { addToast } = useUIState();
@@ -75,13 +91,15 @@ export const usePosterUpload = (): UsePosterUploadReturn => {
       });
 
       try {
-        // Update progress
+        // Progress values (25/75/100) are synthetic milestones, not real byte
+        // progress — compression happens in one awaited call, so we just give
+        // the user visible movement before and after it.
         setUploadState((prev) => ({ ...prev, progress: 25 }));
 
-        // Validate and process image
+        // Validate and process image (throws with a user-facing message on
+        // unsupported format, oversize file, or decode failure).
         const processedImage = await validateAndProcessImage(file);
 
-        // Update progress
         setUploadState((prev) => ({ ...prev, progress: 75 }));
 
         // Complete
@@ -143,7 +161,8 @@ export const usePosterUpload = (): UsePosterUploadReturn => {
 
       const result = await handleFileSelect(file);
 
-      // Reset file input
+      // Clear the input's value so picking the SAME file again still fires a
+      // change event (browsers skip the event when the value is unchanged).
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }

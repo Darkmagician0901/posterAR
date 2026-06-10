@@ -76,7 +76,13 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
   const sceneRootRef = useRef<Group | null>(null);
   const lastReticleMatrixRef = useRef<Float32Array | null>(null);
   const unsubscribeStoreRef = useRef<(() => void) | null>(null);
-  const pointerListenerRef = useRef<(() => void) | null>(null);
+  // The canvas the tap listeners were attached to (the engine may hand its own
+  // canvas to onStart) plus both handlers, so cleanup removes the exact pair.
+  const tapListenersRef = useRef<{
+    canvas: HTMLCanvasElement;
+    onTouchStart: () => void;
+    onMouseDown: () => void;
+  } | null>(null);
   const placingRef = useRef(false);
   const lastFrameTimeRef = useRef<number | null>(null);
   const firstFrameMarkedRef = useRef(false);
@@ -282,8 +288,13 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
           });
           unsubscribeStoreRef.current = unsubscribe;
 
-          // Touch/mouse listener for poster placement.
-          const onPointerDown = () => {
+          // Touch/mouse listener for poster placement. Mobile browsers
+          // synthesize a mousedown after touchstart for compatibility — the
+          // timestamp guard keeps a single tap from invoking placePoster
+          // twice (which could place two posters once the texture is cached
+          // and the second call no longer overlaps the placingRef window).
+          let lastTouchTime = 0;
+          const handleTap = () => {
             // TEMPORARY: log every tap so we know the event reached JS even
             // when placePoster silently early-returns.
             debugTelemetry.logEvent(
@@ -291,9 +302,18 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
             );
             void placePoster();
           };
-          activeCanvas.addEventListener('touchstart', onPointerDown, { passive: true });
-          activeCanvas.addEventListener('mousedown', onPointerDown);
-          pointerListenerRef.current = onPointerDown;
+          const onTouchStart = () => {
+            lastTouchTime = performance.now();
+            handleTap();
+          };
+          const onMouseDown = () => {
+            // Ignore the compatibility mousedown that follows a touch.
+            if (performance.now() - lastTouchTime < 700) return;
+            handleTap();
+          };
+          activeCanvas.addEventListener('touchstart', onTouchStart, { passive: true });
+          activeCanvas.addEventListener('mousedown', onMouseDown);
+          tapListenersRef.current = { canvas: activeCanvas, onTouchStart, onMouseDown };
 
           // Telemetry
           debugTelemetry.setSubsystem('session', 'active');
@@ -373,11 +393,13 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
     placementRef.current?.clear();
     placementRef.current = null;
 
-    // Remove pointer listener from canvas.
-    if (canvasRef.current && pointerListenerRef.current) {
-      canvasRef.current.removeEventListener('touchstart', pointerListenerRef.current);
-      canvasRef.current.removeEventListener('mousedown', pointerListenerRef.current);
-      pointerListenerRef.current = null;
+    // Remove tap listeners from the canvas they were actually attached to
+    // (onStart may have used the engine-provided canvas, not our ref).
+    const tap = tapListenersRef.current;
+    if (tap) {
+      tap.canvas.removeEventListener('touchstart', tap.onTouchStart);
+      tap.canvas.removeEventListener('mousedown', tap.onMouseDown);
+      tapListenersRef.current = null;
     }
 
     // Reset refs.

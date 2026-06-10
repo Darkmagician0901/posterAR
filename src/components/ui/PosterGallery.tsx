@@ -6,6 +6,7 @@
 import React from 'react';
 import { usePosterStore } from '@/store/posterStore';
 import { useUIState } from '@/hooks/useUIState';
+import { DEFAULT_POSTER_IMAGE } from '@/utils/constants';
 import './PosterGallery.css';
 
 interface PosterGalleryProps {
@@ -46,7 +47,7 @@ export const PosterGallery: React.FC<PosterGalleryProps> = ({ onClose }) => {
   };
 
   const handleSelectDefault = () => {
-    setCurrentPosterImage('/posters/default-poster.png');
+    setCurrentPosterImage(DEFAULT_POSTER_IMAGE);
     addToast({
       type: 'success',
       message: 'Default poster selected',
@@ -72,18 +73,18 @@ export const PosterGallery: React.FC<PosterGalleryProps> = ({ onClose }) => {
           {/* Default poster */}
           <div
             className={`poster-gallery-item ${
-              currentPosterImage === '/posters/default-poster.png' ? 'selected' : ''
+              currentPosterImage === DEFAULT_POSTER_IMAGE ? 'selected' : ''
             }`}
             onClick={handleSelectDefault}
           >
             <img
-              src="/posters/default-poster.png"
+              src={DEFAULT_POSTER_IMAGE}
               alt="Default poster"
               className="poster-gallery-thumbnail"
             />
             <div className="poster-gallery-label">
               <span className="poster-gallery-name">Default</span>
-              {currentPosterImage === '/posters/default-poster.png' && (
+              {currentPosterImage === DEFAULT_POSTER_IMAGE && (
                 <span className="poster-gallery-badge">✓</span>
               )}
             </div>

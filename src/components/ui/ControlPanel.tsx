@@ -1,6 +1,12 @@
 /**
- * ControlPanel Component
- * Floating control panel with action buttons
+ * ControlPanel — floating toolbar shown while an AR session is active.
+ *
+ * Buttons: clear all posters, screenshot, upload an image (hidden <input
+ * type="file">), open the poster gallery, show instructions, and toggle the
+ * debug HUD. Owns the gallery's open/closed state locally; everything else is
+ * delegated to posterStore, useUIState, usePosterUpload and useScreenshot.
+ *
+ * Exports: ControlPanel.
  */
 
 import React, { useState } from 'react';
@@ -13,11 +19,13 @@ import { PosterGallery } from './PosterGallery';
 import './ControlPanel.css';
 
 interface ControlPanelProps {
+  /** The panel renders nothing until the AR (or mock) session is running. */
   isARActive: boolean;
 }
 
 /**
- * Control panel with action buttons
+ * Floating AR toolbar (clear / photo / upload / gallery / help / debug).
+ * Returns null when `isARActive` is false.
  */
 export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
   const { clearPosters, posters, addUploadedPoster } = usePosterStore();
@@ -56,7 +64,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
     const result = await handleFileInputChange(event);
     
     if (result?.success && result.processedImage) {
-      // Add to uploaded posters store
+      // Add to uploaded posters store. The `!` is safe: usePosterUpload always
+      // sets imageUrl when success && processedImage are both present.
       addUploadedPoster({
         imageUrl: result.imageUrl!,
         name: result.processedImage.originalName,

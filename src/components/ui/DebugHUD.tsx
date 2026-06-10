@@ -18,6 +18,7 @@ import React, { useEffect, useState } from 'react';
 import { debugTelemetry, TelemetrySnapshot, LoadStage } from '@/xr/debugTelemetry';
 import './DebugHUD.css';
 
+/** Formats a millisecond value; em-dash when the stage hasn't happened yet. */
 const ms = (v: number | null): string => (v === null ? '—' : `${v} ms`);
 
 const TIMING_ROWS: { key: LoadStage; label: string }[] = [
@@ -29,6 +30,7 @@ const TIMING_ROWS: { key: LoadStage; label: string }[] = [
   { key: 'firstTracking', label: 'First track' },
 ];
 
+/** Telemetry overlay toggled by the 🐞 chip; samples debugTelemetry at 5 Hz. */
 export const DebugHUD: React.FC = () => {
   const [snapshot, setSnapshot] = useState<TelemetrySnapshot>(() =>
     debugTelemetry.read()
@@ -36,6 +38,9 @@ export const DebugHUD: React.FC = () => {
   const [, forceVisibility] = useState(0);
 
   useEffect(() => {
+    // Two update paths: a 200 ms poll that refreshes the displayed snapshot,
+    // plus a subscription that forces an extra render whenever telemetry
+    // reports a state transition (e.g. the HUD visibility toggle).
     const id = setInterval(() => {
       setSnapshot({ ...debugTelemetry.read() });
     }, 200);

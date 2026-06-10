@@ -12,6 +12,10 @@
  * grabbing the pixels inside an engine `onRender`/`onUpdate` callback (or
  * enabling preserveDrawingBuffer). The desktop mock path uses its own renderer
  * and is unaffected.
+ *
+ * Main exports: captureScreenshot, captureAndDownload, downloadScreenshot,
+ * shareScreenshot, isShareSupported, validateCanvas, generateFilename.
+ * No external dependencies — DOM + Web Share API only.
  */
 
 /**
@@ -55,7 +59,8 @@ const getMimeType = (format: ScreenshotFormat): string => {
 };
 
 /**
- * Generate filename with timestamp
+ * Build a timestamped filename like `xr-poster-2026-06-09-14-30-05.png`
+ * so successive screenshots never collide.
  */
 export const generateFilename = (format: ScreenshotFormat = 'png'): string => {
   const now = new Date();
@@ -81,7 +86,9 @@ const findThreeCanvas = (): HTMLCanvasElement | null => {
     return canvases[0];
   }
   
-  // Try to find canvas with WebGL context
+  // Try to find canvas with WebGL context. getContext() returns the
+  // ALREADY-CREATED context for a canvas (or null if the canvas was
+  // initialized with a different type), so this probe is non-destructive.
   for (const canvas of Array.from(canvases)) {
     const gl = canvas.getContext('webgl') || canvas.getContext('webgl2');
     if (gl) {
@@ -110,7 +117,9 @@ const captureCanvasAsDataUrl = (
 };
 
 /**
- * Convert data URL to Blob
+ * Convert data URL to Blob.
+ * fetch() accepts data: URLs, which lets the browser do the base64 decoding
+ * for us instead of hand-rolling atob + Uint8Array conversion.
  */
 const dataUrlToBlob = async (dataUrl: string): Promise<Blob> => {
   const response = await fetch(dataUrl);
@@ -118,7 +127,9 @@ const dataUrlToBlob = async (dataUrl: string): Promise<Blob> => {
 };
 
 /**
- * Capture screenshot from Three.js canvas
+ * Capture the WebGL canvas as { dataUrl, blob, filename, width, height }.
+ * Throws if no canvas is found or the canvas cannot be read (see the
+ * preserveDrawingBuffer caveat in the file header).
  */
 export const captureScreenshot = async (
   options: ScreenshotOptions = {}
@@ -151,7 +162,8 @@ export const captureScreenshot = async (
 };
 
 /**
- * Download screenshot to device
+ * Trigger a browser download of the data URL via a temporary <a download>
+ * element. Throws an Error with context if the DOM manipulation fails.
  */
 export const downloadScreenshot = (
   dataUrl: string,
@@ -177,7 +189,8 @@ export const downloadScreenshot = (
 };
 
 /**
- * Capture and download screenshot
+ * Convenience wrapper: capture the canvas, then immediately download the
+ * result. Returns the capture so callers can also share it later.
  */
 export const captureAndDownload = async (
   options: ScreenshotOptions = {}
@@ -188,7 +201,9 @@ export const captureAndDownload = async (
 };
 
 /**
- * Share screenshot using Web Share API (if supported)
+ * Share a captured screenshot via the Web Share API. Resolves true only when
+ * the share sheet was opened and completed; resolves false (never throws) when
+ * the API is missing, files can't be shared, or the user cancels.
  */
 export const shareScreenshot = async (
   result: ScreenshotResult,
@@ -210,7 +225,9 @@ export const shareScreenshot = async (
       files: [file],
     };
 
-    // Check if can share files
+    // canShare() guards against platforms that expose navigator.share but
+    // reject file payloads (e.g. some desktop browsers) — calling share()
+    // there would throw instead of opening a share sheet.
     if (navigator.canShare(shareData)) {
       await navigator.share(shareData);
       return true;
@@ -218,21 +235,24 @@ export const shareScreenshot = async (
 
     return false;
   } catch (error) {
-    // User cancelled or error occurred
+    // navigator.share rejects with AbortError when the user dismisses the
+    // share sheet — treat cancellation the same as any failure: log + false.
     console.error('Share failed:', error);
     return false;
   }
 };
 
 /**
- * Check if Web Share API is available
+ * True when both navigator.share and navigator.canShare exist (we need
+ * canShare to test file-payload support before sharing).
  */
 export const isShareSupported = (): boolean => {
   return typeof navigator.share !== 'undefined' && typeof navigator.canShare !== 'undefined';
 };
 
 /**
- * Validate canvas for screenshot
+ * Pre-capture sanity check: a WebGL canvas exists and has non-zero size.
+ * Reports failure via the return value — never throws.
  */
 export const validateCanvas = (): { valid: boolean; error?: string } => {
   const canvas = findThreeCanvas();

@@ -1,13 +1,17 @@
 /**
  * Core type definitions for the XR Poster application.
  *
- * `XRSupport` and `CreatePosterOptions` / `Poster` are the load-bearing types
- * used across the app; the `ARMode` / `DeviceCapability` / `ErrorType` enums
- * and `AppError` are a shared taxonomy used by diagnostics and messaging.
+ * `Poster` / `CreatePosterOptions` describe placed posters (posterStore);
+ * `XRSupport` is the device-capability snapshot produced by deviceDetection
+ * and consumed by App's branch decision.
  */
 
 /**
- * Poster interface - represents a 2D poster in AR space
+ * A 2D poster placed in AR space.
+ *
+ * `position`/`rotation`/`scale` mirror the values passed at creation; the
+ * authoritative world transform of a placed poster is the three.js group
+ * matrix owned by PosterPlacement (see posterStore header).
  */
 export interface Poster {
   id: string;
@@ -20,39 +24,18 @@ export interface Poster {
 }
 
 /**
- * AR Session state
+ * Options accepted by posterStore.addPoster; omitted fields fall back to the
+ * defaults in utils/constants.ts.
  */
-export interface ARSession {
-  isActive: boolean;
-  isSupported: boolean;
-  mode: ARMode;
-  error: string | null;
+export interface CreatePosterOptions {
+  imageUrl: string;
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+  scale?: [number, number, number];
 }
 
 /**
- * AR Mode types
- */
-export enum ARMode {
-  AR8 = 'ar8',
-  WEBAR = 'webar',
-  PREVIEW_2D = 'preview-2d',
-  NONE = 'none'
-}
-
-/**
- * Device capability detection
- */
-export enum DeviceCapability {
-  AR8_SUPPORTED = 'ar8-supported',
-  WEBAR_SUPPORTED = 'webar-supported',
-  CAMERA_AVAILABLE = 'camera-available',
-  GYROSCOPE_AVAILABLE = 'gyroscope-available',
-  TOUCH_SUPPORTED = 'touch-supported',
-  NONE = 'none'
-}
-
-/**
- * XR Support interface
+ * Device-capability snapshot from detectXRSupport().
  */
 export interface XRSupport {
   /** True when the device can plausibly run 8th Wall: mobile + camera + secure context. */
@@ -65,47 +48,4 @@ export interface XRSupport {
   isDesktop: boolean;
   browserName: string;
   browserVersion: string;
-}
-
-/**
- * App configuration
- */
-export interface AppConfig {
-  maxPosters: number;
-  defaultPosterSize: [number, number, number];
-  minPosterScale: number;
-  maxPosterScale: number;
-  enableDebugMode: boolean;
-}
-
-/**
- * Poster creation options
- */
-export interface CreatePosterOptions {
-  imageUrl: string;
-  position?: [number, number, number];
-  rotation?: [number, number, number];
-  scale?: [number, number, number];
-}
-
-/**
- * Error types
- */
-export enum ErrorType {
-  AR_NOT_SUPPORTED = 'ar-not-supported',
-  CAMERA_PERMISSION_DENIED = 'camera-permission-denied',
-  SESSION_INIT_FAILED = 'session-init-failed',
-  POSTER_LOAD_FAILED = 'poster-load-failed',
-  MAX_POSTERS_REACHED = 'max-posters-reached',
-  UNKNOWN = 'unknown'
-}
-
-/**
- * Application error
- */
-export interface AppError {
-  type: ErrorType;
-  message: string;
-  details?: unknown;
-  timestamp: number;
 }

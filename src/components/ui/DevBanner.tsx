@@ -19,6 +19,7 @@ interface DevBannerProps {
   hasEmulator: boolean;
 }
 
+/** Dismissible dev-mode banner; dismissal lasts until the component remounts. */
 export const DevBanner: React.FC<DevBannerProps> = ({ hasEmulator }) => {
   const [dismissed, setDismissed] = useState(false);
   if (dismissed) return null;

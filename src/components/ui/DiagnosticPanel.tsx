@@ -31,6 +31,7 @@ const DISMISS_KEY = 'xrposter:diagnostic-dismissed';
 
 type DotColor = 'green' | 'amber' | 'red' | 'gray';
 
+/** Maps a subsystem status string onto the four traffic-light dot colors. */
 const statusColor = (s: SubsystemStatus): DotColor => {
   switch (s) {
     case 'ok':
@@ -58,6 +59,7 @@ const statusColor = (s: SubsystemStatus): DotColor => {
   }
 };
 
+/** Human-readable platform name for the collapsed pill. */
 const platformLabel = (p: PlatformLabel): string => {
   switch (p) {
     case 'ios-safari':     return 'iOS · Safari';
@@ -69,6 +71,7 @@ const platformLabel = (p: PlatformLabel): string => {
   }
 };
 
+/** Formats a millisecond value; em-dash when the stage hasn't happened yet. */
 const ms = (v: number | null): string => (v === null ? '—' : `${v} ms`);
 
 const TIMING_ROWS: { key: LoadStage; label: string }[] = [
@@ -120,6 +123,11 @@ const worstColor = (subs: SubsystemsSnapshot): DotColor => {
   return 'gray';
 };
 
+/**
+ * Picks the single most actionable user-facing hint for the current state.
+ * Checks are ordered by severity: hard blockers (unsupported, denied
+ * permissions, engine failure) before transient/progress states.
+ */
 const hint = (subs: SubsystemsSnapshot): string | null => {
   if (subs.platform === 'unsupported') {
     return 'No mobile AR-capable browser detected. Use iOS Safari or Android Chrome.';
@@ -151,6 +159,10 @@ const hint = (subs: SubsystemsSnapshot): string | null => {
   return null;
 };
 
+/**
+ * Subsystem health panel (see file header). Dismissal persists for the tab
+ * via sessionStorage; a small "?" pill restores it.
+ */
 export const DiagnosticPanel: React.FC = () => {
   const [snapshot, setSnapshot] = useState(() => debugTelemetry.read().subsystems);
   const [timing, setTiming] = useState<LoadTiming>(() => debugTelemetry.read().timing);

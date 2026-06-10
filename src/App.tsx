@@ -1,3 +1,15 @@
+/**
+ * App.tsx — root component and capability router.
+ *
+ * Detects device capabilities once on mount (detectXRSupport) and renders one
+ * of three branches: live 8th Wall AR, the desktop webcam mock, or an
+ * "AR Not Supported" panel. Also seeds the DiagnosticPanel with platform
+ * facts and bridges index.html's engine-load diagnostics into telemetry.
+ *
+ * Default export: App. Key dependencies: deviceDetection, debugTelemetry,
+ * ARExperience, DesktopMockMode.
+ */
+
 import { useEffect, useState } from 'react';
 import { detectXRSupport } from '@/utils/deviceDetection';
 import { XRSupport } from '@/types';
@@ -67,6 +79,9 @@ function App() {
   useEffect(() => {
     const mapScript = (s?: string): 'ready' | 'error' | 'loading' =>
       s === 'loaded' ? 'ready' : s === 'error' ? 'error' : 'loading';
+    // Poll once per second; give up after 30 s if the engine never settles
+    // (the interval also stops as soon as it reaches 'loaded' or 'error').
+    const MAX_POLL_TICKS = 30;
     let ticks = 0;
     const id = setInterval(() => {
       const d =
@@ -96,7 +111,7 @@ function App() {
         debugTelemetry.setNote('Optional helper failed to load (xrextras/landing-page) — AR still works.');
       }
       ticks += 1;
-      if (d.engine === 'loaded' || d.engine === 'error' || ticks > 30) {
+      if (d.engine === 'loaded' || d.engine === 'error' || ticks > MAX_POLL_TICKS) {
         clearInterval(id);
       }
     }, 1000);
@@ -199,6 +214,7 @@ function App() {
   );
 }
 
+/** Static capability table shown on the "AR Not Supported" branch. */
 const DeviceInfoTable: React.FC<{ support: XRSupport }> = ({ support }) => (
   <div className="device-info" style={{ marginTop: '20px' }}>
     <h3>Device Information</h3>
@@ -218,6 +234,11 @@ const DeviceInfoTable: React.FC<{ support: XRSupport }> = ({ support }) => (
   </div>
 );
 
+/**
+ * Floating "Info" button + popover used on the AR and desktop-mock branches.
+ * Visibility is controlled by the parent (`show`/`onToggle`) so both branches
+ * share one piece of state.
+ */
 const DeviceInfoButton: React.FC<{
   show: boolean;
   onToggle: () => void;

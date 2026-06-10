@@ -17,6 +17,13 @@
 
 import { create } from 'zustand';
 import { Poster, CreatePosterOptions } from '@/types';
+import {
+  DEFAULT_POSTER_DEPTH,
+  DEFAULT_POSTER_HEIGHT,
+  DEFAULT_POSTER_IMAGE,
+  DEFAULT_POSTER_WIDTH,
+  MAX_POSTERS,
+} from '@/utils/constants';
 
 /**
  * Uploaded poster image
@@ -49,9 +56,7 @@ interface PosterStore {
   // Upload management
   addUploadedPoster: (poster: Omit<UploadedPoster, 'id' | 'uploadedAt'>) => string;
   removeUploadedPoster: (id: string) => void;
-  getUploadedPosters: () => UploadedPoster[];
   setCurrentPosterImage: (imageUrl: string) => void;
-  getCurrentPosterImage: () => string;
 }
 
 /**
@@ -62,16 +67,15 @@ const generatePosterId = (): string => {
 };
 
 /**
- * Default poster configuration
+ * Default poster configuration (dimensions come from utils/constants.ts).
  */
-const DEFAULT_POSTER_SCALE: [number, number, number] = [0.5, 0.7, 0.01];
+const DEFAULT_POSTER_SCALE: [number, number, number] = [
+  DEFAULT_POSTER_WIDTH,
+  DEFAULT_POSTER_HEIGHT,
+  DEFAULT_POSTER_DEPTH,
+];
 const DEFAULT_POSTER_POSITION: [number, number, number] = [0, 1.5, -2];
 const DEFAULT_POSTER_ROTATION: [number, number, number] = [0, 0, 0];
-
-/**
- * Default poster image path
- */
-const DEFAULT_POSTER_IMAGE = '/posters/default-poster.png';
 
 /**
  * Generate unique uploaded poster ID
@@ -87,7 +91,7 @@ export const usePosterStore = create<PosterStore>((set, get) => ({
   // Initial state
   posters: [],
   selectedPosterId: null,
-  maxPosters: parseInt(import.meta.env.VITE_MAX_POSTERS || '10', 10),
+  maxPosters: MAX_POSTERS,
   uploadedPosters: [],
   currentPosterImage: DEFAULT_POSTER_IMAGE,
 
@@ -175,20 +179,19 @@ export const usePosterStore = create<PosterStore>((set, get) => ({
 
   // Remove uploaded poster
   removeUploadedPoster: (id: string) => {
-    const { uploadedPosters, currentPosterImage } = get();
-    const posterToRemove = uploadedPosters.find((p) => p.id === id);
-    
     set((state) => {
+      const posterToRemove = state.uploadedPosters.find((p) => p.id === id);
       const newUploadedPosters = state.uploadedPosters.filter((p) => p.id !== id);
-      
-      // If removed poster was current, reset to default or first uploaded
+
+      // If the removed poster was the active selection, fall back to the
+      // first remaining upload, or the bundled default when none are left.
       let newCurrentImage = state.currentPosterImage;
-      if (posterToRemove && posterToRemove.imageUrl === currentPosterImage) {
+      if (posterToRemove && posterToRemove.imageUrl === state.currentPosterImage) {
         newCurrentImage = newUploadedPosters.length > 0
           ? newUploadedPosters[0].imageUrl
           : DEFAULT_POSTER_IMAGE;
       }
-      
+
       return {
         uploadedPosters: newUploadedPosters,
         currentPosterImage: newCurrentImage,
@@ -196,18 +199,8 @@ export const usePosterStore = create<PosterStore>((set, get) => ({
     });
   },
 
-  // Get all uploaded posters
-  getUploadedPosters: () => {
-    return get().uploadedPosters;
-  },
-
   // Set current poster image
   setCurrentPosterImage: (imageUrl: string) => {
     set({ currentPosterImage: imageUrl });
-  },
-
-  // Get current poster image
-  getCurrentPosterImage: () => {
-    return get().currentPosterImage;
   },
 }));

@@ -1,6 +1,13 @@
 /**
- * ErrorBoundary Component
- * Catches and displays React errors gracefully
+ * ErrorBoundary — top-level catch-all for render-time React errors.
+ *
+ * Wraps the AR and desktop branches in App.tsx. When a descendant component
+ * throws during render, shows a fallback screen with Try Again (reset state)
+ * and Reload Page actions instead of a white screen. Must be a class
+ * component: React only exposes error-boundary hooks
+ * (getDerivedStateFromError / componentDidCatch) on classes.
+ *
+ * Exports: ErrorBoundary.
  */
 
 import { Component, ErrorInfo, ReactNode } from 'react';
@@ -17,7 +24,7 @@ interface State {
 }
 
 /**
- * Error boundary component to catch React errors
+ * Catches render errors from children and shows a recoverable fallback UI.
  */
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
@@ -29,16 +36,18 @@ export class ErrorBoundary extends Component<Props, State> {
     };
   }
 
+  // React calls this first, during render, so the very next render already
+  // shows the fallback UI. Side effects are not allowed here — the error
+  // details are captured in componentDidCatch below.
   static getDerivedStateFromError(_error: Error): Partial<State> {
-    // Update state so the next render will show the fallback UI
     return { hasError: true };
   }
 
+  // Called after the fallback has rendered; safe place for side effects
+  // (logging) and for storing the error + component stack for display.
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    // Log error details to console
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-    
-    // Update state with error details
+
     this.setState({
       error,
       errorInfo,
@@ -48,8 +57,9 @@ export class ErrorBoundary extends Component<Props, State> {
     // Example: logErrorToService(error, errorInfo);
   }
 
+  // Clears the error state so children re-mount; if the underlying problem
+  // persists they will throw again and land back here.
   handleRetry = (): void => {
-    // Reset error state and attempt to re-render
     this.setState({
       hasError: false,
       error: null,
@@ -58,7 +68,6 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   handleReload = (): void => {
-    // Reload the page
     window.location.reload();
   };
 

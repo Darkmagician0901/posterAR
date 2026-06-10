@@ -1,4 +1,14 @@
-// Ambient typings for the 8th Wall (XR8) engine loaded via <script> in index.html.
+/**
+ * globals.d.ts — ambient typings for the 8th Wall engine globals.
+ *
+ * The engine (XR8), XRExtras helpers, and LandingPage module are loaded via
+ * CDN <script> tags in index.html, not npm — so they exist only as runtime
+ * globals. This file declares them for TypeScript, plus the two structural
+ * shapes the app actually relies on: `Xr8HitResult` (hit-test output) and
+ * `Xr8PipelineModule` (the lifecycle-callback object passed to
+ * `XR8.addCameraPipelineModules`). No values are exported; `export {}` only
+ * makes this file a module so `declare global` is allowed.
+ */
 export {}
 
 declare global {

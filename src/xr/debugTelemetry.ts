@@ -40,6 +40,7 @@ export type SubsystemStatus =
   | 'idle'
   | 'unknown';
 
+/** Coarse device/browser classification shown in the diagnostic panel. */
 export type PlatformLabel =
   | 'ios-safari'
   | 'android-chrome'
@@ -85,6 +86,7 @@ export type LoadStage =
   | 'firstFrame'
   | 'firstTracking';
 
+/** Per-stage timestamps (ms since navigation start), null until reached. */
 export type LoadTiming = Record<LoadStage, number | null>;
 
 // ---------------------------------------------------------------------------
@@ -101,6 +103,7 @@ export interface BreadcrumbEntry {
 /** Max entries kept in the ring buffer. */
 const BREADCRUMB_MAX = 20;
 
+/** The full mutable telemetry state read by the HUD / diagnostic panel. */
 export interface TelemetrySnapshot {
   fps: number;
   /** Current hit orientation, or null when not tracking. */
@@ -165,6 +168,11 @@ let lastFrameTime: number | null = null;
 let emaDt = 1000 / 60;
 const EMA_ALPHA = 0.1;
 
+/**
+ * Module-singleton telemetry store. Hot-path writers (write/tick) mutate
+ * state in place with no notifications; cold-path setters notify subscribers
+ * only on real transitions so React re-renders stay rare.
+ */
 export const debugTelemetry = {
   /** Hot path — called from the animation loop. Avoids object spread. */
   write(partial: Partial<TelemetrySnapshot>): void {
@@ -175,6 +183,8 @@ export const debugTelemetry = {
   tick(timeMs: number): void {
     if (lastFrameTime !== null) {
       const dt = timeMs - lastFrameTime;
+      // Ignore dt >= 1s: a backgrounded tab pauses rAF, and feeding that huge
+      // gap into the EMA would crater the FPS readout for many frames after.
       if (dt > 0 && dt < 1000) {
         emaDt = emaDt * (1 - EMA_ALPHA) + dt * EMA_ALPHA;
         state.fps = Math.round(1000 / emaDt);
@@ -220,11 +230,13 @@ export const debugTelemetry = {
     notify();
   },
 
+  /** Show or hide the debug HUD. Notifies subscribers. */
   setHudVisible(v: boolean): void {
     state.hudVisible = v;
     notify();
   },
 
+  /** Flip HUD visibility (bound to the hidden debug gesture). */
   toggleHud(): void {
     state.hudVisible = !state.hudVisible;
     notify();

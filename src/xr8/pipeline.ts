@@ -59,6 +59,7 @@ export function onXr8Ready(callback: () => void): void {
 // engine watchdog — surfaces WHY the engine didn't start
 // ---------------------------------------------------------------------------
 
+/** Shape of `window.__xr8diag`, written by inline <script> hooks in index.html. */
 interface Xr8Diag {
   engine?: 'pending' | 'loaded' | 'error'
   xrextras?: 'pending' | 'loaded' | 'error'
@@ -66,6 +67,7 @@ interface Xr8Diag {
   error?: string | null
 }
 
+/** Map a script-tag load state to the diagnostic panel's status vocabulary. */
 const scriptStatus = (s: Xr8Diag['engine']): SubsystemStatus =>
   s === 'loaded' ? 'ready' : s === 'error' ? 'error' : 'loading'
 
@@ -165,6 +167,7 @@ function trackingTelemetryModule(): Xr8PipelineModule {
 // runXr8
 // ---------------------------------------------------------------------------
 
+/** Options for {@link runXr8}. The canvas is handed to (and owned by) XR8. */
 export interface Xr8RunOptions {
   canvas: HTMLCanvasElement
   /** Custom camera pipeline modules to append after the standard ones. */

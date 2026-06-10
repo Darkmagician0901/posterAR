@@ -63,6 +63,8 @@ export const installDesktopMockDriver = (
     dragging = true;
     lastX = e.clientX;
     lastY = e.clientY;
+    // Capture so the drag keeps tracking even when the cursor leaves the
+    // canvas mid-drag. Optional-chained: jsdom/happy-dom lack the API.
     target.setPointerCapture?.(e.pointerId);
   };
 

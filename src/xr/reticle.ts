@@ -25,6 +25,10 @@ import {
   RingGeometry,
 } from 'three';
 
+/**
+ * Reticle display state: 'tracking' shows the on-surface ring, 'searching'
+ * shows the head-locked pulse, 'hidden' shows neither.
+ */
 export type ReticleMode = 'hidden' | 'tracking' | 'searching';
 
 export interface Reticle {
@@ -34,13 +38,20 @@ export interface Reticle {
    *  active camera (from XR8.Threejs.xrScene(), or the mock camera) so it
    *  follows the user's view. */
   scanner: Group;
+  /** Write a hit-test pose (column-major 4x4) straight into the mesh matrix. */
   setPose(matrix: Float32Array): void;
+  /** Recolor the tracking ring: cyan for vertical surfaces (walls), green for horizontal. */
   setVertical(vertical: boolean): void;
+  /** Switch which ring is visible (see {@link ReticleMode}). */
   setMode(mode: ReticleMode): void;
   /** Drive the searching-mode pulse. Pass a frame timestamp (performance.now()). */
   tick(timeMs: number): void;
 }
 
+/**
+ * Build the reticle meshes and return the control handle. The caller adds
+ * `mesh` to the scene root and `scanner` to the camera (see {@link Reticle}).
+ */
 export const createReticle = (): Reticle => {
   // ---- tracking ring (on-surface) ----
   const trackingGeom = new RingGeometry(0.07, 0.1, 32).rotateX(-Math.PI / 2);
@@ -108,7 +119,10 @@ export const createReticle = (): Reticle => {
     },
     tick(timeMs) {
       if (!scanner.visible) return;
-      // Pulse: 0.85 .. 1.4× scale on a 1.6 s cycle, opacity inverse.
+      // Pulse: 0.85 .. 1.4x scale on a 1.6 s cycle, opacity inverse.
+      // `0.5 - 0.5*cos(t*2PI)` is a smooth 0 -> 1 -> 0 wave over the cycle
+      // (a raised cosine), so scale grows while opacity fades — a "breathing"
+      // ring with no visible jump when the cycle wraps.
       const t = (timeMs % 1600) / 1600;
       const s = 0.85 + 0.55 * (0.5 - 0.5 * Math.cos(t * Math.PI * 2));
       pulseRing.scale.setScalar(s);

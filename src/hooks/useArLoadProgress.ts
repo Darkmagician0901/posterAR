@@ -15,9 +15,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { debugTelemetry } from '@/xr/debugTelemetry';
 
+/** Progress snapshot consumed by the AR loading overlay. */
 export interface ArLoadProgress {
   /** 0–100, rounded. */
   percent: number;
+  /** Human-readable stage name (e.g. "Downloading AR engine…"). */
   label: string;
   /** True when the engine failed/stalled — the bar should stop and show why. */
   error: boolean;
@@ -49,9 +51,16 @@ const stageFor = (): Stage => {
   return { target: 8, cap: 55, label: 'Downloading AR engine…' };
 };
 
+/** Fraction of the remaining gap to the cap covered each tick (trickle speed). */
 const EASE = 0.06;
+/** Polling interval — telemetry is event-less, so we sample it on a timer. */
 const TICK_MS = 120;
 
+/**
+ * Polls debugTelemetry while `active` and returns a smoothed, monotonic
+ * progress value + stage label for the AR startup overlay. Resets to 0 /
+ * "Preparing…" whenever `active` goes false.
+ */
 export function useArLoadProgress(active: boolean): ArLoadProgress {
   const [progress, setProgress] = useState<ArLoadProgress>({
     percent: 0,

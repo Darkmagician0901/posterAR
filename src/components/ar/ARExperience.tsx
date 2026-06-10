@@ -91,10 +91,6 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
   // diagnostic-only instrumentation removed/refined once GIF fix lands.
 
   const placePoster = async () => {
-    // TEMPORARY: first placement attempt forces the HUD visible so the user
-    // sees the trace without needing to find the toggle button.
-    debugTelemetry.setHudVisible(true);
-
     if (placingRef.current) {
       // TEMPORARY: log the "already placing" early-return so it's visible.
       debugTelemetry.logEvent('tap: already placing — ignored');

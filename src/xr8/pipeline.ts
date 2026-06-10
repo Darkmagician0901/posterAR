@@ -213,6 +213,10 @@ export function runXr8(options: Xr8RunOptions): void {
   if (typeof XR8?.XrController?.pipelineModule === 'function') {
     modules.push(XR8.XrController.pipelineModule())
   }
+  // Frame capture for the photo feature — see @/xr8/canvasScreenshot.
+  if (typeof XR8?.CanvasScreenshot?.pipelineModule === 'function') {
+    modules.push(XR8.CanvasScreenshot.pipelineModule())
+  }
 
   // Optional UX / helper modules from XRExtras / LandingPage bundles.
   if (typeof LandingPage?.pipelineModule === 'function') {

@@ -7,14 +7,17 @@
  * ⚠️ 8th Wall caveat: on the live mobile path the canvas (id="camerafeed") is
  * owned by the XR8 engine, whose WebGLRenderer is created without
  * `preserveDrawingBuffer: true`. Reading it with `toDataURL()` outside the
- * render loop can yield an empty/black frame because the drawing buffer is
- * cleared after compositing. Capturing the camera+scene reliably requires
- * grabbing the pixels inside an engine `onRender`/`onUpdate` callback (or
- * enabling preserveDrawingBuffer). The desktop mock path uses its own renderer
- * and is unaffected.
+ * render loop yields an empty/black frame. Capture therefore branches:
+ *  - live AR  → XR8.CanvasScreenshot via @/xr8/canvasScreenshot (the engine
+ *    grabs the composited camera+scene frame inside its own render loop);
+ *  - desktop mock → DesktopMockMode composites its webcam <video> + GL canvas
+ *    onto a 2D canvas right after a synchronous render.
+ * `captureScreenshot` below (raw toDataURL) remains only as a last-resort
+ * fallback when the engine screenshot module is unavailable.
  *
- * Main exports: captureScreenshot, captureAndDownload, downloadScreenshot,
- * shareScreenshot, isShareSupported, validateCanvas, generateFilename.
+ * Main exports: captureScreenshot, downloadScreenshot, shareScreenshot,
+ * base64ToBlob, base64JpegToDataUrl, screenshotResultFromBase64Jpeg,
+ * computeCoverCrop, isShareSupported, generateFilename.
  * No external dependencies — DOM + Web Share API only.
  */
 
@@ -39,8 +42,9 @@ export interface ScreenshotResult {
   dataUrl: string;
   blob: Blob;
   filename: string;
-  width: number;
-  height: number;
+  /** Pixel size when known. The XR8 path returns a JPEG we never decode. */
+  width?: number;
+  height?: number;
 }
 
 /**
@@ -117,13 +121,85 @@ const captureCanvasAsDataUrl = (
 };
 
 /**
- * Convert data URL to Blob.
- * fetch() accepts data: URLs, which lets the browser do the base64 decoding
- * for us instead of hand-rolling atob + Uint8Array conversion.
+ * Decode a raw base64 payload (no `data:` prefix) into a Blob. Hand-rolled
+ * atob + Uint8Array rather than fetch(dataUrl) so it also works where fetch
+ * does not accept data: URLs (and in happy-dom tests).
+ */
+export const base64ToBlob = (base64: string, mimeType: string): Blob => {
+  const bytes = atob(base64);
+  const array = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) {
+    array[i] = bytes.charCodeAt(i);
+  }
+  return new Blob([array], { type: mimeType });
+};
+
+/** Prefix a raw base64 JPEG payload into a renderable data: URL. */
+export const base64JpegToDataUrl = (base64: string): string =>
+  `data:image/jpeg;base64,${base64}`;
+
+/**
+ * Wrap the raw base64 JPEG returned by XR8.CanvasScreenshot.takeScreenshot()
+ * (which has NO `data:` prefix) into a ScreenshotResult. Width/height are
+ * left undefined — knowing them would require decoding the JPEG.
+ */
+export const screenshotResultFromBase64Jpeg = (
+  base64: string,
+  filename: string = generateFilename('jpeg')
+): ScreenshotResult => ({
+  dataUrl: base64JpegToDataUrl(base64),
+  blob: base64ToBlob(base64, 'image/jpeg'),
+  filename,
+});
+
+/**
+ * Wrap a canvas.toDataURL() result (always base64-encoded) into a
+ * ScreenshotResult. Used by the desktop mock composite capture.
+ */
+export const screenshotResultFromDataUrl = (
+  dataUrl: string,
+  width: number,
+  height: number,
+  format: ScreenshotFormat = 'jpeg'
+): ScreenshotResult => ({
+  dataUrl,
+  blob: base64ToBlob(dataUrl.split(',')[1], getMimeType(format)),
+  filename: generateFilename(format),
+  width,
+  height,
+});
+
+/**
+ * Source-crop rectangle replicating CSS `object-fit: cover`: the largest
+ * centered region of a srcW×srcH image that matches the dstW×dstH aspect
+ * ratio. Used to composite the cover-fit webcam <video> onto a canvas of the
+ * GL canvas's size.
+ */
+export const computeCoverCrop = (
+  srcW: number,
+  srcH: number,
+  dstW: number,
+  dstH: number
+): { sx: number; sy: number; sw: number; sh: number } => {
+  const srcAspect = srcW / srcH;
+  const dstAspect = dstW / dstH;
+  if (srcAspect > dstAspect) {
+    // Source is wider — crop left/right.
+    const sw = srcH * dstAspect;
+    return { sx: (srcW - sw) / 2, sy: 0, sw, sh: srcH };
+  }
+  // Source is taller (or equal) — crop top/bottom.
+  const sh = srcW / dstAspect;
+  return { sx: 0, sy: (srcH - sh) / 2, sw: srcW, sh };
+};
+
+/**
+ * Convert data URL to Blob via the shared base64 decoder.
  */
 const dataUrlToBlob = async (dataUrl: string): Promise<Blob> => {
-  const response = await fetch(dataUrl);
-  return await response.blob();
+  const [header, payload] = dataUrl.split(',');
+  const mimeType = header.match(/^data:([^;]+)/)?.[1] ?? 'application/octet-stream';
+  return base64ToBlob(payload, mimeType);
 };
 
 /**
@@ -162,56 +238,44 @@ export const captureScreenshot = async (
 };
 
 /**
- * Trigger a browser download of the data URL via a temporary <a download>
- * element. Throws an Error with context if the DOM manipulation fails.
+ * Trigger a browser download of the capture via a temporary <a download>
+ * element. Uses an object URL for the blob rather than the data URL — large
+ * data: hrefs are unreliable on iOS Safari. Throws an Error with context if
+ * the DOM manipulation fails.
  */
-export const downloadScreenshot = (
-  dataUrl: string,
-  filename: string
-): void => {
+export const downloadScreenshot = (result: ScreenshotResult): void => {
+  const objectUrl = URL.createObjectURL(result.blob);
   try {
-    // Create temporary anchor element
     const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = filename;
-    
+    link.href = objectUrl;
+    link.download = result.filename;
+
     // Append to body (required for Firefox)
     document.body.appendChild(link);
-    
-    // Trigger download
     link.click();
-    
-    // Clean up
     document.body.removeChild(link);
   } catch (error) {
     throw new Error(`Failed to download screenshot: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
   }
 };
 
-/**
- * Convenience wrapper: capture the canvas, then immediately download the
- * result. Returns the capture so callers can also share it later.
- */
-export const captureAndDownload = async (
-  options: ScreenshotOptions = {}
-): Promise<ScreenshotResult> => {
-  const result = await captureScreenshot(options);
-  downloadScreenshot(result.dataUrl, result.filename);
-  return result;
-};
+/** Outcome of a shareScreenshot call — `canceled` must stay toast-silent. */
+export type ShareOutcome = 'shared' | 'canceled' | 'unsupported' | 'failed';
 
 /**
- * Share a captured screenshot via the Web Share API. Resolves true only when
- * the share sheet was opened and completed; resolves false (never throws) when
- * the API is missing, files can't be shared, or the user cancels.
+ * Share a captured screenshot via the Web Share API. Never throws:
+ * 'shared' when the share sheet completed, 'canceled' when the user dismissed
+ * it, 'unsupported' when the API or file payloads are unavailable, 'failed'
+ * on any other error.
  */
 export const shareScreenshot = async (
   result: ScreenshotResult,
   title: string = 'XR Poster Screenshot'
-): Promise<boolean> => {
-  // Check if Web Share API is supported
+): Promise<ShareOutcome> => {
   if (!navigator.share || !navigator.canShare) {
-    return false;
+    return 'unsupported';
   }
 
   try {
@@ -228,17 +292,20 @@ export const shareScreenshot = async (
     // canShare() guards against platforms that expose navigator.share but
     // reject file payloads (e.g. some desktop browsers) — calling share()
     // there would throw instead of opening a share sheet.
-    if (navigator.canShare(shareData)) {
-      await navigator.share(shareData);
-      return true;
+    if (!navigator.canShare(shareData)) {
+      return 'unsupported';
     }
 
-    return false;
+    await navigator.share(shareData);
+    return 'shared';
   } catch (error) {
     // navigator.share rejects with AbortError when the user dismisses the
-    // share sheet — treat cancellation the same as any failure: log + false.
+    // share sheet — a cancel is a normal outcome, not an error.
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return 'canceled';
+    }
     console.error('Share failed:', error);
-    return false;
+    return 'failed';
   }
 };
 
@@ -248,22 +315,4 @@ export const shareScreenshot = async (
  */
 export const isShareSupported = (): boolean => {
   return typeof navigator.share !== 'undefined' && typeof navigator.canShare !== 'undefined';
-};
-
-/**
- * Pre-capture sanity check: a WebGL canvas exists and has non-zero size.
- * Reports failure via the return value — never throws.
- */
-export const validateCanvas = (): { valid: boolean; error?: string } => {
-  const canvas = findThreeCanvas();
-  
-  if (!canvas) {
-    return { valid: false, error: 'Canvas not found' };
-  }
-
-  if (canvas.width === 0 || canvas.height === 0) {
-    return { valid: false, error: 'Canvas has invalid dimensions' };
-  }
-
-  return { valid: true };
 };

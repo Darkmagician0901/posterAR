@@ -1,79 +1,82 @@
 /**
  * useUIState — global UI-state store (Zustand).
  *
- * Holds cross-component UI concerns that don't belong in posterStore: overlay
- * visibility (instructions, controls, loading, poster controls), the active
- * modal, and the transient toast queue (auto-dismissed after `duration` ms).
- * Despite the `use*` name it is a store, not a React hook — call it anywhere.
+ * Holds cross-component UI concerns that don't belong in posterStore: the
+ * instructions overlay, the AR loading screen, and the transient toast queue
+ * (auto-dismissed after `duration` ms). Despite the `use*` name it is a
+ * store, not a React hook — call it anywhere.
  */
 
 import { create } from 'zustand';
+import { STORAGE_KEYS } from '@/utils/constants';
 
 export interface ToastMessage {
   id: string;
   type: 'success' | 'error' | 'info';
   message: string;
+  /** Auto-dismiss delay in ms; defaults to DEFAULT_TOAST_DURATION_MS. */
   duration?: number;
 }
+
+/** How long a toast stays on screen when the caller doesn't say otherwise. */
+const DEFAULT_TOAST_DURATION_MS = 3000;
 
 interface UIState {
   // UI visibility states
   showInstructions: boolean;
-  showControls: boolean;
   showLoading: boolean;
-  showPosterControls: boolean;
-  
+
   // Toast notifications
   toasts: ToastMessage[];
-  
-  // Modal state
-  activeModal: string | null;
-  
+
   // Actions
   setShowInstructions: (show: boolean) => void;
-  setShowControls: (show: boolean) => void;
   setShowLoading: (show: boolean) => void;
-  setShowPosterControls: (show: boolean) => void;
-  setActiveModal: (modal: string | null) => void;
-  
-  // Toast actions
   addToast: (toast: Omit<ToastMessage, 'id'>) => void;
   removeToast: (id: string) => void;
-  clearToasts: () => void;
 }
 
-/**
- * Generate unique toast ID
- */
+/** Generate a unique toast ID. */
 const generateToastId = (): string => {
   return `toast-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 };
 
 /**
- * UI state store using Zustand
+ * localStorage that never throws. iOS Safari in private browsing (and some
+ * privacy configurations) throws on setItem; tutorial persistence is a
+ * nice-to-have, so degrade silently rather than crash the UI action.
+ */
+const safeStorageSet = (key: string, value: string): void => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage unavailable — the tutorial will simply show again next visit.
+  }
+};
+
+const safeStorageGet = (key: string): string | null => {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * UI state store using Zustand.
  */
 export const useUIState = create<UIState>((set, get) => ({
   // Initial state
   showInstructions: false,
-  showControls: true,
   showLoading: false,
-  showPosterControls: false,
   toasts: [],
-  activeModal: null,
 
-  // Set instructions visibility
+  // Set instructions visibility; dismissing marks the tutorial as completed.
   setShowInstructions: (show: boolean) => {
     set({ showInstructions: show });
-    
-    // Save to localStorage if dismissing
     if (!show) {
-      localStorage.setItem('xr-poster-tutorial-completed', 'true');
+      safeStorageSet(STORAGE_KEYS.TUTORIAL_COMPLETED, 'true');
     }
-  },
-
-  // Set controls visibility
-  setShowControls: (show: boolean) => {
-    set({ showControls: show });
   },
 
   // Set loading state
@@ -81,24 +84,14 @@ export const useUIState = create<UIState>((set, get) => ({
     set({ showLoading: show });
   },
 
-  // Set poster controls visibility
-  setShowPosterControls: (show: boolean) => {
-    set({ showPosterControls: show });
-  },
-
-  // Set active modal
-  setActiveModal: (modal: string | null) => {
-    set({ activeModal: modal });
-  },
-
-  // Add a toast notification
+  // Add a toast notification and schedule its auto-dismissal.
   addToast: (toast: Omit<ToastMessage, 'id'>) => {
     const id = generateToastId();
     const newToast: ToastMessage = {
       id,
       type: toast.type,
       message: toast.message,
-      duration: toast.duration || 3000,
+      duration: toast.duration || DEFAULT_TOAST_DURATION_MS,
     };
 
     set((state) => ({
@@ -117,16 +110,11 @@ export const useUIState = create<UIState>((set, get) => ({
       toasts: state.toasts.filter((toast) => toast.id !== id),
     }));
   },
-
-  // Clear all toasts
-  clearToasts: () => {
-    set({ toasts: [] });
-  },
 }));
 
 /**
- * Hook to check if tutorial has been completed
+ * Returns whether the user has previously dismissed the instructions overlay.
  */
 export const useTutorialCompleted = (): boolean => {
-  return localStorage.getItem('xr-poster-tutorial-completed') === 'true';
+  return safeStorageGet(STORAGE_KEYS.TUTORIAL_COMPLETED) === 'true';
 };

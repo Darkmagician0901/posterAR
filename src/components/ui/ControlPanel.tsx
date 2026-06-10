@@ -16,6 +16,7 @@ import { usePosterUpload } from '@/hooks/usePosterUpload';
 import { useScreenshot } from '@/hooks/useScreenshot';
 import { debugTelemetry } from '@/xr/debugTelemetry';
 import { PosterGallery } from './PosterGallery';
+import { PhotoPreview } from './PhotoPreview';
 import './ControlPanel.css';
 
 interface ControlPanelProps {
@@ -31,7 +32,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
   const { clearPosters, posters, addUploadedPoster } = usePosterStore();
   const { addToast, setShowInstructions } = useUIState();
   const { uploadState, handleFileInputChange, fileInputRef, triggerFileInput } = usePosterUpload();
-  const { screenshotState, captureScreenshot } = useScreenshot();
+  const {
+    photo,
+    isCapturing,
+    isSharing,
+    canShare,
+    capturePhoto,
+    savePhoto,
+    sharePhoto,
+    closePreview,
+  } = useScreenshot();
   const [showGallery, setShowGallery] = useState(false);
 
   const handleReset = () => {
@@ -53,7 +63,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
   };
 
   const handleScreenshot = async () => {
-    await captureScreenshot({ format: 'png' });
+    await capturePhoto();
   };
 
   const handleUploadClick = () => {
@@ -115,12 +125,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
         <button
           className="control-button control-button-screenshot"
           onClick={handleScreenshot}
-          disabled={screenshotState.isCapturing}
-          aria-label="Take screenshot"
-          title="Screenshot"
+          disabled={isCapturing}
+          aria-label="Take photo"
+          title="Photo"
         >
           <span className="control-icon">
-            {screenshotState.isCapturing ? '⏳' : '📷'}
+            {isCapturing ? '⏳' : '📷'}
           </span>
           <span className="control-label">Photo</span>
         </button>
@@ -171,6 +181,18 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
 
       {/* Poster Gallery Modal */}
       {showGallery && <PosterGallery onClose={() => setShowGallery(false)} />}
+
+      {/* Photo Preview Modal */}
+      {photo && (
+        <PhotoPreview
+          photo={photo}
+          canShare={canShare}
+          isSharing={isSharing}
+          onSave={savePhoto}
+          onShare={() => void sharePhoto()}
+          onClose={closePreview}
+        />
+      )}
     </>
   );
 };

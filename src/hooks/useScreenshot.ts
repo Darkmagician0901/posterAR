@@ -1,203 +1,152 @@
 /**
  * Screenshot Hook
  *
- * React hook wrapping the screenshot utilities (@/utils/screenshot) with UI
- * state: a capture-in-progress flag, the last captured result, and success /
- * error toasts via useUIState.
+ * React hook driving the photo flow: capture → preview overlay → save/share.
  *
- * Main export: useScreenshot — returns { screenshotState, captureScreenshot,
- * shareLastScreenshot, canShare, resetScreenshot }.
+ * Capture branches by environment:
+ *  - live 8th Wall → takeXr8Photo() (engine-composited camera + scene frame);
+ *  - desktop mock  → caller passes its own `capture` (video + GL composite);
+ *  - last resort   → raw captureScreenshot() toDataURL fallback (may miss the
+ *    camera feed on live AR — see @/utils/screenshot header).
  *
- * Error handling: every helper that can throw (captureAndDownload,
- * shareScreenshot — both async, so even synchronous throws inside them become
- * promise rejections) is awaited inside a try/catch that surfaces the message
- * through an error toast. validateCanvas/isShareSupported report failures via
- * return values rather than throwing.
+ * A successful capture sets `photo`, which the consumer renders as a
+ * <PhotoPreview>. Save downloads the blob; Share uses the Web Share API and
+ * stays silent when the user cancels the native sheet. Errors surface as
+ * toasts via useUIState; the action callbacks resolve true/false and never
+ * throw.
  *
- * Note: on the live 8th Wall path the captured frame can be blank because the
- * engine's canvas has no preserveDrawingBuffer — see @/utils/screenshot.
+ * Main export: useScreenshot — returns { photo, isCapturing, isSharing,
+ * canShare, capturePhoto, savePhoto, sharePhoto, closePreview }.
  */
 
 import { useState, useCallback } from 'react';
 import {
-  captureAndDownload,
+  captureScreenshot,
+  downloadScreenshot,
   shareScreenshot,
   isShareSupported,
-  validateCanvas,
-  ScreenshotOptions,
   ScreenshotResult,
 } from '@/utils/screenshot';
+import { isXr8ScreenshotAvailable, takeXr8Photo } from '@/xr8/canvasScreenshot';
 import { useUIState } from './useUIState';
 
-/**
- * Snapshot of the hook's capture status: whether a capture is in flight, the
- * last error message (null when none), and the most recent successful result.
- */
-export interface ScreenshotState {
-  isCapturing: boolean;
-  error: string | null;
-  lastScreenshot: ScreenshotResult | null;
+export interface UseScreenshotOptions {
+  /**
+   * Override the capture implementation (the desktop mock passes its
+   * video+GL compositor). Default: XR8 engine capture, falling back to the
+   * legacy raw-canvas read when the engine module is unavailable.
+   */
+  capture?: () => Promise<ScreenshotResult>;
 }
 
 /**
- * Value returned by useScreenshot. The two action callbacks resolve to true on
- * success and false on any failure (errors are reported via toasts, not thrown).
+ * Value returned by useScreenshot. A non-null `photo` means the preview
+ * overlay should be open. Action callbacks resolve true on success and false
+ * on any failure (errors are reported via toasts, not thrown).
  */
 export interface UseScreenshotReturn {
-  screenshotState: ScreenshotState;
-  captureScreenshot: (options?: ScreenshotOptions) => Promise<boolean>;
-  shareLastScreenshot: () => Promise<boolean>;
+  photo: ScreenshotResult | null;
+  isCapturing: boolean;
+  isSharing: boolean;
   canShare: boolean;
-  resetScreenshot: () => void;
+  capturePhoto: () => Promise<boolean>;
+  savePhoto: () => void;
+  sharePhoto: () => Promise<boolean>;
+  closePreview: () => void;
 }
 
+/** Default capture for the live path; see the file header for the branches. */
+const defaultCapture = (): Promise<ScreenshotResult> =>
+  isXr8ScreenshotAvailable()
+    ? takeXr8Photo()
+    : captureScreenshot({ format: 'jpeg' });
+
 /**
- * Hook providing capture-and-download plus Web Share of the AR canvas,
- * with toast feedback and capture state for the UI.
+ * Hook providing capture-to-preview plus save/download and Web Share of the
+ * AR scene, with toast feedback and in-flight flags for the UI.
  */
-export const useScreenshot = (): UseScreenshotReturn => {
+export const useScreenshot = (
+  options: UseScreenshotOptions = {}
+): UseScreenshotReturn => {
+  const { capture = defaultCapture } = options;
   const { addToast } = useUIState();
-  
-  const [screenshotState, setScreenshotState] = useState<ScreenshotState>({
-    isCapturing: false,
-    error: null,
-    lastScreenshot: null,
-  });
+
+  const [photo, setPhoto] = useState<ScreenshotResult | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
 
   const canShare = isShareSupported();
 
-  /**
-   * Reset screenshot state
-   */
-  const resetScreenshot = useCallback(() => {
-    setScreenshotState({
-      isCapturing: false,
-      error: null,
-      lastScreenshot: null,
-    });
+  const capturePhoto = useCallback(async (): Promise<boolean> => {
+    setIsCapturing(true);
+    try {
+      const result = await capture();
+      // Opening the preview is the success feedback — no toast needed.
+      setPhoto(result);
+      return true;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to capture photo';
+      addToast({ type: 'error', message });
+      return false;
+    } finally {
+      setIsCapturing(false);
+    }
+  }, [capture, addToast]);
+
+  const savePhoto = useCallback((): void => {
+    if (!photo) return;
+    try {
+      downloadScreenshot(photo);
+      addToast({ type: 'success', message: 'Photo saved' });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to save photo';
+      addToast({ type: 'error', message });
+    }
+  }, [photo, addToast]);
+
+  const sharePhoto = useCallback(async (): Promise<boolean> => {
+    if (!photo) return false;
+    setIsSharing(true);
+    try {
+      // shareScreenshot never throws — it reports via ShareOutcome.
+      const outcome = await shareScreenshot(photo);
+      switch (outcome) {
+        case 'shared':
+          addToast({ type: 'success', message: 'Photo shared' });
+          return true;
+        case 'canceled':
+          // User dismissed the native sheet — not an error, no toast.
+          return false;
+        case 'unsupported':
+          addToast({
+            type: 'error',
+            message: 'Sharing is not supported on this device',
+          });
+          return false;
+        case 'failed':
+        default:
+          addToast({ type: 'error', message: 'Failed to share photo' });
+          return false;
+      }
+    } finally {
+      setIsSharing(false);
+    }
+  }, [photo, addToast]);
+
+  const closePreview = useCallback((): void => {
+    setPhoto(null);
   }, []);
 
-  /**
-   * Capture screenshot and download
-   */
-  const captureScreenshot = useCallback(
-    async (options: ScreenshotOptions = {}): Promise<boolean> => {
-      // Validate canvas first. validateCanvas never throws — it reports
-      // problems via { valid, error } — so it is safe outside the try below.
-      const validation = validateCanvas();
-      if (!validation.valid) {
-        const errorMessage = validation.error || 'Cannot capture screenshot';
-        
-        setScreenshotState({
-          isCapturing: false,
-          error: errorMessage,
-          lastScreenshot: null,
-        });
-
-        addToast({
-          type: 'error',
-          message: errorMessage,
-        });
-
-        return false;
-      }
-
-      // Start capturing
-      setScreenshotState({
-        isCapturing: true,
-        error: null,
-        lastScreenshot: null,
-      });
-
-      try {
-        // Capture and download
-        const result = await captureAndDownload(options);
-
-        // Update state
-        setScreenshotState({
-          isCapturing: false,
-          error: null,
-          lastScreenshot: result,
-        });
-
-        // Show success toast
-        addToast({
-          type: 'success',
-          message: 'Screenshot saved successfully!',
-        });
-
-        return true;
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to capture screenshot';
-
-        setScreenshotState({
-          isCapturing: false,
-          error: errorMessage,
-          lastScreenshot: null,
-        });
-
-        // Show error toast
-        addToast({
-          type: 'error',
-          message: errorMessage,
-        });
-
-        return false;
-      }
-    },
-    [addToast]
-  );
-
-  /**
-   * Share last screenshot using Web Share API
-   */
-  const shareLastScreenshot = useCallback(async (): Promise<boolean> => {
-    if (!screenshotState.lastScreenshot) {
-      addToast({
-        type: 'error',
-        message: 'No screenshot to share',
-      });
-      return false;
-    }
-
-    if (!canShare) {
-      addToast({
-        type: 'error',
-        message: 'Sharing is not supported on this device',
-      });
-      return false;
-    }
-
-    try {
-      // shareScreenshot resolves false (it does not throw) when the user
-      // dismisses the native share sheet — so a cancel shows no error toast.
-      const shared = await shareScreenshot(screenshotState.lastScreenshot);
-
-      if (shared) {
-        addToast({
-          type: 'success',
-          message: 'Screenshot shared successfully!',
-        });
-      }
-
-      return shared;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to share screenshot';
-      
-      addToast({
-        type: 'error',
-        message: errorMessage,
-      });
-
-      return false;
-    }
-  }, [screenshotState.lastScreenshot, canShare, addToast]);
-
   return {
-    screenshotState,
-    captureScreenshot,
-    shareLastScreenshot,
+    photo,
+    isCapturing,
+    isSharing,
     canShare,
-    resetScreenshot,
+    capturePhoto,
+    savePhoto,
+    sharePhoto,
+    closePreview,
   };
 };

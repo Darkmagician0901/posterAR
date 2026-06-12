@@ -24,6 +24,8 @@ import { XRSupport } from '@/types';
  * permission prompt at "Start AR". (Opening + closing a stream during
  * detection was the main cause of slow first paint on iOS — the app blocked
  * behind the permission dialog before anything rendered.)
+ *
+ * @returns True when navigator.mediaDevices.getUserMedia exists.
  */
 export function hasCameraApi(): boolean {
   return (
@@ -34,15 +36,20 @@ export function hasCameraApi(): boolean {
 }
 
 /**
- * Check if the device exposes orientation events (a proxy for "has a
+ * Checks whether the device exposes orientation events (a proxy for "has a
  * gyroscope" — the API existing does not guarantee hardware).
+ *
+ * @returns True when DeviceOrientationEvent is available on window.
  */
 export function checkGyroscope(): boolean {
   return 'DeviceOrientationEvent' in window;
 }
 
 /**
- * Detect if device is iOS (iPhone/iPad/iPod user agents).
+ * Detects iOS devices by user agent.
+ *
+ * @returns True for iPhone/iPad/iPod user agents (excluding IE's fake ones —
+ *   see the MSStream note below).
  */
 export function isIOS(): boolean {
   // `any` justified: MSStream is a non-standard IE/old-Edge property absent
@@ -52,15 +59,19 @@ export function isIOS(): boolean {
 }
 
 /**
- * Detect if device is Android
+ * Detects Android devices by user agent.
+ *
+ * @returns True when the user agent contains "Android".
  */
 export function isAndroid(): boolean {
   return /Android/.test(navigator.userAgent);
 }
 
 /**
- * Detect if device is mobile (broad user-agent match covering Android, iOS,
- * and legacy mobile browsers).
+ * Detects mobile devices via a broad user-agent match covering Android, iOS,
+ * and legacy mobile browsers.
+ *
+ * @returns True when the user agent matches any known mobile token.
  */
 export function isMobile(): boolean {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
@@ -69,15 +80,20 @@ export function isMobile(): boolean {
 }
 
 /**
- * Desktop = not a mobile UA.
+ * Detects desktop devices: anything whose user agent is not mobile.
+ *
+ * @returns True when none of the mobile/iOS/Android checks match.
  */
 export function isDesktop(): boolean {
   return !isMobile() && !isIOS() && !isAndroid();
 }
 
 /**
- * Returns true when the page is served in a secure context (required for
+ * Checks whether the page is served in a secure context (required for
  * getUserMedia and 8th Wall).
+ *
+ * @returns True for HTTPS pages and for localhost (which browsers treat as
+ *   secure for development).
  */
 export function isSecureContextOk(): boolean {
   return (
@@ -87,17 +103,24 @@ export function isSecureContextOk(): boolean {
 }
 
 /**
- * Returns true when the device is compatible with 8th Wall:
- * must be mobile, have camera access, and be in a secure context.
+ * Decides whether the device can run the live 8th Wall AR path.
+ *
+ * @param hasCamera — Result of hasCameraApi(), passed in so detectXRSupport
+ *   runs the camera check exactly once.
+ * @returns True when the device is mobile, has the camera API, and is in a
+ *   secure context.
  */
 export function isXr8Compatible(hasCamera: boolean): boolean {
   return isMobile() && hasCamera && isSecureContextOk();
 }
 
 /**
- * Best-effort browser name + major version from the user agent.
+ * Extracts a best-effort browser name + major version from the user agent.
  * Order matters: Chrome's UA contains "Safari", and Edge's contains "Chrome",
  * so the more specific checks must run first.
+ *
+ * @returns `{ name, version }` — e.g. `{ name: 'Chrome', version: '125' }`,
+ *   with 'Unknown' for anything unrecognized.
  */
 export function getBrowserInfo(): { name: string; version: string } {
   const ua = navigator.userAgent;
@@ -134,9 +157,11 @@ export function getBrowserInfo(): { name: string; version: string } {
 
 /**
  * Comprehensive XR support detection for 8th Wall. Runs all environment
- * checks and returns the XRSupport snapshot App.tsx branches on. Async only
- * to keep the signature stable for future probe-based checks — everything
- * inside is synchronous and prompt-free.
+ * checks. Async only to keep the signature stable for future probe-based
+ * checks — everything inside is synchronous and prompt-free.
+ *
+ * @returns A promise resolving to the {@link XRSupport} snapshot App.tsx
+ *   branches on; `hasAR8` is the aggregate "can run live AR" verdict.
  */
 export async function detectXRSupport(): Promise<XRSupport> {
   // Non-prompting capability check — do not open a camera stream here.

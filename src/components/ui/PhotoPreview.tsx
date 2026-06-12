@@ -15,12 +15,17 @@ import { ScreenshotResult } from '@/utils/screenshot';
 import './PhotoPreview.css';
 
 interface PhotoPreviewProps {
+  /** The captured screenshot to display (data URL + dimensions). */
   photo: ScreenshotResult;
   /** Hide the Share button on platforms without Web Share file support. */
   canShare: boolean;
+  /** True while a share is in flight; disables the Share button. */
   isSharing?: boolean;
+  /** Called when the user taps Save (downloads the photo). */
   onSave: () => void;
+  /** Called when the user taps Share (opens the system share sheet). */
   onShare: () => void;
+  /** Closes the preview; called on backdrop click or the × button. */
   onClose: () => void;
 }
 

@@ -6,8 +6,9 @@
  * slow phase on mobile — the 8th Wall engine + SLAM WASM download, then camera
  * start. A `<script>`-loaded WASM gives no byte-level progress, so we map the
  * load-timing milestones recorded in debugTelemetry to discrete stage targets
- * and "trickle" smoothly toward each stage's soft cap while it is pending
- * (NProgress-style), so the bar keeps moving during the opaque WASM wait.
+ * and "trickle" smoothly toward each stage's soft cap while it is pending —
+ * the same fake-but-reassuring crawl the NProgress loading-bar library made
+ * popular — so the bar keeps moving during the opaque WASM wait.
  *
  * Progress is monotonic — it never goes backwards.
  */
@@ -33,7 +34,12 @@ interface Stage {
   label: string;
 }
 
-/** Pick the current stage from the telemetry milestones. */
+/**
+ * Picks the current loading stage from the telemetry milestones.
+ *
+ * @returns The {@link Stage} whose milestone has most recently been reached
+ *   (checked from latest to earliest, so the furthest stage wins).
+ */
 const stageFor = (): Stage => {
   const { subsystems, timing } = debugTelemetry.read();
   const { engine, session } = subsystems;
@@ -51,15 +57,27 @@ const stageFor = (): Stage => {
   return { target: 8, cap: 55, label: 'Downloading AR engine…' };
 };
 
-/** Fraction of the remaining gap to the cap covered each tick (trickle speed). */
+/**
+ * Trickle speed: on each tick the bar moves this fraction of the distance
+ * still remaining to the stage cap. Because the step is a fraction of the
+ * *remaining* gap, movement is fast at first and slows as it approaches the
+ * cap without ever quite reaching it (exponential easing) — the bar visibly
+ * keeps crawling during the opaque WASM download but can't hit 100% early.
+ */
 const EASE = 0.06;
-/** Polling interval — telemetry is event-less, so we sample it on a timer. */
+/** Polling interval — telemetry has no change events, so we sample it on a timer. */
 const TICK_MS = 120;
 
 /**
  * Polls debugTelemetry while `active` and returns a smoothed, monotonic
  * progress value + stage label for the AR startup overlay. Resets to 0 /
  * "Preparing…" whenever `active` goes false.
+ *
+ * @param active — True while the AR loading overlay is showing; starts the
+ *   polling timer when true and resets/stops it when false.
+ * @returns The current {@link ArLoadProgress} — `percent` (0–100, never
+ *   decreasing while active), `label` (stage name or error note), and
+ *   `error` (true when the engine failed and the bar should freeze).
  */
 export function useArLoadProgress(active: boolean): ArLoadProgress {
   const [progress, setProgress] = useState<ArLoadProgress>({

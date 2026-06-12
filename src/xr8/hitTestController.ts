@@ -1,22 +1,35 @@
 /**
  * hitTestController.ts
  *
- * Replaces the old WebXR hitTest.ts (XRHitTestSource) with 8th Wall's
- * XrController.hitTest. Because SLAM keeps the world frame stable, a single
- * per-frame hit-test at screen-centre is all that is needed — no anchor
- * lifecycle, no reference-space management.
+ * A "hit-test" asks the AR engine: "if I shoot a ray from this screen point
+ * into the real world, what surface does it hit, and where?" The answer gives
+ * us the position and orientation to draw the reticle (the ring-shaped
+ * placement cursor) and to place posters.
+ *
+ * This module replaces the old WebXR hitTest.ts (XRHitTestSource) with 8th
+ * Wall's XrController.hitTest. Because SLAM world-tracking (the engine's
+ * camera-based positional tracking) keeps the world coordinate frame stable,
+ * a single per-frame hit-test at screen-centre is all that is needed — no
+ * anchor lifecycle, no reference-space management.
  */
 
 import { Matrix4, Quaternion, Vector3 } from 'three'
 
+/** The surface pose under the screen centre, ready to apply to a mesh. */
 export interface ReticlePose {
-  /** Column-major Float32Array suitable for Matrix4.fromArray / mesh.matrix. */
+  /**
+   * The 4x4 world transform of the hit point as 16 floats in column-major
+   * order (the matrix is listed column by column — the memory layout three.js
+   * and WebGL use). Feed it to Matrix4.fromArray or copy into mesh.matrix.
+   */
   matrix: Float32Array
   /** True when the surface is a wall (its normal is roughly horizontal). */
   vertical: boolean
 }
 
-// ── module-scoped temporaries — reused every frame to avoid GC pressure ──────
+// Module-scoped temporaries, reused every frame. Allocating fresh vectors and
+// matrices on each call would create garbage for the JS engine to collect,
+// and garbage-collection pauses cause visible frame hitches ("GC pressure").
 const _m4 = new Matrix4()
 const _pos = new Vector3()
 const _quat = new Quaternion()
@@ -25,9 +38,14 @@ const _normal = new Vector3()
 
 /**
  * Runs a centre-screen hit-test via XR8.XrController.hitTest and returns the
- * best surface pose, or null when no results are available or the API is absent.
+ * best surface pose. Called once per frame from the render loop.
  *
- * Priority: DETECTED_SURFACE > ESTIMATED_SURFACE > FEATURE_POINT > results[0].
+ * Result priority: DETECTED_SURFACE (a surface the engine has confirmed) >
+ * ESTIMATED_SURFACE (a guess) > FEATURE_POINT (a single tracked point) >
+ * whatever came first.
+ *
+ * @returns The best surface pose, or null when the engine is not loaded,
+ *   the hit-test API is absent or throws, or there are no results this frame.
  */
 export function readReticlePose(): ReticlePose | null {
   // Guard: engine not yet loaded or XrController unavailable.
@@ -37,6 +55,8 @@ export function readReticlePose(): ReticlePose | null {
 
   let results: Xr8HitResult[]
   try {
+    // (0.5, 0.5) is the screen centre — hitTest takes normalized screen
+    // coordinates where (0, 0) is top-left and (1, 1) is bottom-right.
     results = XR8.XrController.hitTest(0.5, 0.5, [
       'DETECTED_SURFACE',
       'ESTIMATED_SURFACE',
@@ -59,7 +79,8 @@ export function readReticlePose(): ReticlePose | null {
 
   const { position: p, rotation: r } = best
 
-  // Compose world-space Matrix4 from position + rotation quaternion, unit scale.
+  // Build the world-space 4x4 transform from the hit's position and rotation
+  // quaternion (three.js's 4-number rotation representation) at unit scale.
   _pos.set(p.x, p.y, p.z)
   _quat.set(r.x, r.y, r.z, r.w)
   _scale.set(1, 1, 1)

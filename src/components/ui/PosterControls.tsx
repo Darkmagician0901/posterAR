@@ -32,6 +32,11 @@ export const PosterControls: React.FC = () => {
   const currentScale = poster.scale[0];
   const aspectRatio = poster.scale[1] / poster.scale[0];
 
+  /**
+   * Applies a new scale from the slider to the selected poster.
+   *
+   * @param event — Slider change event; its value is the new width scale.
+   */
   const handleScaleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newScale = parseFloat(event.target.value);
     const newScaleArray: [number, number, number] = [

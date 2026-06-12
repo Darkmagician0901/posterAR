@@ -11,8 +11,9 @@
  *  - installDesktopMockDriver on the canvas — mouse-drag → camera quaternion.
  *  - createReticle — fake hit-test pose 1.5 m forward + 0.3 m down each frame.
  *  - PosterPlacement — place() on "Place poster" button click.
- *  - Photo button — composites the webcam frame + GL canvas onto a 2D canvas
- *    (the engineless analogue of XR8.CanvasScreenshot on the live path).
+ *  - Photo button — composites the webcam frame + GL canvas onto a 2D canvas.
+ *    This does manually what the 8th Wall XR8.CanvasScreenshot helper does on
+ *    the live mobile path, since the engine is not running here.
  *
  * Raw three.js only — does NOT use @react-three/fiber, @react-three/drei, or
  * the 8th Wall / XR8 engine (which owns the canvas on the real mobile path).
@@ -51,13 +52,24 @@ import {
 } from '@/utils/screenshot';
 
 // ---------------------------------------------------------------------------
-// Texture loader helper (mirrors ARExperience loadTexture)
+// Texture loader helper
 // ---------------------------------------------------------------------------
+// Note: this is a deliberately simple static-image loader for the desktop
+// sandbox. The live AR path (ARExperience.tsx) instead uses the shared,
+// refcounted cache in src/xr8/posterTextureCache.ts, which also handles
+// animated GIFs.
 
 /** Module-level cache so re-placing the same image reuses one GPU texture. */
 const textureCache = new Map<string, Texture>();
 
-/** Load (or return cached) three.js Texture for an image URL. */
+/**
+ * Loads (or returns the cached) three.js Texture for an image URL.
+ *
+ * @param url — Image URL (data:, blob:, or http) to load as a texture.
+ * @returns Promise resolving to the loaded Texture; the same Texture instance
+ *   is returned for repeat calls with the same URL.
+ * @throws Rejects with an Error when the image fails to load.
+ */
 const loadTexture = (url: string): Promise<Texture> =>
   new Promise((resolve, reject) => {
     const cached = textureCache.get(url);
@@ -111,6 +123,12 @@ export const DesktopMockMode: React.FC = () => {
   // Three.js setup / teardown
   // -------------------------------------------------------------------------
 
+  /**
+   * Creates the renderer, scene, camera, reticle, and placement manager, then
+   * starts the requestAnimationFrame render loop. Assumes the <canvas> is
+   * already in the DOM (no-op otherwise). Everything created here is torn
+   * down by stopThreeJS.
+   */
   const startThreeJS = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -141,10 +159,12 @@ export const DesktopMockMode: React.FC = () => {
     const sceneRoot = new Group();
     scene.add(sceneRoot);
 
-    // Reticle
+    // Reticle. The "scanner" ring (shown while searching for a surface) is
+    // added as a child of the camera so it stays fixed in the user's view
+    // instead of at a fixed point in the world.
     const reticle = createReticle();
     scene.add(reticle.mesh);
-    camera.add(reticle.scanner); // head-locked searching ring
+    camera.add(reticle.scanner); // follows the view — see note above
     scene.add(camera);           // camera must be in scene for its children to render
 
     // PosterPlacement
@@ -217,6 +237,11 @@ export const DesktopMockMode: React.FC = () => {
     debugTelemetry.setSubsystem('surface', 'estimated');
   }, []);
 
+  /**
+   * Reverses startThreeJS: cancels the render loop, disposes the mouse-drag
+   * driver and renderer, clears placed posters, detaches the resize handler,
+   * and resets all related refs and telemetry.
+   */
   const stopThreeJS = useCallback(() => {
     if (rafIdRef.current !== null) {
       cancelAnimationFrame(rafIdRef.current);
@@ -255,6 +280,12 @@ export const DesktopMockMode: React.FC = () => {
   // Webcam session
   // -------------------------------------------------------------------------
 
+  /**
+   * Requests webcam access and, on success, starts the three.js overlay.
+   *
+   * On permission denial the error is caught and shown in the pre-start
+   * overlay instead; the returned promise never rejects.
+   */
   const startSession = useCallback(async () => {
     setPermissionError(null);
     try {
@@ -282,6 +313,7 @@ export const DesktopMockMode: React.FC = () => {
     requestAnimationFrame(() => startThreeJS());
   }, [startThreeJS]);
 
+  /** Stops the three.js overlay and the webcam stream, returning to the pre-start screen. */
   const stopSession = useCallback(() => {
     stopThreeJS();
 
@@ -314,6 +346,13 @@ export const DesktopMockMode: React.FC = () => {
   // "Place poster" handler
   // -------------------------------------------------------------------------
 
+  /**
+   * Places the currently selected poster at the mock reticle position.
+   *
+   * Loads the texture, registers the poster in the store, and hands it to the
+   * PosterPlacement manager. Errors are caught and logged to the console;
+   * the returned promise never rejects.
+   */
   const handlePlacePoster = useCallback(async () => {
     if (placingRef.current) return;
     if (!lastReticleMatrixRef.current) return;
@@ -343,7 +382,7 @@ export const DesktopMockMode: React.FC = () => {
       placementRef.current.place(
         lastReticleMatrixRef.current,
         texture,
-        aspect, // PosterPlacement: height = width * aspectRatio (aspect = h/w)
+        aspect, // height/width ratio — PosterPlacement (src/xr8/posterPlacement.ts) computes height = width * aspect
         posterId,
       );
     } catch (err) {
@@ -357,6 +396,13 @@ export const DesktopMockMode: React.FC = () => {
   // Photo capture — composite webcam <video> + transparent GL canvas
   // -------------------------------------------------------------------------
 
+  /**
+   * Captures a photo by compositing the webcam frame and the transparent
+   * 3D canvas onto an offscreen 2D canvas.
+   *
+   * @returns Promise resolving to the JPEG screenshot (data URL + dimensions).
+   * @throws Error when no session is active or a 2D context cannot be created.
+   */
   const capturePhoto = useCallback(async (): Promise<ScreenshotResult> => {
     const renderer = rendererRef.current;
     const glCanvas = canvasRef.current;
@@ -367,9 +413,12 @@ export const DesktopMockMode: React.FC = () => {
       throw new Error('Session not active');
     }
 
-    // Fresh render in the same task as the reads below — the GL drawing
-    // buffer is only guaranteed valid until the browser composites, so we
-    // cannot rely on whatever the rAF loop drew last.
+    // Render a fresh frame right before reading the canvas. WebGL only
+    // guarantees the drawing buffer's contents until the browser composites
+    // the page (typically right after each animation frame), after which
+    // reading the canvas may return blank pixels. Rendering again in the
+    // same task as the drawImage call below makes the read reliable instead
+    // of depending on whatever the animation loop drew last.
     renderer.render(scene, camera);
 
     const out = document.createElement('canvas');

@@ -13,7 +13,9 @@ import React, { useEffect, useState } from 'react';
 import './LoadingScreen.css';
 
 interface LoadingScreenProps {
+  /** True while loading; flipping to false starts the 500 ms fade-out. */
   isLoading: boolean;
+  /** Heading text; also the fallback when no stageLabel is given. */
   message?: string;
   /**
    * When provided (0–100), renders a determinate progress bar instead of the

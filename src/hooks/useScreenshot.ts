@@ -45,17 +45,31 @@ export interface UseScreenshotOptions {
  * on any failure (errors are reported via toasts, not thrown).
  */
 export interface UseScreenshotReturn {
+  /** The captured photo awaiting preview, or null when no preview is open. */
   photo: ScreenshotResult | null;
+  /** True while a capture is in flight (disable the shutter button). */
   isCapturing: boolean;
+  /** True while the native share sheet is open or sharing is in flight. */
   isSharing: boolean;
+  /** True when the Web Share API (with file support) exists on this device. */
   canShare: boolean;
+  /** Captures a photo and opens the preview. Resolves true on success. */
   capturePhoto: () => Promise<boolean>;
+  /** Downloads the previewed photo to the device. No-op when `photo` is null. */
   savePhoto: () => void;
+  /** Shares the previewed photo via the Web Share API. Resolves true only when the share completed. */
   sharePhoto: () => Promise<boolean>;
+  /** Closes the preview overlay by clearing `photo`. */
   closePreview: () => void;
 }
 
-/** Default capture for the live path; see the file header for the branches. */
+/**
+ * Default capture for the live path; see the file header for the branches.
+ *
+ * @returns A promise resolving to the captured frame — from the XR8 engine
+ *   when its screenshot module is available, otherwise from a raw
+ *   canvas.toDataURL() read (which may be blank on live AR).
+ */
 const defaultCapture = (): Promise<ScreenshotResult> =>
   isXr8ScreenshotAvailable()
     ? takeXr8Photo()
@@ -64,6 +78,13 @@ const defaultCapture = (): Promise<ScreenshotResult> =>
 /**
  * Hook providing capture-to-preview plus save/download and Web Share of the
  * AR scene, with toast feedback and in-flight flags for the UI.
+ *
+ * @param options — Optional overrides; `options.capture` replaces the default
+ *   capture implementation (the desktop mock passes its own compositor).
+ * @returns A {@link UseScreenshotReturn} — `photo` (the pending preview),
+ *   `isCapturing` / `isSharing` busy flags, `canShare` device capability, and
+ *   the `capturePhoto` / `savePhoto` / `sharePhoto` / `closePreview` actions.
+ *   None of the actions throw; failures surface as error toasts.
  */
 export const useScreenshot = (
   options: UseScreenshotOptions = {}

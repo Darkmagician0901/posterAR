@@ -10,6 +10,7 @@ import React, { ReactNode } from 'react';
 import './MainLayout.css';
 
 interface MainLayoutProps {
+  /** Branch content (AR experience, desktop mock, or unsupported panel). */
   children: ReactNode;
 }
 

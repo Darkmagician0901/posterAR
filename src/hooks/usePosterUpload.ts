@@ -10,7 +10,9 @@
  * handleFileInputChange, resetUpload, fileInputRef, triggerFileInput }.
  *
  * Note: everything runs client-side; "upload" here means decode + compress to
- * a data URL, not a network transfer.
+ * a data URL, not a network transfer. (A data URL is a string of the form
+ * `data:image/webp;base64,...` that embeds the whole file as base64 text, so
+ * the image can be stored and rendered with no server round-trip.)
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -22,8 +24,11 @@ import { useUIState } from './useUIState';
  * the last error message (null when none).
  */
 export interface UploadState {
+  /** True while validation + compression are running. */
   isUploading: boolean;
+  /** Coarse progress percentage, 0–100 (synthetic milestones, not real bytes). */
   progress: number;
+  /** User-facing message from the last failed attempt, or null when none. */
   error: string | null;
 }
 
@@ -32,9 +37,13 @@ export interface UploadState {
  * for texturing and processedImage carries the compression details.
  */
 export interface UploadResult {
+  /** True when validation + processing succeeded. */
   success: boolean;
+  /** Data URL of the processed image; present only on success. */
   imageUrl?: string;
+  /** User-facing failure message; present only on failure. */
   error?: string;
+  /** Dimensions and compression statistics; present only on success. */
   processedImage?: ProcessedImage;
 }
 
@@ -44,11 +53,17 @@ export interface UploadResult {
  * opens the OS file picker programmatically.
  */
 export interface UsePosterUploadReturn {
+  /** Current snapshot of the in-flight/finished upload. */
   uploadState: UploadState;
+  /** Validates and processes a File directly (e.g. from drag-and-drop). */
   handleFileSelect: (file: File) => Promise<UploadResult>;
+  /** onChange handler for the hidden file input; null when no file was picked. */
   handleFileInputChange: (event: React.ChangeEvent<HTMLInputElement>) => Promise<UploadResult | null>;
+  /** Clears progress and error back to the idle state. */
   resetUpload: () => void;
+  /** Ref to attach to the hidden <input type="file"> element. */
   fileInputRef: React.RefObject<HTMLInputElement>;
+  /** Opens the OS file picker by clicking the hidden input. */
   triggerFileInput: () => void;
 }
 
@@ -56,6 +71,11 @@ export interface UsePosterUploadReturn {
  * Hook handling poster file selection, validation, client-side compression,
  * and toast feedback. Errors are reported via toasts and the returned
  * UploadResult — the callbacks never throw.
+ *
+ * @returns A {@link UsePosterUploadReturn} — `uploadState` (progress/error
+ *   snapshot), `handleFileSelect` / `handleFileInputChange` upload entry
+ *   points, `resetUpload`, plus `fileInputRef` / `triggerFileInput` for
+ *   wiring the hidden file input.
  */
 export const usePosterUpload = (): UsePosterUploadReturn => {
   const { addToast } = useUIState();
@@ -67,9 +87,7 @@ export const usePosterUpload = (): UsePosterUploadReturn => {
     error: null,
   });
 
-  /**
-   * Reset upload state
-   */
+  /** Resets `uploadState` to idle (not uploading, 0 %, no error). */
   const resetUpload = useCallback(() => {
     setUploadState({
       isUploading: false,
@@ -79,7 +97,13 @@ export const usePosterUpload = (): UsePosterUploadReturn => {
   }, []);
 
   /**
-   * Handle file selection and processing
+   * Validates and compresses a selected file, updating progress state and
+   * showing a success or error toast.
+   *
+   * @param file — The image File chosen by the user (any source: input,
+   *   drag-and-drop, paste).
+   * @returns A promise resolving to an {@link UploadResult}; never rejects —
+   *   validation/processing errors are converted into `{ success: false }`.
    */
   const handleFileSelect = useCallback(
     async (file: File): Promise<UploadResult> => {
@@ -149,7 +173,12 @@ export const usePosterUpload = (): UsePosterUploadReturn => {
   );
 
   /**
-   * Handle file input change event
+   * Adapter for the hidden file input's onChange event: extracts the first
+   * selected file, runs the upload flow, then clears the input.
+   *
+   * @param event — The change event fired by the <input type="file">.
+   * @returns A promise resolving to the {@link UploadResult}, or null when
+   *   the user closed the picker without choosing a file.
    */
   const handleFileInputChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>): Promise<UploadResult | null> => {
@@ -172,9 +201,7 @@ export const usePosterUpload = (): UsePosterUploadReturn => {
     [handleFileSelect]
   );
 
-  /**
-   * Trigger file input click
-   */
+  /** Programmatically clicks the hidden file input to open the OS picker. */
   const triggerFileInput = useCallback(() => {
     fileInputRef.current?.click();
   }, []);

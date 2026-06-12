@@ -20,14 +20,22 @@ import { MAX_IMAGE_DIMENSION } from '@/utils/imageUpload'
 
 /** Minimal interface PosterPlacement / ARExperience depend on. */
 export interface PosterAnimator {
-  /** Advance playback by `deltaMs`; re-blits + flags the texture if the frame changed. */
+  /**
+   * Advances playback. If the visible frame changed, redraws the canvas and
+   * flags the texture so three.js re-uploads it to the GPU.
+   *
+   * @param deltaMs — Milliseconds elapsed since the previous frame.
+   */
   update(deltaMs: number): void
-  /** Release the canvas + texture. */
+  /** Releases the canvases and the GPU texture. Call exactly once. */
   dispose(): void
 }
 
+/** Result of createPosterTexture: a texture plus animation metadata. */
 export interface PosterTexture {
+  /** The three.js texture to map onto the poster mesh. */
   texture: Texture
+  /** Per-frame animator for animated GIFs; null for static textures. */
   animator: PosterAnimator | null
   /** height / width of the source image. */
   aspect: number
@@ -40,9 +48,25 @@ export interface PosterTexture {
   decodedBytes: number
 }
 
+/**
+ * Detects whether a URL points at a GIF (data: URL MIME type or .gif suffix).
+ *
+ * @param url — Image URL (data: or network).
+ * @returns True when the URL should go through the GIF decode path.
+ */
 const isGifUrl = (url: string): boolean =>
   url.startsWith('data:image/gif') || /\.gif($|\?)/i.test(url)
 
+/**
+ * Shrinks a width/height pair to fit inside `max` on its longest side while
+ * keeping the aspect ratio. Dimensions already within the cap pass through
+ * unchanged; results are rounded and never below 1 px.
+ *
+ * @param w — Source width in pixels.
+ * @param h — Source height in pixels.
+ * @param max — Maximum allowed size of the longest side, in pixels.
+ * @returns The (possibly scaled-down) width and height.
+ */
 const fitWithin = (w: number, h: number, max: number): { w: number; h: number } => {
   const longest = Math.max(w, h)
   if (longest <= max) return { w, h }
@@ -50,6 +74,23 @@ const fitWithin = (w: number, h: number, max: number): { w: number; h: number } 
   return { w: Math.max(1, Math.round(w * s)), h: Math.max(1, Math.round(h * s)) }
 }
 
+/**
+ * Plays a decoded GIF into a three.js CanvasTexture.
+ *
+ * GIF frames are usually stored as small "patches" — only the rectangle of
+ * pixels that changed since the previous frame. So to show frame N we must
+ * composite: draw frame patches on top of each other, in order, on a
+ * persistent canvas. This class owns that canvas plus a GifPlayhead (the
+ * timing state machine that decides which frame should be visible) and
+ * re-composites whenever the playhead moves.
+ *
+ * Three canvases are involved:
+ *   - frameCanvas: full-size compositing surface in GIF pixel coordinates.
+ *   - patchCanvas: scratch surface used to convert one frame's raw RGBA
+ *     patch bytes into something drawImage can draw.
+ *   - displayCanvas: the dimension-capped surface that actually backs the
+ *     CanvasTexture (kept small so the GPU upload stays cheap).
+ */
 class GifAnimator implements PosterAnimator {
   private readonly playhead: GifPlayhead
   private readonly frames: DecodedFrame[]
@@ -65,10 +106,21 @@ class GifAnimator implements PosterAnimator {
   private readonly displayCtx: CanvasRenderingContext2D
   private readonly gifW: number
   private readonly gifH: number
+  /** Index of the frame currently composited onto frameCanvas (-1 = none). */
   private compositedIndex = -1
+  /** Disposal method of the previously drawn frame (see applyFrame). */
   private prevDisposal = 0
+  /** Patch rectangle of the previously drawn frame (for disposal 2). */
   private prevRect: DecodedFrame['dims'] | null = null
 
+  /**
+   * Builds the canvases, seeks to frame 0, and creates the CanvasTexture.
+   *
+   * @param frames — Decoded GIF frames (patch pixels, geometry, timing) in
+   *   playback order. Must contain at least one frame.
+   * @param gifW — Logical GIF width in pixels (from the GIF header).
+   * @param gifH — Logical GIF height in pixels (from the GIF header).
+   */
   constructor(frames: DecodedFrame[], gifW: number, gifH: number) {
     this.frames = frames
     this.gifW = gifW
@@ -96,16 +148,27 @@ class GifAnimator implements PosterAnimator {
     this.seekTo(0)
   }
 
+  /** The self-updating texture to map onto the poster mesh. */
   get canvasTexture(): CanvasTexture {
     return this.texture
   }
 
+  /**
+   * Advances playback; re-composites only when the visible frame changes.
+   *
+   * @param deltaMs — Milliseconds elapsed since the previous frame.
+   */
   update(deltaMs: number): void {
     if (this.playhead.advance(deltaMs)) {
       this.seekTo(this.playhead.frameIndex)
     }
   }
 
+  /**
+   * Frees the GPU texture and the canvas memory. Setting a canvas's width
+   * and height to 0 is the standard way to make the browser release its
+   * pixel buffer immediately instead of waiting for garbage collection.
+   */
   dispose(): void {
     this.texture.dispose()
     this.frameCanvas.width = this.frameCanvas.height = 0
@@ -113,10 +176,20 @@ class GifAnimator implements PosterAnimator {
     this.patchCanvas.width = this.patchCanvas.height = 0
   }
 
-  /** Composite forward one frame at a time until `target` is shown. */
+  /**
+   * Composites forward one frame at a time until `target` is shown.
+   *
+   * Because each GIF frame may be only a delta on top of the previous one,
+   * we cannot jump straight to an arbitrary frame — every intermediate frame
+   * must be applied in order.
+   *
+   * @param target — Index of the frame that should end up visible.
+   */
   private seekTo(target: number): void {
     if (target === this.compositedIndex) return
-    // Walk forward (wrapping) so each frame's delta is applied in order.
+    // Walk forward (wrapping past the last frame back to 0) so each frame's
+    // delta is applied in order. `guard` caps the loop at one full cycle in
+    // case `target` is somehow unreachable.
     let i = this.compositedIndex
     let guard = this.frames.length + 1
     do {
@@ -129,6 +202,17 @@ class GifAnimator implements PosterAnimator {
     this.texture.needsUpdate = true
   }
 
+  /**
+   * Draws frame `i` onto the compositing canvas, honouring the previous
+   * frame's disposal method.
+   *
+   * A GIF "disposal method" is per-frame metadata telling the decoder what
+   * to do with the frame's area before drawing the NEXT frame: 0/1 = leave
+   * the pixels in place, 2 = clear the area back to transparent, 3 = restore
+   * whatever was there before the frame (rare).
+   *
+   * @param i — Index of the frame to draw.
+   */
   private applyFrame(i: number): void {
     const frame = this.frames[i]
 
@@ -146,6 +230,9 @@ class GifAnimator implements PosterAnimator {
     }
     // (disposalType 3 "restore to previous" is rare; treated like leave-as-is.)
 
+    // Convert the frame's raw RGBA byte patch into pixels: putImageData
+    // writes the bytes onto the scratch canvas, then drawImage stamps that
+    // scratch canvas onto the compositing canvas at the patch's offset.
     this.patchCanvas.width = frame.dims.width
     this.patchCanvas.height = frame.dims.height
     // gifuct-js types patch as Uint8ClampedArray<ArrayBufferLike> which includes
@@ -160,6 +247,11 @@ class GifAnimator implements PosterAnimator {
     this.prevRect = frame.dims
   }
 
+  /**
+   * Copies ("blits") the full-size composited frame onto the dimension-capped
+   * display canvas, scaling down if needed. The display canvas is what the
+   * CanvasTexture uploads to the GPU.
+   */
   private blitToDisplay(): void {
     this.displayCtx.clearRect(0, 0, this.displayCanvas.width, this.displayCanvas.height)
     this.displayCtx.drawImage(
@@ -171,9 +263,14 @@ class GifAnimator implements PosterAnimator {
 }
 
 /**
- * Decode a base64 data: URL to an ArrayBuffer WITHOUT fetch(). iOS Safari can
+ * Decodes a base64 data: URL to an ArrayBuffer WITHOUT fetch(). iOS Safari can
  * reject or stall on fetch() of large (~10 MB) data URLs — atob is synchronous,
  * local, and what the old <img> path effectively relied on.
+ *
+ * @param dataUrl — A `data:` URL, base64-encoded or percent-encoded.
+ * @returns The raw decoded bytes.
+ * @throws Error('malformed data URL') when the URL has no comma separating
+ *   the metadata from the payload.
  */
 export function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
   const comma = dataUrl.indexOf(',')
@@ -193,13 +290,27 @@ export function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
   return bytes.buffer
 }
 
-/** Get GIF bytes: decode data: URLs locally; fetch only real network URLs. */
+/**
+ * Gets the raw GIF bytes: decodes data: URLs locally (see
+ * dataUrlToArrayBuffer); only real network URLs go through fetch().
+ *
+ * @param url — GIF URL (data: or network).
+ * @returns The GIF file bytes.
+ * @throws Rejects on network failure, or throws on a malformed data URL.
+ */
 async function loadGifBuffer(url: string): Promise<ArrayBuffer> {
   if (url.startsWith('data:')) return dataUrlToArrayBuffer(url)
   const res = await fetch(url)
   return res.arrayBuffer()
 }
 
+/**
+ * Loads a static (non-animated) texture via three.js TextureLoader.
+ *
+ * @param url — Image URL (data: or network).
+ * @returns Resolves with the loaded texture (anisotropy preset to 4).
+ * @throws Rejects with an Error when the browser fails to load the image.
+ */
 const loadStaticTexture = (url: string): Promise<Texture> =>
   new Promise((resolve, reject) => {
     new TextureLoader().load(
@@ -214,9 +325,13 @@ const loadStaticTexture = (url: string): Promise<Texture> =>
   })
 
 /**
- * Diagnostic: prefix the GIF-pipeline stage that threw onto the error message,
- * so a minified production stack (no source maps on-device) still localizes the
- * failure when it surfaces on the DebugHUD. Preserves the original stack.
+ * Diagnostic: prefixes the GIF-pipeline stage that threw onto the error
+ * message, so a minified production stack (no source maps on-device) still
+ * localizes the failure when it surfaces on the DebugHUD.
+ *
+ * @param stage — Pipeline stage that failed ('fetch' | 'decode' | 'composite').
+ * @param err — The original thrown value (Error or otherwise).
+ * @returns A new Error tagged `[gif:<stage>]`, preserving the original stack.
  */
 function stageError(stage: 'fetch' | 'decode' | 'composite', err: unknown): Error {
   const base = err instanceof Error ? err.message : String(err)
@@ -225,6 +340,14 @@ function stageError(stage: 'fetch' | 'decode' | 'composite', err: unknown): Erro
   return tagged
 }
 
+/**
+ * Decodes a GIF buffer into its logical size and per-frame patches.
+ *
+ * @param buffer — Raw GIF file bytes.
+ * @returns The GIF's width, height, and decoded frames.
+ * @throws An Error tagged `[gif:decode]` when the buffer is not a valid GIF
+ *   or decoding fails.
+ */
 function decodeGif(buffer: ArrayBuffer): {
   width: number
   height: number
@@ -239,6 +362,16 @@ function decodeGif(buffer: ArrayBuffer): {
   }
 }
 
+/**
+ * Constructs a GifAnimator, re-tagging any construction failure.
+ *
+ * @param frames — Decoded GIF frames in playback order.
+ * @param width — Logical GIF width in pixels.
+ * @param height — Logical GIF height in pixels.
+ * @returns The ready-to-tick animator (already showing frame 0).
+ * @throws An Error tagged `[gif:composite]` when canvas creation or the
+ *   initial composite fails (e.g. canvas size limits on the device).
+ */
 function makeAnimator(frames: DecodedFrame[], width: number, height: number): GifAnimator {
   try {
     return new GifAnimator(frames, width, height)
@@ -248,12 +381,21 @@ function makeAnimator(frames: DecodedFrame[], width: number, height: number): Gi
 }
 
 /**
- * Build a poster texture from any supported URL. GIFs animate; everything else
- * is static. The caller owns disposal (PosterPlacement.remove handles it).
+ * Builds a poster texture from any supported URL. GIFs animate; everything
+ * else is static. If anything in the GIF path fails, we degrade to a static
+ * frame-0 texture (with `fallbackReason` set) rather than failing the
+ * placement. The caller owns disposal (PosterPlacement.remove handles it).
  *
- * @param opts.animationByteBudget  When provided, animated GIFs that exceed this
- *   number of decoded bytes are silently demoted to a static frame-0 texture
- *   instead, saving memory. Pass the *remaining* budget from the global cap.
+ * @param url — Image URL (data: or network), GIF or otherwise.
+ * @param opts — Optional settings. `opts.animationByteBudget`: when provided,
+ *   animated GIFs whose decoded frames exceed this number of bytes are
+ *   silently demoted to a static frame-0 texture instead, saving memory.
+ *   Pass the *remaining* budget from the global cap.
+ * @returns The texture, its animator (null when static), the image aspect
+ *   ratio, the decoded-byte count charged against the budget, and the
+ *   fallback reason when a GIF could not animate.
+ * @throws Rejects only when even the static-texture load fails (e.g. the URL
+ *   is not a loadable image at all).
  */
 export async function createPosterTexture(
   url: string,
@@ -267,8 +409,9 @@ export async function createPosterTexture(
       const { width, height, frames } = decodeGif(buffer)
       const aspect = height / Math.max(1, width)
 
-      // Degenerate / single-frame GIF: fall back to static so we don't pay the
-      // per-frame upload cost for nothing.
+      // Single-frame or zero-sized GIF: nothing to animate, so fall back to a
+      // plain static texture rather than paying the per-frame GPU upload cost
+      // of a CanvasTexture for nothing.
       if (frames.length <= 1 || width < 1 || height < 1) {
         const texture = await loadStaticTexture(url)
         return { texture, animator: null, aspect, decodedBytes: 0 }

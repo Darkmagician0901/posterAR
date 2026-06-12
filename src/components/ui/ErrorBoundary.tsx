@@ -14,12 +14,16 @@ import { Component, ErrorInfo, ReactNode } from 'react';
 import './ErrorBoundary.css';
 
 interface Props {
+  /** Subtree to guard; rendered as-is until a descendant throws. */
   children: ReactNode;
 }
 
 interface State {
+  /** True once a descendant has thrown; switches render to the fallback UI. */
   hasError: boolean;
+  /** The thrown error, stored by componentDidCatch for display. */
   error: Error | null;
+  /** React error info (component stack), stored by componentDidCatch. */
   errorInfo: ErrorInfo | null;
 }
 
@@ -36,15 +40,25 @@ export class ErrorBoundary extends Component<Props, State> {
     };
   }
 
-  // React calls this first, during render, so the very next render already
-  // shows the fallback UI. Side effects are not allowed here — the error
-  // details are captured in componentDidCatch below.
+  /**
+   * React calls this first, during render, so the very next render already
+   * shows the fallback UI. Side effects are not allowed here — the error
+   * details are captured in componentDidCatch below.
+   *
+   * @param _error — The thrown error (unused here; stored in componentDidCatch).
+   * @returns State patch that flips rendering to the fallback UI.
+   */
   static getDerivedStateFromError(_error: Error): Partial<State> {
     return { hasError: true };
   }
 
-  // Called after the fallback has rendered; safe place for side effects
-  // (logging) and for storing the error + component stack for display.
+  /**
+   * Called after the fallback has rendered; safe place for side effects
+   * (logging) and for storing the error + component stack for display.
+   *
+   * @param error — The error thrown by a descendant during render.
+   * @param errorInfo — React-provided info, including the component stack.
+   */
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
 
@@ -57,8 +71,10 @@ export class ErrorBoundary extends Component<Props, State> {
     // Example: logErrorToService(error, errorInfo);
   }
 
-  // Clears the error state so children re-mount; if the underlying problem
-  // persists they will throw again and land back here.
+  /**
+   * Clears the error state so children re-mount; if the underlying problem
+   * persists they will throw again and land back here.
+   */
   handleRetry = (): void => {
     this.setState({
       hasError: false,
@@ -67,6 +83,7 @@ export class ErrorBoundary extends Component<Props, State> {
     });
   };
 
+  /** Hard-reloads the page — the heavier recovery option. */
   handleReload = (): void => {
     window.location.reload();
   };

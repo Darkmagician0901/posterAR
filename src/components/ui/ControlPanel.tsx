@@ -44,6 +44,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
   } = useScreenshot();
   const [showGallery, setShowGallery] = useState(false);
 
+  /** Clears all placed posters after a confirmation prompt. */
   const handleReset = () => {
     if (posters.length === 0) {
       addToast({
@@ -70,6 +71,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
     triggerFileInput();
   };
 
+  /**
+   * Validates/processes the chosen file via usePosterUpload and, on success,
+   * stores it as an uploaded poster and opens the gallery.
+   *
+   * @param event — Change event from the hidden <input type="file">.
+   */
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const result = await handleFileInputChange(event);
     

@@ -25,7 +25,16 @@ export interface DecodedFrame {
   disposalType: number
 }
 
-/** Read the GIF's logical screen size without decoding every frame. */
+/**
+ * Reads the GIF's overall canvas size from its header without decoding any
+ * frames. (The GIF spec calls this the "logical screen" — the full canvas
+ * that every frame is drawn onto; individual frames may cover only a patch
+ * of it.)
+ *
+ * @param buffer — The raw GIF file bytes.
+ * @returns The logical screen `{ width, height }` in pixels.
+ * @throws Error (from gifuct-js) when the buffer is not a parseable GIF.
+ */
 export function readGifSize(buffer: ArrayBuffer): { width: number; height: number } {
   const gif = parseGIF(buffer)
   return { width: gif.lsd.width, height: gif.lsd.height }
@@ -41,13 +50,21 @@ export function readGifSize(buffer: ArrayBuffer): { width: number; height: numbe
  */
 export const MAX_ESTIMATED_DECODE_BYTES = 1024 * 1024 * 1024 // 1 GiB
 
-/** Decode all frames (with built image patches) into our DecodedFrame shape.
- *  Throws (before any frame is decompressed) when the declared size would
- *  exceed MAX_ESTIMATED_DECODE_BYTES. */
+/**
+ * Decodes all frames (with built RGBA image patches) into our DecodedFrame
+ * shape.
+ *
+ * @param buffer — The raw GIF file bytes.
+ * @returns One {@link DecodedFrame} per image frame, in playback order.
+ * @throws Error — before any frame is decompressed — when the declared size
+ *   would exceed MAX_ESTIMATED_DECODE_BYTES (the decode-bomb guard above),
+ *   and propagates gifuct-js parse errors for malformed input.
+ */
 export function decodeGifFrames(buffer: ArrayBuffer): DecodedFrame[] {
   const gif = parseGIF(buffer)
 
-  // gif.frames mixes image frames and extension blocks — count only images.
+  // gif.frames mixes real image frames with "extension blocks" (non-image
+  // metadata such as loop count and comments) — count only the images.
   const frameCount = gif.frames.filter((f) => 'image' in f).length
   const estimatedBytes = gif.lsd.width * gif.lsd.height * 4 * frameCount
   if (estimatedBytes > MAX_ESTIMATED_DECODE_BYTES) {

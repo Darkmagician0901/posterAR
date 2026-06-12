@@ -19,8 +19,12 @@ import {
 } from '@/utils/screenshot'
 
 /**
- * True when the running engine binary exposes the CanvasScreenshot module
- * (its pipeline module registration in pipeline.ts is likewise guarded).
+ * Reports whether the running engine binary exposes the CanvasScreenshot
+ * module (its pipeline module registration in pipeline.ts is likewise
+ * guarded).
+ *
+ * @returns True when `XR8.CanvasScreenshot.takeScreenshot` exists and the
+ *   code is running in a browser; false otherwise (including SSR / tests).
  */
 export function isXr8ScreenshotAvailable(): boolean {
   return (
@@ -30,8 +34,13 @@ export function isXr8ScreenshotAvailable(): boolean {
 }
 
 /**
- * Capture the composited camera + AR scene via the engine. Rejects with a
- * readable Error when the module is unavailable or the engine capture fails.
+ * Captures the composited camera + AR scene via the engine's own screenshot
+ * module (which reads the frame from inside the render loop, avoiding the
+ * blank-canvas problem described in the file header).
+ *
+ * @returns Resolves with the captured photo as a ScreenshotResult.
+ * @throws Rejects with a readable Error when the CanvasScreenshot module is
+ *   unavailable, or with the engine's own error when the capture fails.
  */
 export async function takeXr8Photo(): Promise<ScreenshotResult> {
   if (!isXr8ScreenshotAvailable()) {

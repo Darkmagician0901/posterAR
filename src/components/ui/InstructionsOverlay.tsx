@@ -86,6 +86,7 @@ export const InstructionsOverlay: React.FC = () => {
     }, 300);
   };
 
+  /** Advances to the next slide, or closes the tutorial from the last slide. */
   const handleNext = () => {
     if (currentStep < INSTRUCTION_STEPS.length - 1) {
       setCurrentStep(currentStep + 1);

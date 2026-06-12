@@ -12,21 +12,42 @@
 export {}
 
 declare global {
-  /** A single result from XR8.XrController.hitTest(x, y, includedTypes). */
+  /**
+   * A single result from XR8.XrController.hitTest(x, y, includedTypes) — one
+   * real-world surface the screen-point ray intersected.
+   */
   interface Xr8HitResult {
+    /**
+     * Result confidence, best first: DETECTED_SURFACE (a surface the engine
+     * has confirmed) > ESTIMATED_SURFACE (a guess) > FEATURE_POINT (a single
+     * tracked point).
+     */
     type: 'FEATURE_POINT' | 'ESTIMATED_SURFACE' | 'DETECTED_SURFACE' | 'UNSPECIFIED'
+    /** Hit point in world space, in metres. */
     position: { x: number; y: number; z: number }
+    /** Surface orientation as a quaternion (4-number rotation). */
     rotation: { x: number; y: number; z: number; w: number }
+    /** Distance from the camera to the hit point, in metres. */
     distance: number
   }
 
-  /** Camera pipeline module shape (subset we use). */
+  /**
+   * Camera pipeline module shape (the subset we use). A pipeline module is
+   * the engine's plugin unit: XR8 calls the lifecycle callbacks below as the
+   * camera session starts, renders frames, errors, and shuts down.
+   */
   interface Xr8PipelineModule {
+    /** Unique module name (the engine rejects duplicate names). */
     name: string
+    /** Called once when the camera session starts; receives the canvas. */
     onStart?: (args: { canvas: HTMLCanvasElement; GLctx?: WebGLRenderingContext }) => void
+    /** Called every frame before rendering — per-frame logic goes here. */
     onUpdate?: (args: Record<string, unknown>) => void
+    /** Called every frame at render time. */
     onRender?: (args: Record<string, unknown>) => void
+    /** Called when the engine catches an error in any module. */
     onException?: (error: unknown) => void
+    /** Called when the module is removed or the session stops. */
     onDetach?: (args: Record<string, unknown>) => void
     [key: string]: unknown
   }

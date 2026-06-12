@@ -31,7 +31,13 @@ const DISMISS_KEY = 'xrposter:diagnostic-dismissed';
 
 type DotColor = 'green' | 'amber' | 'red' | 'gray';
 
-/** Maps a subsystem status string onto the four traffic-light dot colors. */
+/**
+ * Maps a subsystem status string onto the four traffic-light dot colors.
+ *
+ * @param s — Subsystem status reported by debugTelemetry.
+ * @returns 'green' for healthy states, 'amber' for in-progress states,
+ *   'red' for failures, 'gray' for idle/unknown.
+ */
 const statusColor = (s: SubsystemStatus): DotColor => {
   switch (s) {
     case 'ok':
@@ -59,7 +65,13 @@ const statusColor = (s: SubsystemStatus): DotColor => {
   }
 };
 
-/** Human-readable platform name for the collapsed pill. */
+/**
+ * Returns the human-readable platform name for the collapsed pill.
+ *
+ * @param p — Platform label set by App.tsx after capability detection.
+ * @returns Display string such as "iOS · Safari"; "Detecting…" before the
+ *   platform is known.
+ */
 const platformLabel = (p: PlatformLabel): string => {
   switch (p) {
     case 'ios-safari':     return 'iOS · Safari';
@@ -71,7 +83,12 @@ const platformLabel = (p: PlatformLabel): string => {
   }
 };
 
-/** Formats a millisecond value; em-dash when the stage hasn't happened yet. */
+/**
+ * Formats a millisecond value for display.
+ *
+ * @param v — Elapsed milliseconds, or null when the stage hasn't happened yet.
+ * @returns "<n> ms", or an em-dash for null.
+ */
 const ms = (v: number | null): string => (v === null ? '—' : `${v} ms`);
 
 const TIMING_ROWS: { key: LoadStage; label: string }[] = [
@@ -83,7 +100,14 @@ const TIMING_ROWS: { key: LoadStage; label: string }[] = [
   { key: 'firstTracking', label: 'First tracking' },
 ];
 
-/** Largest non-null timing value = effective time-to-AR so far. */
+/**
+ * Finds the largest recorded timing value, i.e. the effective time-to-AR so
+ * far (each stage records milliseconds since page load).
+ *
+ * @param t — Load-timing snapshot from debugTelemetry.
+ * @returns The largest non-null stage time in ms, or null when no stage has
+ *   been recorded yet.
+ */
 const slowestStage = (t: LoadTiming): number | null => {
   const vals = Object.values(t).filter((v): v is number => v !== null);
   return vals.length ? Math.max(...vals) : null;
@@ -107,6 +131,13 @@ const ROWS: { key: keyof Omit<SubsystemsSnapshot, 'platform'>; label: string }[]
   { key: 'desktopMock',   label: 'Desktop mock' },
 ];
 
+/**
+ * Picks the color of the single status dot on the collapsed pill.
+ *
+ * @param subs — Current subsystem snapshot from debugTelemetry.
+ * @returns The most severe color present across all rows (red > amber >
+ *   green); gray only when every subsystem is idle/unknown.
+ */
 const worstColor = (subs: SubsystemsSnapshot): DotColor => {
   const order: DotColor[] = ['red', 'amber', 'green', 'gray'];
   for (const target of order) {
@@ -125,8 +156,12 @@ const worstColor = (subs: SubsystemsSnapshot): DotColor => {
 
 /**
  * Picks the single most actionable user-facing hint for the current state.
- * Checks are ordered by severity: hard blockers (unsupported, denied
+ * Checks are ordered by severity: hard blockers (unsupported device, denied
  * permissions, engine failure) before transient/progress states.
+ *
+ * @param subs — Current subsystem snapshot from debugTelemetry.
+ * @returns The hint to show under the subsystem rows, or null when no hint
+ *   applies.
  */
 const hint = (subs: SubsystemsSnapshot): string | null => {
   if (subs.platform === 'unsupported') {

@@ -65,3 +65,15 @@ Only pure logic is unit-tested (gif timing/decode, upload validation, placement,
 - **Conventional Commits**: `feat`, `fix`, `chore`, `docs`, `refactor`, `test` with scopes such as `gif`, `ar`, `upload`, `8thwall`, `diag`.
 - **Plain three.js only.** Do NOT add `@react-three/*` or `@use-gesture/*` — both were removed in the 8th Wall migration.
 - TypeScript strict mode; no `any` without a comment justifying it.
+- **No `Co-Authored-By: Claude` trailer** on commits.
+
+## Release workflow
+
+When a unit of work is finished, ship it to Vercel without waiting to be asked, so it can be reviewed by just opening the URL:
+
+1. Verify green first — `npm run type-check` and `npm run test` must pass.
+2. **Commit** (Conventional Commits, no Claude co-author trailer).
+3. **Push** the branch.
+4. **Open/merge a PR into `main`**, resolving any conflicts.
+
+Merging `main` triggers a **production** deploy (Vercel `postarr`); each branch also gets its own preview URL. Because the merge deploys to production, only merge work that is complete and verified — not mid-task or experimental snapshots.

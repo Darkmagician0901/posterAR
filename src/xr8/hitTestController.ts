@@ -9,6 +9,10 @@
 
 import { Matrix4, Quaternion, Vector3 } from 'three'
 
+// TEMPORARY (diag/reticle-surface): on-device trace of the wall-vs-floor
+// decision. Removed once surface-adhesion behavior is confirmed.
+import { debugTelemetry } from '@/xr/debugTelemetry'
+
 export interface ReticlePose {
   /** Column-major Float32Array suitable for Matrix4.fromArray / mesh.matrix. */
   matrix: Float32Array
@@ -41,6 +45,15 @@ const _tangentY = new Vector3()
 const _tangentZ = new Vector3()
 const _worldUp = new Vector3(0, 1, 0)
 const _featureVec = new Vector3()
+
+// TEMPORARY (diag/reticle-surface): last emitted trace key — readReticlePose
+// runs every frame, so we only push a breadcrumb when the decision changes.
+let _lastReticleDiag = ''
+function emitReticleDiag(key: string): void {
+  if (key === _lastReticleDiag) return
+  _lastReticleDiag = key
+  debugTelemetry.logEvent(key)
+}
 
 /**
  * Synthesizes a vertical surface pose at `pointPos` whose local +Y axis
@@ -140,6 +153,7 @@ export function readReticlePose(): ReticlePose | null {
   }
 
   if (!results || results.length === 0) {
+    emitReticleDiag('reticle: no hits')
     return null
   }
 
@@ -153,6 +167,19 @@ export function readReticlePose(): ReticlePose | null {
     .filter((r) => r.type === 'FEATURE_POINT')
     .sort((a, b) => a.distance - b.distance)[0]
 
+  // TEMPORARY (diag/reticle-surface): per-type hit counts for the on-device
+  // trace. Tells us at a glance whether 8th Wall returns ANY feature points
+  // when aiming at a wall (the precondition for the vertical path).
+  let dCount = 0
+  let eCount = 0
+  let fCount = 0
+  for (const r of results) {
+    if (r.type === 'DETECTED_SURFACE') dCount++
+    else if (r.type === 'ESTIMATED_SURFACE') eCount++
+    else if (r.type === 'FEATURE_POINT') fCount++
+  }
+  const counts = `D${dCount}E${eCount}F${fCount}`
+
   // ── Wall heuristic ───────────────────────────────────────────────────────
   if (featureHit) {
     // Floor reference: use the horizontal surface hit when one exists; if
@@ -162,10 +189,11 @@ export function readReticlePose(): ReticlePose | null {
     const floorY = surfaceHit ? surfaceHit.position.y : null
     const featureY = featureHit.position.y
 
+    const delta = floorY === null ? null : featureY - floorY
     const isWall =
       floorY === null
         ? true // No floor reference — trust the feature point.
-        : featureY - floorY > WALL_MIN_HEIGHT_M
+        : (delta as number) > WALL_MIN_HEIGHT_M
 
     if (isWall) {
       // Read the camera world position from the 8th Wall three.js scene.
@@ -182,12 +210,22 @@ export function readReticlePose(): ReticlePose | null {
         // xrScene() can throw before the session is fully initialised.
       }
 
+      const dTxt = delta === null ? 'n/a' : delta.toFixed(2)
+      emitReticleDiag(
+        `reticle VERT ${counts} Δ${dTxt} cam${cameraPos ? 'ok' : 'NONE'}`,
+      )
+
       if (cameraPos !== null) {
         const fp = featureHit.position
         _featureVec.set(fp.x, fp.y, fp.z)
         return synthesizeWallPose(_featureVec, cameraPos)
       }
       // Camera unavailable — fall through to horizontal path below.
+    } else {
+      // Feature point present but too close to the floor to count as a wall.
+      emitReticleDiag(
+        `reticle HORZ(feat<thr) ${counts} Δ${(delta as number).toFixed(2)}`,
+      )
     }
   }
 
@@ -210,6 +248,14 @@ export function readReticlePose(): ReticlePose | null {
   // small — treat that as a vertical surface.
   _normal.set(0, 1, 0).applyQuaternion(_quat)
   const vertical = Math.abs(_normal.y) < 0.5
+
+  // TEMPORARY (diag/reticle-surface): emit the chosen hit type and the surface
+  // normal's y. If `ny` is ~1 on a floor, the "+Y = surface normal" convention
+  // (which the reticle's flat geometry and synthesizeWallPose both rely on)
+  // holds; an unexpected value means the convention itself is the bug.
+  emitReticleDiag(
+    `reticle HORZ ${best.type} ${counts} ny=${_normal.y.toFixed(2)} vert=${vertical}`,
+  )
 
   return {
     matrix: new Float32Array(_m4.elements),

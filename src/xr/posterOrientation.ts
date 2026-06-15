@@ -9,8 +9,8 @@
  * the raw hit matrix to a plane makes it face a *horizontal* direction on a
  * floor — i.e. it stands up like a billboard. To lay it flat we rebuild the
  * transform so the plane's facing axis (+Z) coincides with the surface normal,
- * and we choose the in-plane spin so the image's top edge (+Y) points back
- * toward the viewer (most legible for a photo lying on the ground).
+ * and we choose the in-plane spin so the image's top edge (+Y) points away
+ * from the viewer (the photo's "head" faces away from where you stand).
  *
  * Pure function: reads only its arguments + module-scoped temporaries, so it is
  * unit-testable without any 8th Wall / browser globals.
@@ -23,7 +23,7 @@ const _hit = new Matrix4()
 const _pos = new Vector3()
 const _normal = new Vector3()
 const _hitInPlane = new Vector3()
-const _toCam = new Vector3()
+const _fromCam = new Vector3()
 const _xAxis = new Vector3()
 const _yAxis = new Vector3()
 const _out = new Matrix4()
@@ -35,7 +35,7 @@ const _out = new Matrix4()
  *                  (`readReticlePose().matrix`). Its local +Y is the surface
  *                  normal; its translation is the contact point.
  * @param cameraPos Optional camera world position. When supplied, the image's
- *                  top edge is oriented toward the camera (projected into the
+ *                  top edge is oriented away from the camera (projected into the
  *                  surface plane). When omitted/null — or when the camera sits
  *                  directly along the surface normal — we fall back to the hit
  *                  pose's own in-plane axis so the poster still lies flat.
@@ -55,11 +55,12 @@ export function composeFlatPosterMatrix(
   // "up" direction when the camera can't disambiguate the spin.
   _hitInPlane.setFromMatrixColumn(_hit, 2)
 
-  // Desired image "up" = direction toward the camera, projected into the
-  // surface plane (remove the component along the normal).
+  // Desired image "up" = direction AWAY from the camera, projected into the
+  // surface plane (remove the component along the normal) — the poster's head
+  // points away from where the viewer is standing.
   if (cameraPos) {
-    _toCam.subVectors(cameraPos, _pos)
-    _yAxis.copy(_toCam).addScaledVector(_normal, -_toCam.dot(_normal))
+    _fromCam.subVectors(_pos, cameraPos)
+    _yAxis.copy(_fromCam).addScaledVector(_normal, -_fromCam.dot(_normal))
   } else {
     _yAxis.set(0, 0, 0)
   }

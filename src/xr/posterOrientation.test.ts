@@ -51,7 +51,7 @@ describe('composeFlatPosterMatrix', () => {
     expect(facing.z).toBeCloseTo(0, 4)
   })
 
-  it('points the image top (+Y) toward the camera, in the surface plane', () => {
+  it('points the image top (+Y) away from the camera, in the surface plane', () => {
     const pose = hitMatrix(new Vector3(0, 0, -2))
     const camera = new Vector3(0, 1.5, 0)
     const m = toMatrix4(composeFlatPosterMatrix(pose, camera))
@@ -59,9 +59,9 @@ describe('composeFlatPosterMatrix', () => {
     const up = col(m, 1) // image top
     // Must lie in the floor plane (no vertical component).
     expect(Math.abs(up.y)).toBeLessThan(EPS)
-    // Camera (0,1.5,0) is at +Z relative to the poster (0,0,-2): toward-camera
-    // in-plane direction is +Z.
-    expect(up.z).toBeCloseTo(1, 4)
+    // Camera (0,1.5,0) is at +Z relative to the poster (0,0,-2); the head points
+    // AWAY from the viewer, so the in-plane top direction is -Z.
+    expect(up.z).toBeCloseTo(-1, 4)
   })
 
   it('keeps the contact point as the translation', () => {

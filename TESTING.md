@@ -30,12 +30,15 @@ npm run test
 npm run test:watch
 ```
 
-**6 test files, 29 tests, all passing, runs in < 1 s:**
+**9 test files, 55 tests, all passing, runs in < 1 s:**
 
 | File | What it covers |
 |------|----------------|
+| `src/components/ar/arCanvasReparent.test.tsx` | Regression: canvas reparent by XRExtras must not break React's DOM anchor |
 | `src/utils/gifDecode.test.ts` | GIF decode adapter (gifuct-js), size reading, data: URL decode |
 | `src/utils/imageUpload.test.ts` | Upload validation + WebP compression rules (formats, size caps) |
+| `src/utils/screenshot.test.ts` | Screenshot utilities: crop math, filename generation, blob/data-URL helpers |
+| `src/xr/posterOrientation.test.ts` | `composeFlatPosterMatrix` — flat-placement orientation math (facing normal, head-away, orthonormal basis, degenerate/tilted cases) |
 | `src/xr8/gifPlayhead.test.ts` | Pure frame-timing playhead math |
 | `src/xr8/gifAnimator.test.ts` | CanvasTexture animator behavior |
 | `src/xr8/posterPlacement.test.ts` | Poster mesh placement / removal in the scene |
@@ -110,7 +113,7 @@ npm install
 
 # 2. Automated tests (must all pass)
 npm run test
-# Expected: 29 tests pass, no failures
+# Expected: 55 tests pass, no failures
 
 # 3. Type checking
 npm run type-check

@@ -90,6 +90,9 @@ Plain three.js — no react-three-fiber. The app constructs `Scene`, lights,
 and math types (`Matrix4`, `Vector3`, `Quaternion`, `Euler`). On the live path
 the scene/camera come from `XR8.Threejs.xrScene()` and the engine renders;
 `DesktopMockMode` owns its own `WebGLRenderer` and render loop.
+`Matrix4.makeBasis` is used in `src/xr/posterOrientation.ts` to build the
+right-handed orthonormal basis that lays placed posters flat on the detected
+surface (see [`ARCHITECTURE.md`](ARCHITECTURE.md) §7).
 
 ---
 
@@ -184,4 +187,4 @@ Static SPA → Vercel (`vercel.json`), Netlify (`netlify.toml`), Cloudflare Page
 
 ---
 
-**Last updated:** 2026-06-08
+**Last updated:** 2026-06-15

@@ -20,10 +20,11 @@ directly in the mobile browser — no app install required — powered by the
 ### AR (live, mobile)
 - **8th Wall SLAM world-tracking** — stable AR without WebXR
 - **Center-screen hit-test reticle** — `searching` (head-locked, pulsing) vs.
-  `tracking` (locked to the surface); tints differently for horizontal vs.
-  vertical surfaces
-- **Tap to place** — tap anywhere to drop a poster at the reticle (up to
-  `VITE_MAX_POSTERS`, default 10)
+  `tracking` (locked to a detected horizontal surface); lies flat on the surface
+  when tracking
+- **Tap to place** — tap anywhere to drop a poster flat on the detected surface
+  at the reticle; the image's top edge ("head") points away from the viewer
+  (up to `VITE_MAX_POSTERS`, default 10)
 - **Per-poster controls** — the placed poster is auto-selected; a slider rescales
   it and a button deletes it
 
@@ -222,6 +223,10 @@ older iOS). The Diagnostic Panel explains *why* AR didn't start when it doesn't.
 
 ## <a id="known-limitations"></a>⚠️ Known Limitations
 
+- **Horizontal surfaces only — walls are not supported.** 8th Wall SLAM world
+  tracking detects a single horizontal ground plane; it cannot detect vertical
+  surfaces such as walls. Posters are therefore placed flat on floors and tables
+  only. Placing on a wall ("wall-from-floor") is a deferred future feature.
 - **Screenshots on live AR may be blank.** The 8th Wall canvas is created
   without `preserveDrawingBuffer`, so `canvas.toDataURL()` outside the render
   loop can read an empty frame. Reliable capture needs to read pixels inside an
@@ -285,4 +290,4 @@ MIT — see [`LICENSE`](LICENSE).
 
 ---
 
-**Status:** Active · **AR engine:** 8th Wall (XR8) · **Last updated:** 2026-06-08
+**Status:** Active · **AR engine:** 8th Wall (XR8) · **Last updated:** 2026-06-15

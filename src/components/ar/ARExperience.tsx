@@ -16,12 +16,14 @@ import {
   DirectionalLight,
   Group,
   Scene,
+  Vector3,
 } from 'three';
 
 import { acquirePosterTexture, releasePosterTexture } from '@/xr8/posterTextureCache';
 import { onXr8Ready, runXr8, stopXr8 } from '@/xr8/pipeline';
 import { readReticlePose } from '@/xr8/hitTestController';
 import { PosterPlacement } from '@/xr8/posterPlacement';
+import { composeFlatPosterMatrix } from '@/xr/posterOrientation';
 import { createReticle, Reticle } from '@/xr/reticle';
 import { debugTelemetry } from '@/xr/debugTelemetry';
 import { usePosterStore } from '@/store/posterStore';
@@ -200,9 +202,23 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
         return;
       }
 
+      // Lay the poster flat on the detected surface (face = surface normal),
+      // oriented so the image's top points back toward the viewer. Falls back
+      // to a flat pose using the hit-pose yaw if the camera isn't available.
+      let cameraPos: Vector3 | null = null;
+      try {
+        const xrScene = XR8?.Threejs?.xrScene?.() as
+          | { camera?: { position?: Vector3 } }
+          | undefined;
+        cameraPos = xrScene?.camera?.position ?? null;
+      } catch {
+        cameraPos = null;
+      }
+      const placeMatrix = composeFlatPosterMatrix(matrix, cameraPos);
+
       // TEMPORARY: log that placement.place is about to be called.
       debugTelemetry.logEvent('placement.place: calling…');
-      placement.place(matrix, texture, aspect, posterId, currentPosterImage, animator);
+      placement.place(placeMatrix, texture, aspect, posterId, currentPosterImage, animator);
 
       // TEMPORARY: log success with updated poster count.
       const posterCount = placement.size();

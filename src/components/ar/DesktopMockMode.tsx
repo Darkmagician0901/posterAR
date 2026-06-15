@@ -11,6 +11,9 @@
  *  - installDesktopMockDriver on the canvas — mouse-drag → camera quaternion.
  *  - createReticle — fake hit-test pose 1.5 m forward + 0.3 m down each frame.
  *  - PosterPlacement — place() on "Place poster" button click.
+ *  - Photo button — composites the webcam frame + GL canvas onto a 2D canvas.
+ *    This does manually what the 8th Wall XR8.CanvasScreenshot helper does on
+ *    the live mobile path, since the engine is not running here.
  *
  * Raw three.js only — does NOT use @react-three/fiber, @react-three/drei, or
  * the 8th Wall / XR8 engine (which owns the canvas on the real mobile path).
@@ -32,6 +35,8 @@ import {
 } from 'three';
 
 import { Header } from '@/components/layout/Header';
+import { PhotoPreview } from '@/components/ui/PhotoPreview';
+import { useScreenshot } from '@/hooks/useScreenshot';
 import { debugTelemetry } from '@/xr/debugTelemetry';
 import {
   installDesktopMockDriver,
@@ -40,13 +45,31 @@ import {
 import { createReticle } from '@/xr/reticle';
 import { PosterPlacement } from '@/xr8/posterPlacement';
 import { usePosterStore } from '@/store/posterStore';
+import {
+  computeCoverCrop,
+  screenshotResultFromDataUrl,
+  ScreenshotResult,
+} from '@/utils/screenshot';
 
 // ---------------------------------------------------------------------------
-// Texture loader helper (mirrors ARExperience loadTexture)
+// Texture loader helper
 // ---------------------------------------------------------------------------
+// Note: this is a deliberately simple static-image loader for the desktop
+// sandbox. The live AR path (ARExperience.tsx) instead uses the shared,
+// refcounted cache in src/xr8/posterTextureCache.ts, which also handles
+// animated GIFs.
 
+/** Module-level cache so re-placing the same image reuses one GPU texture. */
 const textureCache = new Map<string, Texture>();
 
+/**
+ * Loads (or returns the cached) three.js Texture for an image URL.
+ *
+ * @param url — Image URL (data:, blob:, or http) to load as a texture.
+ * @returns Promise resolving to the loaded Texture; the same Texture instance
+ *   is returned for repeat calls with the same URL.
+ * @throws Rejects with an Error when the image fails to load.
+ */
 const loadTexture = (url: string): Promise<Texture> =>
   new Promise((resolve, reject) => {
     const cached = textureCache.get(url);
@@ -67,6 +90,11 @@ const loadTexture = (url: string): Promise<Texture> =>
 // Component
 // ---------------------------------------------------------------------------
 
+/**
+ * Desktop webcam sandbox for the AR placement flow: renders a transparent
+ * three.js canvas over a getUserMedia <video> and drives the reticle from a
+ * mouse-look camera instead of the 8th Wall engine.
+ */
 export const DesktopMockMode: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -74,6 +102,10 @@ export const DesktopMockMode: React.FC = () => {
   // Refs that survive across renders and don't need to trigger re-render
   const driverHandleRef = useRef<DesktopMockHandle | null>(null);
   const rendererRef = useRef<WebGLRenderer | null>(null);
+  // Scene + camera are hoisted out of startThreeJS so capturePhoto can
+  // re-render synchronously before reading the GL canvas.
+  const sceneRef = useRef<Scene | null>(null);
+  const cameraRef = useRef<PerspectiveCamera | null>(null);
   const placementRef = useRef<PosterPlacement | null>(null);
   const rafIdRef = useRef<number | null>(null);
   const lastReticleMatrixRef = useRef<Float32Array | null>(null);
@@ -91,6 +123,12 @@ export const DesktopMockMode: React.FC = () => {
   // Three.js setup / teardown
   // -------------------------------------------------------------------------
 
+  /**
+   * Creates the renderer, scene, camera, reticle, and placement manager, then
+   * starts the requestAnimationFrame render loop. Assumes the <canvas> is
+   * already in the DOM (no-op otherwise). Everything created here is torn
+   * down by stopThreeJS.
+   */
   const startThreeJS = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -107,9 +145,11 @@ export const DesktopMockMode: React.FC = () => {
     // Camera at origin, looking down -Z
     const camera = new PerspectiveCamera(70, w / h, 0.01, 100);
     camera.position.set(0, 0, 0);
+    cameraRef.current = camera;
 
     // Scene
     const scene = new Scene();
+    sceneRef.current = scene;
     scene.add(new AmbientLight(0xffffff, 0.6));
     const dirLight = new DirectionalLight(0xffffff, 0.8);
     dirLight.position.set(2, 4, 2);
@@ -119,10 +159,12 @@ export const DesktopMockMode: React.FC = () => {
     const sceneRoot = new Group();
     scene.add(sceneRoot);
 
-    // Reticle
+    // Reticle. The "scanner" ring (shown while searching for a surface) is
+    // added as a child of the camera so it stays fixed in the user's view
+    // instead of at a fixed point in the world.
     const reticle = createReticle();
     scene.add(reticle.mesh);
-    camera.add(reticle.scanner); // head-locked searching ring
+    camera.add(reticle.scanner); // follows the view — see note above
     scene.add(camera);           // camera must be in scene for its children to render
 
     // PosterPlacement
@@ -171,6 +213,9 @@ export const DesktopMockMode: React.FC = () => {
       tmpMatrix.makeRotationX(-Math.PI / 2);
       tmpMatrix.setPosition(tmpPos);
 
+      // Fresh array each frame on purpose: handlePlacePoster reads this ref
+      // asynchronously (after an awaited texture load), so reusing one buffer
+      // would let later frames mutate the pose out from under a pending place.
       const flatArray = new Float32Array(16);
       tmpMatrix.toArray(flatArray);
       lastReticleMatrixRef.current = flatArray;
@@ -192,6 +237,11 @@ export const DesktopMockMode: React.FC = () => {
     debugTelemetry.setSubsystem('surface', 'estimated');
   }, []);
 
+  /**
+   * Reverses startThreeJS: cancels the render loop, disposes the mouse-drag
+   * driver and renderer, clears placed posters, detaches the resize handler,
+   * and resets all related refs and telemetry.
+   */
   const stopThreeJS = useCallback(() => {
     if (rafIdRef.current !== null) {
       cancelAnimationFrame(rafIdRef.current);
@@ -214,6 +264,9 @@ export const DesktopMockMode: React.FC = () => {
       rendererRef.current = null;
     }
 
+    sceneRef.current = null;
+    cameraRef.current = null;
+
     lastReticleMatrixRef.current = null;
     placingRef.current = false;
 
@@ -227,6 +280,12 @@ export const DesktopMockMode: React.FC = () => {
   // Webcam session
   // -------------------------------------------------------------------------
 
+  /**
+   * Requests webcam access and, on success, starts the three.js overlay.
+   *
+   * On permission denial the error is caught and shown in the pre-start
+   * overlay instead; the returned promise never rejects.
+   */
   const startSession = useCallback(async () => {
     setPermissionError(null);
     try {
@@ -254,6 +313,7 @@ export const DesktopMockMode: React.FC = () => {
     requestAnimationFrame(() => startThreeJS());
   }, [startThreeJS]);
 
+  /** Stops the three.js overlay and the webcam stream, returning to the pre-start screen. */
   const stopSession = useCallback(() => {
     stopThreeJS();
 
@@ -286,6 +346,13 @@ export const DesktopMockMode: React.FC = () => {
   // "Place poster" handler
   // -------------------------------------------------------------------------
 
+  /**
+   * Places the currently selected poster at the mock reticle position.
+   *
+   * Loads the texture, registers the poster in the store, and hands it to the
+   * PosterPlacement manager. Errors are caught and logged to the console;
+   * the returned promise never rejects.
+   */
   const handlePlacePoster = useCallback(async () => {
     if (placingRef.current) return;
     if (!lastReticleMatrixRef.current) return;
@@ -315,7 +382,7 @@ export const DesktopMockMode: React.FC = () => {
       placementRef.current.place(
         lastReticleMatrixRef.current,
         texture,
-        aspect, // PosterPlacement: height = width * aspectRatio (aspect = h/w)
+        aspect, // height/width ratio — PosterPlacement (src/xr8/posterPlacement.ts) computes height = width * aspect
         posterId,
       );
     } catch (err) {
@@ -324,6 +391,76 @@ export const DesktopMockMode: React.FC = () => {
       placingRef.current = false;
     }
   }, []);
+
+  // -------------------------------------------------------------------------
+  // Photo capture — composite webcam <video> + transparent GL canvas
+  // -------------------------------------------------------------------------
+
+  /**
+   * Captures a photo by compositing the webcam frame and the transparent
+   * 3D canvas onto an offscreen 2D canvas.
+   *
+   * @returns Promise resolving to the JPEG screenshot (data URL + dimensions).
+   * @throws Error when no session is active or a 2D context cannot be created.
+   */
+  const capturePhoto = useCallback(async (): Promise<ScreenshotResult> => {
+    const renderer = rendererRef.current;
+    const glCanvas = canvasRef.current;
+    const video = videoRef.current;
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    if (!renderer || !glCanvas || !scene || !camera) {
+      throw new Error('Session not active');
+    }
+
+    // Render a fresh frame right before reading the canvas. WebGL only
+    // guarantees the drawing buffer's contents until the browser composites
+    // the page (typically right after each animation frame), after which
+    // reading the canvas may return blank pixels. Rendering again in the
+    // same task as the drawImage call below makes the read reliable instead
+    // of depending on whatever the animation loop drew last.
+    renderer.render(scene, camera);
+
+    const out = document.createElement('canvas');
+    out.width = glCanvas.width;   // device-pixel size (renderer.setPixelRatio)
+    out.height = glCanvas.height;
+    const ctx = out.getContext('2d');
+    if (!ctx) {
+      throw new Error('2D context unavailable');
+    }
+
+    // Webcam layer first, replicating the CSS object-fit: cover crop. Black
+    // background if the feed has no frame yet.
+    if (video && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      const { sx, sy, sw, sh } = computeCoverCrop(
+        video.videoWidth,
+        video.videoHeight,
+        out.width,
+        out.height
+      );
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, out.width, out.height);
+    } else {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, out.width, out.height);
+    }
+
+    // Transparent 3D scene on top.
+    ctx.drawImage(glCanvas, 0, 0);
+
+    const dataUrl = out.toDataURL('image/jpeg', 0.92);
+    return screenshotResultFromDataUrl(dataUrl, out.width, out.height);
+  }, []);
+
+  const {
+    photo,
+    isCapturing,
+    isSharing,
+    canShare,
+    capturePhoto: takePhoto,
+    savePhoto,
+    sharePhoto,
+    closePreview,
+  } = useScreenshot({ capture: capturePhoto });
 
   // -------------------------------------------------------------------------
   // Render
@@ -450,7 +587,7 @@ export const DesktopMockMode: React.FC = () => {
             Desktop mock · tracking (drag to rotate)
           </div>
 
-          {/* Place poster button */}
+          {/* Place poster + photo buttons */}
           <div
             style={{
               position: 'fixed',
@@ -459,6 +596,8 @@ export const DesktopMockMode: React.FC = () => {
               transform: 'translateX(-50%)',
               zIndex: 1100,
               pointerEvents: 'auto',
+              display: 'flex',
+              gap: '12px',
             }}
           >
             <button
@@ -477,8 +616,39 @@ export const DesktopMockMode: React.FC = () => {
             >
               Place poster
             </button>
+            <button
+              onClick={() => void takePhoto()}
+              disabled={isCapturing}
+              aria-label="Take photo"
+              style={{
+                padding: '14px 24px',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                backgroundColor: '#22c55e',
+                color: 'white',
+                border: 'none',
+                borderRadius: '25px',
+                cursor: isCapturing ? 'default' : 'pointer',
+                opacity: isCapturing ? 0.6 : 1,
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.4)',
+              }}
+            >
+              {isCapturing ? '⏳' : '📷'} Photo
+            </button>
           </div>
         </>
+      )}
+
+      {/* Photo preview modal */}
+      {photo && (
+        <PhotoPreview
+          photo={photo}
+          canShare={canShare}
+          isSharing={isSharing}
+          onSave={savePhoto}
+          onShare={() => void sharePhoto()}
+          onClose={closePreview}
+        />
       )}
     </>
   );

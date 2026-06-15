@@ -1,6 +1,11 @@
 /**
- * PosterControls Component
- * Controls for selected poster (delete, scale, etc.)
+ * PosterControls — collapsible panel for the currently selected poster.
+ *
+ * Renders only while posterStore has a selectedPosterId. Offers a scale
+ * slider (bounded by MIN/MAX_POSTER_SCALE) and a delete button. There are no
+ * move/rotate gestures in this app — scale is the only live adjustment.
+ *
+ * Exports: PosterControls.
  */
 
 import React, { useState } from 'react';
@@ -10,7 +15,8 @@ import { MIN_POSTER_SCALE, MAX_POSTER_SCALE } from '@/utils/constants';
 import './PosterControls.css';
 
 /**
- * Controls for the selected poster
+ * Scale + delete controls for the selected poster. Returns null when no
+ * poster is selected.
  */
 export const PosterControls: React.FC = () => {
   const { selectedPosterId, getPosterById, updatePoster, removePoster } = usePosterStore();
@@ -21,9 +27,16 @@ export const PosterControls: React.FC = () => {
 
   if (!poster) return null;
 
+  // The slider drives the width (scale[0]); height follows via the poster's
+  // existing height/width ratio so the image never stretches. Depth is fixed.
   const currentScale = poster.scale[0];
   const aspectRatio = poster.scale[1] / poster.scale[0];
 
+  /**
+   * Applies a new scale from the slider to the selected poster.
+   *
+   * @param event — Slider change event; its value is the new width scale.
+   */
   const handleScaleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newScale = parseFloat(event.target.value);
     const newScaleArray: [number, number, number] = [

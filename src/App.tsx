@@ -1,3 +1,15 @@
+/**
+ * App.tsx — root component and capability router.
+ *
+ * Detects device capabilities once on mount (detectXRSupport) and renders one
+ * of three branches: live 8th Wall AR, the desktop webcam mock, or an
+ * "AR Not Supported" panel. Also seeds the DiagnosticPanel with platform
+ * facts and bridges index.html's engine-load diagnostics into telemetry.
+ *
+ * Default export: App. Key dependencies: deviceDetection, debugTelemetry,
+ * ARExperience, DesktopMockMode.
+ */
+
 import { useEffect, useState } from 'react';
 import { detectXRSupport } from '@/utils/deviceDetection';
 import { XRSupport } from '@/types';
@@ -12,10 +24,14 @@ import { DiagnosticPanel } from '@/components/ui/DiagnosticPanel';
 import { debugTelemetry } from '@/xr/debugTelemetry';
 
 /**
- * Three branches:
+ * Root component that detects device capabilities once and renders one of
+ * three branches:
  *   1. hasAR8 (mobile + camera + secure context) → ARExperience via 8th Wall
  *   2. isDesktop                                 → DesktopMockMode
  *   3. Everything else                           → "AR Not Supported" panel
+ *
+ * Takes no props; capability detection runs in an effect on mount and a
+ * loading spinner is shown until it resolves.
  */
 function App() {
   const [xrSupport, setXrSupport] = useState<XRSupport | null>(null);
@@ -31,9 +47,12 @@ function App() {
 
         // Seed the diagnostic panel with platform-level facts so the panel
         // is meaningful even before any AR session is started.
-        // `engine` = 'loading' on a capable device because the XR8 binary +
-        // SLAM WASM begin downloading immediately; pipeline.ts flips it to
-        // 'ready' once the engine fires 'xrloaded'.
+        // On a capable device `engine` starts as 'loading' because the 8th
+        // Wall engine script and its SLAM module (SLAM = "Simultaneous
+        // Localization and Mapping", the surface-tracking system, shipped as
+        // a WebAssembly download) start downloading as soon as the page
+        // loads. src/xr8/pipeline.ts flips the status to 'ready' once the
+        // engine fires its 'xrloaded' event.
         debugTelemetry.setSubsystem(
           'engine',
           support.hasAR8 ? 'loading' : 'unsupported'
@@ -62,11 +81,18 @@ function App() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  // Bridge index.html's engine-load diagnostics into the panel from boot, so
-  // the engine-script load state is visible even before "Start AR" is tapped.
+  // Bridge engine-load diagnostics into the panel from boot, so the
+  // engine-script load state is visible even before "Start AR" is tapped.
+  // `window.__xr8diag` is a plain object written by a small inline <script>
+  // in index.html that records whether each 8th Wall <script> tag loaded.
   useEffect(() => {
+    // Convert the index.html script-load states ('loaded'/'error'/anything
+    // else) to the telemetry status values the diagnostic panel expects.
     const mapScript = (s?: string): 'ready' | 'error' | 'loading' =>
       s === 'loaded' ? 'ready' : s === 'error' ? 'error' : 'loading';
+    // Poll once per second; give up after 30 s if the engine never settles
+    // (the interval also stops as soon as it reaches 'loaded' or 'error').
+    const MAX_POLL_TICKS = 30;
     let ticks = 0;
     const id = setInterval(() => {
       const d =
@@ -87,16 +113,18 @@ function App() {
             ? 'ready'
             : 'loading'
       );
-      // Distinguish a fatal engine failure from a non-fatal optional-helper
-      // failure. landing-page / xrextras are guarded-optional in runXr8, so
-      // their failure must not read as "engine failed".
+      // Distinguish a fatal engine failure from a non-fatal helper failure.
+      // The xrextras and landing-page scripts are optional add-ons: runXr8
+      // (in src/xr8/pipeline.ts) wraps their use in existence checks, so AR
+      // still works when they fail to load. Their failure must therefore not
+      // be reported as "engine failed".
       if (d.engine === 'error') {
         debugTelemetry.setNote('Engine script failed to load — AR cannot start. Check network/CDN reachability.');
       } else if (d.xrextras === 'error' || d.landingPage === 'error') {
         debugTelemetry.setNote('Optional helper failed to load (xrextras/landing-page) — AR still works.');
       }
       ticks += 1;
-      if (d.engine === 'loaded' || d.engine === 'error' || ticks > 30) {
+      if (d.engine === 'loaded' || d.engine === 'error' || ticks > MAX_POLL_TICKS) {
         clearInterval(id);
       }
     }, 1000);
@@ -199,6 +227,12 @@ function App() {
   );
 }
 
+/**
+ * Static capability table shown on the "AR Not Supported" branch.
+ *
+ * The single `support` prop is the capability-detection result from
+ * detectXRSupport(); every row simply prints one of its boolean/string fields.
+ */
 const DeviceInfoTable: React.FC<{ support: XRSupport }> = ({ support }) => (
   <div className="device-info" style={{ marginTop: '20px' }}>
     <h3>Device Information</h3>
@@ -218,9 +252,17 @@ const DeviceInfoTable: React.FC<{ support: XRSupport }> = ({ support }) => (
   </div>
 );
 
+/**
+ * Floating "Info" button + popover used on the AR and desktop-mock branches.
+ * Visibility is controlled by the parent (`show`/`onToggle`) so both branches
+ * share one piece of state.
+ */
 const DeviceInfoButton: React.FC<{
+  /** Whether the popover is currently open. */
   show: boolean;
+  /** Called when the Info button is clicked; the parent flips `show`. */
   onToggle: () => void;
+  /** Capability-detection result whose fields fill the popover rows. */
   support: XRSupport;
 }> = ({ show, onToggle, support }) => (
   <>

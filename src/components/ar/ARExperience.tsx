@@ -35,16 +35,22 @@ import { DevBanner } from '@/components/ui/DevBanner';
 import { Header } from '@/components/layout/Header';
 
 interface ARExperienceProps {
+  /** Called once the 8th Wall session is running (camera feed visible). */
   onSessionStart?: () => void;
+  /** Called after the user exits AR and the session has been torn down. */
   onSessionEnd?: () => void;
   /** 'dev' adds the dev banner + HUD-on-by-default; 'live' is the normal flow. */
   mode?: 'dev' | 'live';
 }
 
 /**
- * Flatten an unknown thrown value into a readable multi-line string for the
- * on-device DebugHUD note (name + message + top stack frames). Used to surface
- * placement failures on the phone when no desktop inspector is available.
+ * Flattens an unknown thrown value into a readable multi-line string for the
+ * on-device DebugHUD note. Used to surface placement failures on the phone,
+ * where no desktop browser inspector is available.
+ *
+ * @param err — The caught value; may be an Error or anything else thrown.
+ * @returns For Error values, "Name: message" plus the top six stack frames on
+ *   following lines; for non-Error values, their String() form.
  */
 const describeError = (err: unknown): string => {
   if (err instanceof Error) {
@@ -55,6 +61,12 @@ const describeError = (err: unknown): string => {
   return String(err);
 };
 
+/**
+ * Live AR experience: registers a custom 8th Wall camera-pipeline module that
+ * builds the three.js scene, drives the placement reticle from a per-frame
+ * hit-test, and places posters on tap. Also renders all session UI (header,
+ * loading screen, control panels, debug HUD) around the engine-owned canvas.
+ */
 export const ARExperience: React.FC<ARExperienceProps> = ({
   onSessionStart,
   onSessionEnd,
@@ -64,7 +76,10 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
   const { showLoading, setShowLoading, addToast } = useUIState();
   const [isARActive, setIsARActive] = useState(false);
 
-  // Drives the determinate loading bar during 8th Wall engine + SLAM startup.
+  // Drives the determinate loading bar shown while the 8th Wall engine and
+  // its SLAM module download and start up. (SLAM = "Simultaneous Localization
+  // and Mapping" — the engine's surface-tracking system; it is a multi-MB
+  // download on first visit, which is why a progress bar is worth having.)
   const loadProgress = useArLoadProgress(showLoading);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -76,7 +91,13 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
   const sceneRootRef = useRef<Group | null>(null);
   const lastReticleMatrixRef = useRef<Float32Array | null>(null);
   const unsubscribeStoreRef = useRef<(() => void) | null>(null);
-  const pointerListenerRef = useRef<(() => void) | null>(null);
+  // The canvas the tap listeners were attached to (the engine may hand its own
+  // canvas to onStart) plus both handlers, so cleanup removes the exact pair.
+  const tapListenersRef = useRef<{
+    canvas: HTMLCanvasElement;
+    onTouchStart: () => void;
+    onMouseDown: () => void;
+  } | null>(null);
   const placingRef = useRef(false);
   const lastFrameTimeRef = useRef<number | null>(null);
   const firstFrameMarkedRef = useRef(false);
@@ -88,13 +109,19 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
 
   // ── placePoster ─────────────────────────────────────────────────────────────
   // TEMPORARY breadcrumb helpers — all logEvent calls in this function are
-  // diagnostic-only instrumentation removed/refined once GIF fix lands.
+  // diagnostic-only instrumentation, to be removed/refined once the GIF
+  // placement fix lands.
 
+  /**
+   * Places the currently selected poster at the reticle position.
+   *
+   * Early-returns when a placement is already in flight or the reticle has no
+   * surface lock. Otherwise acquires a (possibly animated) texture from the
+   * shared cache, registers the poster in the store, and hands it to the
+   * PosterPlacement manager. All failures are caught internally and surfaced
+   * via toast + debug HUD; the returned promise never rejects.
+   */
   const placePoster = async () => {
-    // TEMPORARY: first placement attempt forces the HUD visible so the user
-    // sees the trace without needing to find the toggle button.
-    debugTelemetry.setHudVisible(true);
-
     if (placingRef.current) {
       // TEMPORARY: log the "already placing" early-return so it's visible.
       debugTelemetry.logEvent('tap: already placing — ignored');
@@ -183,14 +210,19 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
 
     } catch (error) {
       console.error('Poster placement failed:', error);
-      // Balance the acquirePosterTexture() refcount if we acquired but threw
-      // before the poster was placed. Safe no-op when nothing was cached (e.g.
-      // acquire itself threw) since release() ignores unknown URLs.
+      // The texture cache (src/xr8/posterTextureCache.ts) counts how many
+      // posters use each texture: acquirePosterTexture() increments the
+      // count, releasePosterTexture() decrements it. If we acquired a texture
+      // but threw before the poster was placed, release it here so the count
+      // stays balanced and the texture can be freed. This is a safe no-op
+      // when nothing was cached (e.g. acquire itself threw), because
+      // release() ignores URLs it doesn't know about.
       releasePosterTexture(currentPosterImage);
-      // On-device trace sensing: we have no desktop inspector, so surface the
-      // real error to the persistent HUD note and force it visible. The stage
-      // tag ([gif:fetch|decode|composite]) localizes the failure. TEMPORARY —
-      // removed/refined once the GIF placement fix lands.
+      // TEMPORARY — removed/refined once the GIF placement fix lands.
+      // Because there is no desktop browser inspector when testing on a
+      // phone, write the real error into the persistent HUD note and force
+      // the HUD visible. Errors from the GIF pipeline carry a stage tag
+      // ([gif:fetch|decode|composite]) that says which step failed.
       const detail = describeError(error);
       // TEMPORARY: also log error into breadcrumbs so it appears in Tap trace.
       debugTelemetry.logEvent(`ERROR: ${detail.split('\n')[0]}`);
@@ -208,6 +240,14 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
 
   // ── startSession ─────────────────────────────────────────────────────────────
 
+  /**
+   * Builds the custom camera-pipeline module and starts the 8th Wall engine.
+   *
+   * The module's onStart sets up the scene (lights, reticle, poster root,
+   * tap listeners, store subscription); onUpdate runs every frame to read the
+   * hit-test pose, drive the reticle, and advance animations. Engine startup
+   * errors are caught and reported via toast.
+   */
   const startSession = () => {
     if (!canvasRef.current) return;
 
@@ -242,8 +282,11 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
           // Reticle
           const reticle = createReticle();
           scene.add(reticle.mesh);
-          // Scanner is head-locked — attach to the camera so it follows the
-          // user's view without any world-tracking math.
+          // The "scanner" ring (shown while searching for a surface) should
+          // stay fixed in the user's view rather than at a point in the
+          // world. Adding it as a child of the camera achieves that for
+          // free: it moves with the camera, so no per-frame positioning math
+          // is needed.
           camera.add(reticle.scanner);
           reticleRef.current = reticle;
 
@@ -282,8 +325,13 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
           });
           unsubscribeStoreRef.current = unsubscribe;
 
-          // Touch/mouse listener for poster placement.
-          const onPointerDown = () => {
+          // Touch/mouse listener for poster placement. Mobile browsers
+          // synthesize a mousedown after touchstart for compatibility — the
+          // timestamp guard keeps a single tap from invoking placePoster
+          // twice (which could place two posters once the texture is cached
+          // and the second call no longer overlaps the placingRef window).
+          let lastTouchTime = 0;
+          const handleTap = () => {
             // TEMPORARY: log every tap so we know the event reached JS even
             // when placePoster silently early-returns.
             debugTelemetry.logEvent(
@@ -291,9 +339,18 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
             );
             void placePoster();
           };
-          activeCanvas.addEventListener('touchstart', onPointerDown, { passive: true });
-          activeCanvas.addEventListener('mousedown', onPointerDown);
-          pointerListenerRef.current = onPointerDown;
+          const onTouchStart = () => {
+            lastTouchTime = performance.now();
+            handleTap();
+          };
+          const onMouseDown = () => {
+            // Ignore the compatibility mousedown that follows a touch.
+            if (performance.now() - lastTouchTime < 700) return;
+            handleTap();
+          };
+          activeCanvas.addEventListener('touchstart', onTouchStart, { passive: true });
+          activeCanvas.addEventListener('mousedown', onMouseDown);
+          tapListenersRef.current = { canvas: activeCanvas, onTouchStart, onMouseDown };
 
           // Telemetry
           debugTelemetry.setSubsystem('session', 'active');
@@ -362,6 +419,11 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
 
   // ── handleExitAR ─────────────────────────────────────────────────────────────
 
+  /**
+   * Tears down the AR session: stops the 8th Wall engine, unsubscribes the
+   * store listener, clears placed posters, removes tap listeners, resets all
+   * session refs and telemetry, and notifies the parent via onSessionEnd.
+   */
   const handleExitAR = () => {
     stopXr8();
 
@@ -373,11 +435,13 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
     placementRef.current?.clear();
     placementRef.current = null;
 
-    // Remove pointer listener from canvas.
-    if (canvasRef.current && pointerListenerRef.current) {
-      canvasRef.current.removeEventListener('touchstart', pointerListenerRef.current);
-      canvasRef.current.removeEventListener('mousedown', pointerListenerRef.current);
-      pointerListenerRef.current = null;
+    // Remove tap listeners from the canvas they were actually attached to
+    // (onStart may have used the engine-provided canvas, not our ref).
+    const tap = tapListenersRef.current;
+    if (tap) {
+      tap.canvas.removeEventListener('touchstart', tap.onTouchStart);
+      tap.canvas.removeEventListener('mousedown', tap.onMouseDown);
+      tapListenersRef.current = null;
     }
 
     // Reset refs.

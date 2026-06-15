@@ -1,9 +1,12 @@
 /**
  * pipeline.ts — 8th Wall (XR8) camera-pipeline lifecycle manager.
  *
- * This module wraps the 8th Wall engine binary (with SLAM world-tracking)
- * that is loaded from CDN via a <script> tag in index.html.  It replaces the
- * old WebXR sessionManager and owns:
+ * This module wraps the 8th Wall engine binary that is loaded from CDN via a
+ * <script> tag in index.html. The engine provides SLAM world-tracking
+ * (SLAM = Simultaneous Localization And Mapping — the computer-vision
+ * technique that works out where the phone is in the room, and keeps virtual
+ * objects pinned in place, using only the camera and motion sensors). It
+ * replaces the old WebXR sessionManager and owns:
  *   - waiting for the engine to be ready (`onXr8Ready`)
  *   - building + starting the standard three.js camera pipeline (`runXr8`)
  *   - tearing it down (`stopXr8`)
@@ -35,6 +38,10 @@ import { debugTelemetry, SubsystemStatus } from '@/xr/debugTelemetry'
  *
  * Safe to call in SSR / Node environments — the guard on `typeof window`
  * prevents any access to browser globals.
+ *
+ * @param callback — Invoked exactly once, as soon as the engine global
+ *   (`window.XR8`) is available. Called synchronously if the engine already
+ *   loaded; otherwise called from the one-time `'xrloaded'` listener.
  */
 export function onXr8Ready(callback: () => void): void {
   if (typeof window === 'undefined') {
@@ -59,6 +66,7 @@ export function onXr8Ready(callback: () => void): void {
 // engine watchdog — surfaces WHY the engine didn't start
 // ---------------------------------------------------------------------------
 
+/** Shape of `window.__xr8diag`, written by inline <script> hooks in index.html. */
 interface Xr8Diag {
   engine?: 'pending' | 'loaded' | 'error'
   xrextras?: 'pending' | 'loaded' | 'error'
@@ -66,14 +74,24 @@ interface Xr8Diag {
   error?: string | null
 }
 
+/**
+ * Maps a script-tag load state to the diagnostic panel's status vocabulary.
+ *
+ * @param s — Load state of one <script> tag ('pending' | 'loaded' | 'error'),
+ *   or undefined when the inline diagnostics never recorded it.
+ * @returns The matching SubsystemStatus ('ready', 'error', or 'loading').
+ */
 const scriptStatus = (s: Xr8Diag['engine']): SubsystemStatus =>
   s === 'loaded' ? 'ready' : s === 'error' ? 'error' : 'loading'
 
 /**
- * While we wait for `xrloaded`, poll the index.html load-diagnostics so the
- * panel shows per-script load state, and after a timeout flip `engine` to
- * 'error' with a concrete reason — otherwise the loading bar would hang at the
- * pre-engine cap forever (the symptom seen on older iOS).
+ * Polls the index.html load-diagnostics once per second while we wait for the
+ * `xrloaded` event, so the diagnostic panel shows per-script load state.
+ *
+ * After 15 seconds with no engine, flips the `engine` subsystem to 'error'
+ * with a concrete reason. Without this, the app's loading progress bar would
+ * sit forever at the value it is capped at until the engine arrives (the
+ * "pre-engine cap"), with no explanation — the symptom seen on older iOS.
  */
 function startEngineWatchdog(): void {
   const STEP_MS = 1000
@@ -123,9 +141,14 @@ function startEngineWatchdog(): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Maps an 8th Wall `reality.trackingstatus` payload to a subsystem status.
+ * Maps an 8th Wall `reality.trackingstatus` event payload to a subsystem status.
  * The engine reports statuses like 'NORMAL' | 'LIMITED' | 'NOT_AVAILABLE';
  * we read defensively (status or reason fields) and default to 'limited'.
+ *
+ * @param detail — The `detail` field of the engine event. Typed `unknown`
+ *   because the engine globals are untyped; only `.status` / `.reason` string
+ *   fields are read, and any unrecognized shape falls through to 'limited'.
+ * @returns The telemetry status: 'normal', 'notavailable', or 'limited'.
  */
 function trackingStatusToSubsystem(detail: unknown): SubsystemStatus {
   const raw =
@@ -144,7 +167,16 @@ function trackingStatusToSubsystem(detail: unknown): SubsystemStatus {
   }
 }
 
-/** A listener-only pipeline module that mirrors SLAM tracking into telemetry. */
+/**
+ * Builds a pipeline module that mirrors SLAM tracking quality into telemetry.
+ *
+ * A "camera pipeline module" is the engine's plugin unit: an object with a
+ * name plus optional lifecycle callbacks and event listeners that XR8 calls
+ * as the camera runs. This one is listener-only — it draws nothing and has
+ * no per-frame work; it just reacts to `reality.trackingstatus` events.
+ *
+ * @returns The module to pass to `XR8.addCameraPipelineModules`.
+ */
 function trackingTelemetryModule(): Xr8PipelineModule {
   return {
     name: 'xrposter-tracking-telemetry',
@@ -165,7 +197,9 @@ function trackingTelemetryModule(): Xr8PipelineModule {
 // runXr8
 // ---------------------------------------------------------------------------
 
+/** Options for {@link runXr8}. The canvas is handed to (and owned by) XR8. */
 export interface Xr8RunOptions {
+  /** Canvas the engine renders camera + scene into. XR8 takes ownership. */
   canvas: HTMLCanvasElement
   /** Custom camera pipeline modules to append after the standard ones. */
   customModules?: Xr8PipelineModule[]
@@ -186,6 +220,10 @@ export interface Xr8RunOptions {
  *
  * World-tracking is configured via `XR8.XrController.configure` (when
  * available) before the pipeline starts, respecting `disableWorldTracking`.
+ *
+ * @param options — Canvas to render into (ownership transfers to XR8), any
+ *   custom pipeline modules to append, and the world-tracking toggle. See
+ *   {@link Xr8RunOptions}.
  */
 export function runXr8(options: Xr8RunOptions): void {
   const { canvas, customModules = [], disableWorldTracking = false } = options
@@ -209,6 +247,10 @@ export function runXr8(options: Xr8RunOptions): void {
   }
   if (typeof XR8?.XrController?.pipelineModule === 'function') {
     modules.push(XR8.XrController.pipelineModule())
+  }
+  // Frame capture for the photo feature — see @/xr8/canvasScreenshot.
+  if (typeof XR8?.CanvasScreenshot?.pipelineModule === 'function') {
+    modules.push(XR8.CanvasScreenshot.pipelineModule())
   }
 
   // Optional UX / helper modules from XRExtras / LandingPage bundles.

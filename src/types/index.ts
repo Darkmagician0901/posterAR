@@ -1,111 +1,70 @@
 /**
  * Core type definitions for the XR Poster application.
  *
- * `XRSupport` and `CreatePosterOptions` / `Poster` are the load-bearing types
- * used across the app; the `ARMode` / `DeviceCapability` / `ErrorType` enums
- * and `AppError` are a shared taxonomy used by diagnostics and messaging.
+ * `Poster` / `CreatePosterOptions` describe placed posters (posterStore);
+ * `XRSupport` is the device-capability snapshot produced by deviceDetection
+ * and consumed by App's branch decision.
  */
 
 /**
- * Poster interface - represents a 2D poster in AR space
+ * A 2D poster placed in AR space.
+ *
+ * `position`/`rotation`/`scale` mirror the values passed at creation; the
+ * authoritative world transform of a placed poster is the three.js group
+ * matrix owned by PosterPlacement (see posterStore header).
  */
 export interface Poster {
+  /** Unique ID assigned by posterStore. */
   id: string;
+  /** Image source — a data URL for uploads, or a bundled asset path. */
   imageUrl: string;
-  position: [number, number, number]; // [x, y, z] in meters
-  rotation: [number, number, number]; // [x, y, z] in radians
-  scale: [number, number, number]; // [width, height, depth]
+  /** [x, y, z] in meters of AR space. */
+  position: [number, number, number];
+  /** [x, y, z] Euler angles in radians. */
+  rotation: [number, number, number];
+  /** [width, height, depth] in meters (not a unitless multiplier). */
+  scale: [number, number, number];
+  /** Placement timestamp (Date.now()). */
   createdAt: number;
+  /** Timestamp of the last updatePoster call. */
   updatedAt: number;
 }
 
 /**
- * AR Session state
- */
-export interface ARSession {
-  isActive: boolean;
-  isSupported: boolean;
-  mode: ARMode;
-  error: string | null;
-}
-
-/**
- * AR Mode types
- */
-export enum ARMode {
-  AR8 = 'ar8',
-  WEBAR = 'webar',
-  PREVIEW_2D = 'preview-2d',
-  NONE = 'none'
-}
-
-/**
- * Device capability detection
- */
-export enum DeviceCapability {
-  AR8_SUPPORTED = 'ar8-supported',
-  WEBAR_SUPPORTED = 'webar-supported',
-  CAMERA_AVAILABLE = 'camera-available',
-  GYROSCOPE_AVAILABLE = 'gyroscope-available',
-  TOUCH_SUPPORTED = 'touch-supported',
-  NONE = 'none'
-}
-
-/**
- * XR Support interface
- */
-export interface XRSupport {
-  /** True when the device can plausibly run 8th Wall: mobile + camera + secure context. */
-  hasAR8: boolean;
-  hasCamera: boolean;
-  hasGyroscope: boolean;
-  isIOS: boolean;
-  isAndroid: boolean;
-  isMobile: boolean;
-  isDesktop: boolean;
-  browserName: string;
-  browserVersion: string;
-}
-
-/**
- * App configuration
- */
-export interface AppConfig {
-  maxPosters: number;
-  defaultPosterSize: [number, number, number];
-  minPosterScale: number;
-  maxPosterScale: number;
-  enableDebugMode: boolean;
-}
-
-/**
- * Poster creation options
+ * Options accepted by posterStore.addPoster; omitted fields fall back to the
+ * defaults in utils/constants.ts.
  */
 export interface CreatePosterOptions {
+  /** Image source — a data URL for uploads, or a bundled asset path. */
   imageUrl: string;
+  /** [x, y, z] in meters; defaults to the spawn position in posterStore. */
   position?: [number, number, number];
+  /** [x, y, z] Euler angles in radians; defaults to no rotation. */
   rotation?: [number, number, number];
+  /** [width, height, depth] in meters; defaults to the standard poster size. */
   scale?: [number, number, number];
 }
 
 /**
- * Error types
+ * Device-capability snapshot from detectXRSupport().
  */
-export enum ErrorType {
-  AR_NOT_SUPPORTED = 'ar-not-supported',
-  CAMERA_PERMISSION_DENIED = 'camera-permission-denied',
-  SESSION_INIT_FAILED = 'session-init-failed',
-  POSTER_LOAD_FAILED = 'poster-load-failed',
-  MAX_POSTERS_REACHED = 'max-posters-reached',
-  UNKNOWN = 'unknown'
-}
-
-/**
- * Application error
- */
-export interface AppError {
-  type: ErrorType;
-  message: string;
-  details?: unknown;
-  timestamp: number;
+export interface XRSupport {
+  /** True when the device can plausibly run 8th Wall: mobile + camera + secure context. */
+  hasAR8: boolean;
+  /** True when the getUserMedia camera API exists (no permission prompted). */
+  hasCamera: boolean;
+  /** True when orientation events exist (a proxy for gyroscope hardware). */
+  hasGyroscope: boolean;
+  /** True for iPhone/iPad/iPod user agents. */
+  isIOS: boolean;
+  /** True for Android user agents. */
+  isAndroid: boolean;
+  /** True for any mobile user agent (superset of iOS/Android). */
+  isMobile: boolean;
+  /** True when no mobile check matched. */
+  isDesktop: boolean;
+  /** Best-effort browser name, e.g. "Chrome"; "Unknown" if unrecognized. */
+  browserName: string;
+  /** Best-effort major version, e.g. "125"; "Unknown" if unrecognized. */
+  browserVersion: string;
 }

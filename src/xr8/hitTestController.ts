@@ -1,10 +1,16 @@
 /**
  * hitTestController.ts
  *
- * Replaces the old WebXR hitTest.ts (XRHitTestSource) with 8th Wall's
- * XrController.hitTest. Because SLAM keeps the world frame stable, a single
- * per-frame hit-test at screen-centre is all that is needed — no anchor
- * lifecycle, no reference-space management.
+ * A "hit-test" asks the AR engine: "if I shoot a ray from this screen point
+ * into the real world, what surface does it hit, and where?" The answer gives
+ * us the position and orientation to draw the reticle (the ring-shaped
+ * placement cursor) and to place posters.
+ *
+ * This module replaces the old WebXR hitTest.ts (XRHitTestSource) with 8th
+ * Wall's XrController.hitTest. Because SLAM world-tracking (the engine's
+ * camera-based positional tracking) keeps the world coordinate frame stable,
+ * a single per-frame hit-test at screen-centre is all that is needed — no
+ * anchor lifecycle, no reference-space management.
  */
 
 import { Matrix4, Quaternion, Vector3 } from 'three'
@@ -14,7 +20,11 @@ import { Matrix4, Quaternion, Vector3 } from 'three'
 import { debugTelemetry } from '@/xr/debugTelemetry'
 
 export interface ReticlePose {
-  /** Column-major Float32Array suitable for Matrix4.fromArray / mesh.matrix. */
+  /**
+   * The 4x4 world transform of the hit point as 16 floats in column-major
+   * order (the matrix is listed column by column — the memory layout three.js
+   * and WebGL use). Feed it to Matrix4.fromArray or copy into mesh.matrix.
+   */
   matrix: Float32Array
   /** True when the surface is a wall (its normal is roughly horizontal). */
   vertical: boolean
@@ -125,7 +135,11 @@ export function synthesizeWallPose(
 
 /**
  * Runs a centre-screen hit-test via XR8.XrController.hitTest and returns the
- * best surface pose, or null when no results are available or the API is absent.
+ * best surface pose. Called once per frame from the render loop.
+ *
+ * Result priority: DETECTED_SURFACE (a surface the engine has confirmed) >
+ * ESTIMATED_SURFACE (a guess) > FEATURE_POINT (a single tracked point) >
+ * whatever came first.
  *
  * Priority (horizontal path): DETECTED_SURFACE > ESTIMATED_SURFACE > results[0].
  *
@@ -143,6 +157,8 @@ export function readReticlePose(): ReticlePose | null {
 
   let results: Xr8HitResult[]
   try {
+    // (0.5, 0.5) is the screen centre — hitTest takes normalized screen
+    // coordinates where (0, 0) is top-left and (1, 1) is bottom-right.
     results = XR8.XrController.hitTest(0.5, 0.5, [
       'DETECTED_SURFACE',
       'ESTIMATED_SURFACE',
@@ -237,7 +253,8 @@ export function readReticlePose(): ReticlePose | null {
 
   const { position: p, rotation: r } = best
 
-  // Compose world-space Matrix4 from position + rotation quaternion, unit scale.
+  // Build the world-space 4x4 transform from the hit's position and rotation
+  // quaternion (three.js's 4-number rotation representation) at unit scale.
   _pos.set(p.x, p.y, p.z)
   _quat.set(r.x, r.y, r.z, r.w)
   _scale.set(1, 1, 1)

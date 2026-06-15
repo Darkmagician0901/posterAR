@@ -1,8 +1,19 @@
 /**
- * Device detection and 8th Wall (XR8) capability checking utilities
+ * Device detection and 8th Wall (XR8) capability checking utilities.
+ *
+ * Pure, prompt-free environment checks (user-agent sniffing, secure-context
+ * and getUserMedia availability) used by App.tsx to choose its branch:
+ * live AR, desktop mock, or "AR Not Supported".
+ *
+ * Main export: detectXRSupport — aggregates all checks into an XRSupport
+ * object; the individual predicates (isMobile, isIOS, hasCameraApi, …) are
+ * also exported for targeted use.
+ *
+ * None of these functions request permissions or open camera streams — see
+ * hasCameraApi for why that matters.
  */
 
-import { XRSupport, DeviceCapability } from '@/types';
+import { XRSupport } from '@/types';
 
 /**
  * Camera *capability* check — does this browser expose the getUserMedia API?
@@ -13,6 +24,8 @@ import { XRSupport, DeviceCapability } from '@/types';
  * permission prompt at "Start AR". (Opening + closing a stream during
  * detection was the main cause of slow first paint on iOS — the app blocked
  * behind the permission dialog before anything rendered.)
+ *
+ * @returns True when navigator.mediaDevices.getUserMedia exists.
  */
 export function hasCameraApi(): boolean {
   return (
@@ -23,48 +36,42 @@ export function hasCameraApi(): boolean {
 }
 
 /**
- * Explicit camera *permission* check — actually opens (and immediately stops)
- * a stream, which prompts the user. NOT used during startup detection; kept
- * for flows that genuinely need to confirm a grant up front.
- */
-export async function checkCameraAccess(): Promise<boolean> {
-  if (!hasCameraApi()) {
-    return false;
-  }
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    stream.getTracks().forEach((track) => track.stop());
-    return true;
-  } catch (error) {
-    console.warn('Camera access denied or unavailable:', error);
-    return false;
-  }
-}
-
-/**
- * Check if device has gyroscope
+ * Checks whether the device exposes orientation events (a proxy for "has a
+ * gyroscope" — the API existing does not guarantee hardware).
+ *
+ * @returns True when DeviceOrientationEvent is available on window.
  */
 export function checkGyroscope(): boolean {
   return 'DeviceOrientationEvent' in window;
 }
 
 /**
- * Detect if device is iOS
+ * Detects iOS devices by user agent.
+ *
+ * @returns True for iPhone/iPad/iPod user agents (excluding IE's fake ones —
+ *   see the MSStream note below).
  */
 export function isIOS(): boolean {
+  // `any` justified: MSStream is a non-standard IE/old-Edge property absent
+  // from lib.dom typings; its presence means the UA is IE faking an iOS-like
+  // string, not a real iOS device.
   return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
 }
 
 /**
- * Detect if device is Android
+ * Detects Android devices by user agent.
+ *
+ * @returns True when the user agent contains "Android".
  */
 export function isAndroid(): boolean {
   return /Android/.test(navigator.userAgent);
 }
 
 /**
- * Detect if device is mobile
+ * Detects mobile devices via a broad user-agent match covering Android, iOS,
+ * and legacy mobile browsers.
+ *
+ * @returns True when the user agent matches any known mobile token.
  */
 export function isMobile(): boolean {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
@@ -73,15 +80,20 @@ export function isMobile(): boolean {
 }
 
 /**
- * Desktop = not a mobile UA.
+ * Detects desktop devices: anything whose user agent is not mobile.
+ *
+ * @returns True when none of the mobile/iOS/Android checks match.
  */
 export function isDesktop(): boolean {
   return !isMobile() && !isIOS() && !isAndroid();
 }
 
 /**
- * Returns true when the page is served in a secure context (required for
+ * Checks whether the page is served in a secure context (required for
  * getUserMedia and 8th Wall).
+ *
+ * @returns True for HTTPS pages and for localhost (which browsers treat as
+ *   secure for development).
  */
 export function isSecureContextOk(): boolean {
   return (
@@ -91,15 +103,24 @@ export function isSecureContextOk(): boolean {
 }
 
 /**
- * Returns true when the device is compatible with 8th Wall:
- * must be mobile, have camera access, and be in a secure context.
+ * Decides whether the device can run the live 8th Wall AR path.
+ *
+ * @param hasCamera — Result of hasCameraApi(), passed in so detectXRSupport
+ *   runs the camera check exactly once.
+ * @returns True when the device is mobile, has the camera API, and is in a
+ *   secure context.
  */
 export function isXr8Compatible(hasCamera: boolean): boolean {
   return isMobile() && hasCamera && isSecureContextOk();
 }
 
 /**
- * Get browser name and version
+ * Extracts a best-effort browser name + major version from the user agent.
+ * Order matters: Chrome's UA contains "Safari", and Edge's contains "Chrome",
+ * so the more specific checks must run first.
+ *
+ * @returns `{ name, version }` — e.g. `{ name: 'Chrome', version: '125' }`,
+ *   with 'Unknown' for anything unrecognized.
  */
 export function getBrowserInfo(): { name: string; version: string } {
   const ua = navigator.userAgent;
@@ -135,7 +156,12 @@ export function getBrowserInfo(): { name: string; version: string } {
 }
 
 /**
- * Comprehensive XR support detection for 8th Wall
+ * Comprehensive XR support detection for 8th Wall. Runs all environment
+ * checks. Async only to keep the signature stable for future probe-based
+ * checks — everything inside is synchronous and prompt-free.
+ *
+ * @returns A promise resolving to the {@link XRSupport} snapshot App.tsx
+ *   branches on; `hasAR8` is the aggregate "can run live AR" verdict.
  */
 export async function detectXRSupport(): Promise<XRSupport> {
   // Non-prompting capability check — do not open a camera stream here.
@@ -159,60 +185,5 @@ export async function detectXRSupport(): Promise<XRSupport> {
     isDesktop: deviceIsDesktop,
     browserName: browser.name,
     browserVersion: browser.version,
-  };
-}
-
-/**
- * Get device capabilities as array
- */
-export async function getDeviceCapabilities(): Promise<DeviceCapability[]> {
-  const capabilities: DeviceCapability[] = [];
-
-  const support = await detectXRSupport();
-
-  if (support.hasAR8) {
-    capabilities.push(DeviceCapability.AR8_SUPPORTED);
-  }
-
-  if (support.hasCamera) {
-    capabilities.push(DeviceCapability.CAMERA_AVAILABLE);
-  }
-
-  if (support.hasGyroscope) {
-    capabilities.push(DeviceCapability.GYROSCOPE_AVAILABLE);
-  }
-
-  if ('ontouchstart' in window) {
-    capabilities.push(DeviceCapability.TOUCH_SUPPORTED);
-  }
-
-  return capabilities.length > 0 ? capabilities : [DeviceCapability.NONE];
-}
-
-/**
- * Check if device meets minimum requirements to run 8th Wall AR
- */
-export async function meetsMinimumRequirements(): Promise<{
-  meets: boolean;
-  missing: string[];
-}> {
-  const missing: string[] = [];
-  const support = await detectXRSupport();
-
-  if (!support.hasAR8) {
-    missing.push('8th Wall AR support (mobile device with camera in secure context required)');
-  }
-
-  if (!support.hasCamera) {
-    missing.push('Camera access');
-  }
-
-  if (!support.isMobile) {
-    missing.push('Mobile device (iOS Safari or Android Chrome required)');
-  }
-
-  return {
-    meets: missing.length === 0,
-    missing,
   };
 }

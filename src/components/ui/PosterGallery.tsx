@@ -1,19 +1,26 @@
 /**
  * PosterGallery Component
- * Displays uploaded posters in a grid layout
+ *
+ * Modal grid of selectable posters: the built-in default poster plus every
+ * user-uploaded poster from posterStore. Selecting an item makes it the
+ * "current" poster used for the next placement; uploaded items can also be
+ * deleted from here.
  */
 
 import React from 'react';
 import { usePosterStore } from '@/store/posterStore';
 import { useUIState } from '@/hooks/useUIState';
+import { DEFAULT_POSTER_IMAGE } from '@/utils/constants';
 import './PosterGallery.css';
 
 interface PosterGalleryProps {
+  /** Closes the gallery; called on backdrop click, ×, or after a selection. */
   onClose: () => void;
 }
 
 /**
- * Poster gallery component
+ * Modal poster picker (see file header). Clicking the dimmed backdrop closes
+ * it; clicking a thumbnail selects that poster and closes it.
  */
 export const PosterGallery: React.FC<PosterGalleryProps> = ({ onClose }) => {
   const {
@@ -24,6 +31,12 @@ export const PosterGallery: React.FC<PosterGalleryProps> = ({ onClose }) => {
   } = usePosterStore();
   const { addToast } = useUIState();
 
+  /**
+   * Makes an uploaded poster the current placement image and closes the
+   * gallery.
+   *
+   * @param imageUrl — Data URL of the poster to select.
+   */
   const handleSelectPoster = (imageUrl: string) => {
     setCurrentPosterImage(imageUrl);
     addToast({
@@ -33,6 +46,13 @@ export const PosterGallery: React.FC<PosterGalleryProps> = ({ onClose }) => {
     onClose();
   };
 
+  /**
+   * Deletes an uploaded poster after a confirmation prompt.
+   *
+   * @param id — Store id of the uploaded poster to delete.
+   * @param event — Click event; propagation is stopped so the click does not
+   *   also bubble to the surrounding thumbnail and select the poster.
+   */
   const handleDeletePoster = (id: string, event: React.MouseEvent) => {
     event.stopPropagation();
 
@@ -45,8 +65,9 @@ export const PosterGallery: React.FC<PosterGalleryProps> = ({ onClose }) => {
     }
   };
 
+  /** Selects the built-in default poster and closes the gallery. */
   const handleSelectDefault = () => {
-    setCurrentPosterImage('/posters/default-poster.png');
+    setCurrentPosterImage(DEFAULT_POSTER_IMAGE);
     addToast({
       type: 'success',
       message: 'Default poster selected',
@@ -72,18 +93,18 @@ export const PosterGallery: React.FC<PosterGalleryProps> = ({ onClose }) => {
           {/* Default poster */}
           <div
             className={`poster-gallery-item ${
-              currentPosterImage === '/posters/default-poster.png' ? 'selected' : ''
+              currentPosterImage === DEFAULT_POSTER_IMAGE ? 'selected' : ''
             }`}
             onClick={handleSelectDefault}
           >
             <img
-              src="/posters/default-poster.png"
+              src={DEFAULT_POSTER_IMAGE}
               alt="Default poster"
               className="poster-gallery-thumbnail"
             />
             <div className="poster-gallery-label">
               <span className="poster-gallery-name">Default</span>
-              {currentPosterImage === '/posters/default-poster.png' && (
+              {currentPosterImage === DEFAULT_POSTER_IMAGE && (
                 <span className="poster-gallery-badge">✓</span>
               )}
             </div>

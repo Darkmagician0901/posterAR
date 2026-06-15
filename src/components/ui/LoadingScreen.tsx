@@ -1,13 +1,21 @@
 /**
- * LoadingScreen Component
- * Displays loading state during AR session initialization
+ * LoadingScreen — full-screen overlay shown while an AR session initializes.
+ *
+ * Two modes: indeterminate (spinner + bouncing dots) and determinate (a
+ * progress bar driven by the `progress` prop, used on mobile to show the
+ * 8th Wall engine + SLAM download). Fades out for 500 ms after `isLoading`
+ * flips to false, then unmounts itself.
+ *
+ * Exports: LoadingScreen.
  */
 
 import React, { useEffect, useState } from 'react';
 import './LoadingScreen.css';
 
 interface LoadingScreenProps {
+  /** True while loading; flipping to false starts the 500 ms fade-out. */
   isLoading: boolean;
+  /** Heading text; also the fallback when no stageLabel is given. */
   message?: string;
   /**
    * When provided (0–100), renders a determinate progress bar instead of the

@@ -1,12 +1,18 @@
 /**
- * InstructionsOverlay Component
- * First-time user tutorial with step-by-step instructions
+ * InstructionsOverlay — first-visit tutorial dialog with stepped slides.
+ *
+ * Auto-opens once per browser (tracked via useTutorialCompleted /
+ * localStorage; the flag is written by useUIState.setShowInstructions(false)
+ * on dismiss). Can be reopened any time from the ControlPanel Help button.
+ *
+ * Exports: InstructionsOverlay.
  */
 
 import React, { useState, useEffect } from 'react';
 import { useUIState, useTutorialCompleted } from '@/hooks/useUIState';
 import './InstructionsOverlay.css';
 
+/** One slide of the tutorial. */
 interface InstructionStep {
   id: number;
   title: string;
@@ -42,7 +48,8 @@ const INSTRUCTION_STEPS: InstructionStep[] = [
 ];
 
 /**
- * Instructions overlay with animated steps
+ * Step-by-step tutorial overlay. Auto-shows on first visit; renders null
+ * once dismissed (which also marks the tutorial as completed).
  */
 export const InstructionsOverlay: React.FC = () => {
   const { showInstructions, setShowInstructions } = useUIState();
@@ -50,10 +57,10 @@ export const InstructionsOverlay: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
 
-  // Show instructions on first visit
+  // Show instructions on first visit. The 500 ms delay lets the app settle
+  // (camera prompt, layout) before the dialog animates in.
   useEffect(() => {
     if (!tutorialCompleted && !showInstructions) {
-      // Delay showing instructions slightly
       const timer = setTimeout(() => {
         setShowInstructions(true);
       }, 500);
@@ -68,6 +75,9 @@ export const InstructionsOverlay: React.FC = () => {
     }
   }, [showInstructions]);
 
+  // Two-phase close: drop the CSS "visible" class first so the fade-out
+  // animation (300 ms, matches InstructionsOverlay.css) plays, then actually
+  // hide the overlay and reset to step 0 for the next opening.
   const handleClose = () => {
     setIsVisible(false);
     setTimeout(() => {
@@ -76,6 +86,7 @@ export const InstructionsOverlay: React.FC = () => {
     }, 300);
   };
 
+  /** Advances to the next slide, or closes the tutorial from the last slide. */
   const handleNext = () => {
     if (currentStep < INSTRUCTION_STEPS.length - 1) {
       setCurrentStep(currentStep + 1);

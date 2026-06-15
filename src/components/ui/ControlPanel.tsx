@@ -1,6 +1,12 @@
 /**
- * ControlPanel Component
- * Floating control panel with action buttons
+ * ControlPanel — floating toolbar shown while an AR session is active.
+ *
+ * Buttons: clear all posters, screenshot, upload an image (hidden <input
+ * type="file">), open the poster gallery, show instructions, and toggle the
+ * debug HUD. Owns the gallery's open/closed state locally; everything else is
+ * delegated to posterStore, useUIState, usePosterUpload and useScreenshot.
+ *
+ * Exports: ControlPanel.
  */
 
 import React, { useState } from 'react';
@@ -10,22 +16,35 @@ import { usePosterUpload } from '@/hooks/usePosterUpload';
 import { useScreenshot } from '@/hooks/useScreenshot';
 import { debugTelemetry } from '@/xr/debugTelemetry';
 import { PosterGallery } from './PosterGallery';
+import { PhotoPreview } from './PhotoPreview';
 import './ControlPanel.css';
 
 interface ControlPanelProps {
+  /** The panel renders nothing until the AR (or mock) session is running. */
   isARActive: boolean;
 }
 
 /**
- * Control panel with action buttons
+ * Floating AR toolbar (clear / photo / upload / gallery / help / debug).
+ * Returns null when `isARActive` is false.
  */
 export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
   const { clearPosters, posters, addUploadedPoster } = usePosterStore();
   const { addToast, setShowInstructions } = useUIState();
   const { uploadState, handleFileInputChange, fileInputRef, triggerFileInput } = usePosterUpload();
-  const { screenshotState, captureScreenshot } = useScreenshot();
+  const {
+    photo,
+    isCapturing,
+    isSharing,
+    canShare,
+    capturePhoto,
+    savePhoto,
+    sharePhoto,
+    closePreview,
+  } = useScreenshot();
   const [showGallery, setShowGallery] = useState(false);
 
+  /** Clears all placed posters after a confirmation prompt. */
   const handleReset = () => {
     if (posters.length === 0) {
       addToast({
@@ -45,18 +64,25 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
   };
 
   const handleScreenshot = async () => {
-    await captureScreenshot({ format: 'png' });
+    await capturePhoto();
   };
 
   const handleUploadClick = () => {
     triggerFileInput();
   };
 
+  /**
+   * Validates/processes the chosen file via usePosterUpload and, on success,
+   * stores it as an uploaded poster and opens the gallery.
+   *
+   * @param event — Change event from the hidden <input type="file">.
+   */
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const result = await handleFileInputChange(event);
     
     if (result?.success && result.processedImage) {
-      // Add to uploaded posters store
+      // Add to uploaded posters store. The `!` is safe: usePosterUpload always
+      // sets imageUrl when success && processedImage are both present.
       addUploadedPoster({
         imageUrl: result.imageUrl!,
         name: result.processedImage.originalName,
@@ -106,12 +132,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
         <button
           className="control-button control-button-screenshot"
           onClick={handleScreenshot}
-          disabled={screenshotState.isCapturing}
-          aria-label="Take screenshot"
-          title="Screenshot"
+          disabled={isCapturing}
+          aria-label="Take photo"
+          title="Photo"
         >
           <span className="control-icon">
-            {screenshotState.isCapturing ? '⏳' : '📷'}
+            {isCapturing ? '⏳' : '📷'}
           </span>
           <span className="control-label">Photo</span>
         </button>
@@ -162,6 +188,18 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
 
       {/* Poster Gallery Modal */}
       {showGallery && <PosterGallery onClose={() => setShowGallery(false)} />}
+
+      {/* Photo Preview Modal */}
+      {photo && (
+        <PhotoPreview
+          photo={photo}
+          canShare={canShare}
+          isSharing={isSharing}
+          onSave={savePhoto}
+          onShare={() => void sharePhoto()}
+          onClose={closePreview}
+        />
+      )}
     </>
   );
 };

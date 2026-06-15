@@ -6,7 +6,7 @@ Quick reference for Claude Code sessions. See README.md / ARCHITECTURE.md / TEST
 
 ```bash
 npm run dev           # Vite dev server — HTTPS, --host (required for camera + 8th Wall)
-npm run test          # vitest run — 29 tests, < 1 s
+npm run test          # vitest run — 55 tests, < 1 s
 npm run test:watch    # vitest interactive watch
 npm run type-check    # tsc --noEmit
 npm run build         # tsc && vite build → dist/
@@ -26,7 +26,7 @@ There is **no lint script**.
 
 On the live path **8th Wall (XR8) owns** the canvas, camera feed, three.js renderer, and render loop. The app registers a custom camera-pipeline module (`onStart` / `onUpdate`) that builds the scene, runs a center-screen hit-test every frame, drives the reticle, and places poster meshes on tap.
 
-- `src/xr/` — engine-AGNOSTIC 3D helpers (reticle, debugTelemetry, desktopMockDriver)
+- `src/xr/` — engine-AGNOSTIC 3D helpers (reticle, debugTelemetry, desktopMockDriver, posterOrientation)
 - `src/xr8/` — 8th Wall (XR8)-SPECIFIC integration (pipeline, hitTestController, posterPlacement, gifAnimator, gifPlayhead, posterTextureCache)
 
 State: **Zustand 4** — `posterStore` (placed + uploaded posters), `useUIState` (overlays, toasts).
@@ -53,12 +53,13 @@ GIFs are decoded from data: URLs without fetch. `posterTextureCache` releases ac
 - **CSP:** `script-src` must allow `https://cdn.jsdelivr.net`. See `vercel.json` / `public/_headers`.
 - **engine-binary intentionally has no SRI hash.** Its loader fetches runtime chunks (e.g. `slam.js`) dynamically; a static hash can't cover them. Documented inline in `index.html`.
 - **HTTPS (or localhost) required** for camera access and the 8th Wall engine.
+- **8th Wall cannot detect walls (vertical surfaces).** World tracking detects only one horizontal ground plane; DETECTED_SURFACE / ESTIMATED_SURFACE hits are always horizontal; FEATURE_POINT hits have no reliable normal. Posters lie flat on the detected surface via `composeFlatPosterMatrix` (`src/xr/posterOrientation.ts`), with the image top pointing away from the viewer. Wall support is deferred to a future "wall-from-floor" technique.
 
 ## Testing
 
 Stack: **vitest ^4.1.8** + **happy-dom ^20.9.0** (configured in `vitest.config.ts`).
 
-Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
+**9 test files, 55 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
 
 ## Conventions
 

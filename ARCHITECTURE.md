@@ -129,8 +129,12 @@ customModules: [sceneModule] }))`. The custom `sceneModule`:
 
 **`placePoster()`** (on tap): loads/caches the current poster texture, computes
 aspect, calls `posterStore.addPoster(...)` (which enforces `maxPosters` and
-auto-selects), then `placement.place(matrix, texture, aspect, id)`. On any
-failure the store entry is rolled back.
+auto-selects). Then it reads the camera world position from
+`XR8.Threejs.xrScene().camera.position` and calls `composeFlatPosterMatrix(matrix,
+cameraPos)` (`src/xr/posterOrientation.ts`) to build a flat-on-surface transform
+— the poster's facing axis (+Z) coincides with the surface normal, and the
+image's top edge points away from the viewer. The resulting matrix is passed to
+`placement.place(...)`. On any failure the store entry is rolled back.
 
 **`handleExitAR()`**: `stopXr8()`, unsubscribe the store, `placement.clear()`,
 remove listeners, reset refs + telemetry.
@@ -146,8 +150,8 @@ is no WebXR `dom-overlay`.
 | File | Responsibility |
 |------|----------------|
 | `pipeline.ts` | Engine lifecycle, pipeline assembly, watchdog, tracking telemetry (§4) |
-| `hitTestController.ts` | `readReticlePose()` — one center-screen `XR8.XrController.hitTest(0.5, 0.5, [...])` per frame; prefers `DETECTED_SURFACE > ESTIMATED_SURFACE > FEATURE_POINT`; composes a world `Matrix4` and a `vertical` flag (wall vs. floor) from the hit quaternion. Reuses module-scoped temporaries to avoid GC. |
-| `posterPlacement.ts` | `PosterPlacement` class — `place/setScale/remove/clear/size/list/tick`. Each poster is a `Group` (with `matrixAutoUpdate = false`, matrix set from the hit pose) containing a textured `PlaneGeometry` mesh. `tick(deltaMs)` forwards elapsed time to each poster's `PosterAnimator` so GIFs animate. **No position `update()`** — SLAM keeps the world frame stable. |
+| `hitTestController.ts` | `readReticlePose()` — one center-screen `XR8.XrController.hitTest(0.5, 0.5, [...])` per frame; prefers `DETECTED_SURFACE > ESTIMATED_SURFACE > FEATURE_POINT`; composes a world `Matrix4` and a `vertical` flag from the hit quaternion. Returns the **real** hit pose (always a horizontal surface — 8th Wall detects only one ground plane; vertical/wall surfaces are not supported; see §13). Reuses module-scoped temporaries to avoid GC. |
+| `posterPlacement.ts` | `PosterPlacement` class — `place/setScale/remove/clear/size/list/tick`. Each poster is a `Group` (with `matrixAutoUpdate = false`, matrix set from the **composed flat matrix** passed in) containing a textured `PlaneGeometry` mesh that faces local +Z. `tick(deltaMs)` forwards elapsed time to each poster's `PosterAnimator` so GIFs animate. **No position `update()`** — SLAM keeps the world frame stable. |
 | `posterTextureCache.ts` | URL-keyed, refcounted shared texture/animator cache (`acquirePosterTexture` / `releasePosterTexture`). Enforces a global 64 MB animation-byte budget across all distinct animated GIFs; GIFs that would exceed the remaining budget fall back to a static frame-0 texture. Textures are disposed on the last release, including on the placement error rollback path. |
 | `gifAnimator.ts` | `createPosterTexture(url, { animationByteBudget })` — decodes a GIF URL into a `three.CanvasTexture` + `PosterAnimator` (or a static texture on fallback). `PosterAnimator.tick(deltaMs)` advances the `GifPlayhead` and repaints the canvas each frame. |
 | `gifPlayhead.ts` | Pure frame-timing math — given the GIF frame-delay table and elapsed ms, computes the current frame index with correct loop wrap. No DOM or three.js dependency. |
@@ -199,6 +203,7 @@ Source files: `src/utils/gifDecode.ts`, `src/xr8/gifPlayhead.ts`,
 | File | Responsibility |
 |------|----------------|
 | `reticle.ts` | `createReticle()` → a tracking ring (on-surface, matrix driven by hit pose) + a head-locked "scanner" ring that pulses while `searching`. Tints cyan/green for vertical/horizontal. Used by both the live and mock paths. |
+| `posterOrientation.ts` | `composeFlatPosterMatrix(hitMatrix, cameraPos?)` — pure function that rebuilds a hit-test pose so a `PlaneGeometry` (which faces local +Z) lies **flat on the detected surface** (facing = surface normal) with the image's top edge pointing away from the viewer. Uses `Matrix4.makeBasis` with `Vector3` cross products to construct a right-handed basis; falls back to the hit pose's own in-plane axis when camera position is unavailable. No 8th Wall / browser globals; fully unit-testable. |
 | `debugTelemetry.ts` | Module singleton shared between the frame loop (writer) and the DebugHUD / DiagnosticPanel (readers). Plain refs + a subscriber list keep React out of the 60 fps path; `setSubsystem` notifies only on transition. Tracks subsystem health, a freeform note, FPS (EMA), a load-timing track (`appMounted → supportDetected → engineReady → pipelineRun → firstFrame → firstTracking`), and a tap→place breadcrumb log for diagnosing placement failures. |
 | `desktopMockDriver.ts` | `installDesktopMockDriver()` — mouse-drag → camera quaternion (mimics device orientation). Used only by `DesktopMockMode`. |
 
@@ -286,6 +291,12 @@ stored as an uploaded poster.
 
 - **No WebXR anchors / per-frame anchor update.** SLAM stability makes them
   unnecessary; `PosterPlacement` has no `update()` by design.
+- **No vertical surface (wall) detection.** 8th Wall world-tracking detects only
+  one horizontal ground plane. `DETECTED_SURFACE` / `ESTIMATED_SURFACE` hits are
+  always horizontal; `FEATURE_POINT` hits carry no reliable surface normal. The
+  `vertical` flag in `readReticlePose()` is computed from the hit quaternion but
+  true wall detection is deferred to a future "wall-from-floor" technique and is
+  not currently implemented.
 - **Screenshot may be blank on live AR.** The engine renderer lacks
   `preserveDrawingBuffer`; `toDataURL()` outside the render loop can read an
   empty frame. Documented in `utils/screenshot.ts`.
@@ -328,4 +339,4 @@ platform specifics (Vercel, Netlify, Cloudflare Pages, Docker) and
 
 ---
 
-**Last updated:** 2026-06-08
+**Last updated:** 2026-06-15

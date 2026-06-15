@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Flat poster placement on detected surfaces
+- **Posters now lie flat on the surface** (floor/table) instead of standing
+  upright like a billboard. The image's top edge ("head") is oriented **away
+  from the viewer**, so the poster reads naturally when looked down at.
+- New pure helper `composeFlatPosterMatrix` in `src/xr/posterOrientation.ts`
+  builds the correct world transform from the hit-test pose and the camera
+  position; it is engine-agnostic and unit-testable without 8th Wall globals.
+  Wired into the live placement path in `ARExperience` via the XR scene's
+  camera position.
+- The reticle mesh likewise lies flat on the tracked horizontal surface.
+
+### Reverted — Wall-reticle experiment (Approach A)
+- A feature-point–based "wall reticle" experiment (synthesising a vertical pose
+  from AR feature points) was prototyped and **reverted** because 8th Wall's
+  SLAM world tracking only detects one horizontal ground plane and cannot detect
+  vertical surfaces; forcing the reticle vertical everywhere broke normal
+  floor/table placement.
+- Wall placement is **deferred** to a future "wall-from-floor" technique
+  (Approach B): the user taps the floor at the base of a wall to erect a
+  virtual vertical plane. Posters currently target horizontal surfaces only.
+
 ### Changed — Migrated AR engine from WebXR to 8th Wall (XR8)
 - **AR now runs on the 8th Wall (XR8) engine** with SLAM world-tracking,
   loaded from CDN (`@8thwall/engine-binary`, `xrextras`, `landing-page` `@1.0.0`

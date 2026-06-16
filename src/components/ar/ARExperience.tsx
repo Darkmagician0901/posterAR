@@ -25,6 +25,7 @@ import { readReticlePose } from '@/xr8/hitTestController';
 import { PosterPlacement } from '@/xr8/posterPlacement';
 import { composeFlatPosterMatrix } from '@/xr/posterOrientation';
 import { createReticle, Reticle } from '@/xr/reticle';
+import { createSurfaceHighlight, SurfaceHighlight } from '@/xr/surfaceHighlight';
 import { debugTelemetry } from '@/xr/debugTelemetry';
 import { usePosterStore } from '@/store/posterStore';
 import { useUIState } from '@/hooks/useUIState';
@@ -90,6 +91,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
   // and in handleExitAR/cleanup.
   const placementRef = useRef<PosterPlacement | null>(null);
   const reticleRef = useRef<Reticle | null>(null);
+  const highlightRef = useRef<SurfaceHighlight | null>(null);
   const sceneRootRef = useRef<Group | null>(null);
   const lastReticleMatrixRef = useRef<Float32Array | null>(null);
   const unsubscribeStoreRef = useRef<(() => void) | null>(null);
@@ -306,6 +308,12 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
           camera.add(reticle.scanner);
           reticleRef.current = reticle;
 
+          // Green surface-highlight patch (shown under the crosshair when a
+          // surface plane is confidently estimated).
+          const highlight = createSurfaceHighlight();
+          scene.add(highlight.object);
+          highlightRef.current = highlight;
+
           // Poster placement manager.
           placementRef.current = new PosterPlacement(sceneRoot);
 
@@ -397,18 +405,38 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
 
           const pose = readReticlePose();
 
+          const highlight = highlightRef.current;
           if (pose) {
             reticle?.setPose(pose.matrix);
             reticle?.setVertical(pose.vertical);
             reticle?.setMode('tracking');
             lastReticleMatrixRef.current = pose.matrix;
             debugTelemetry.setSubsystem('hitTest', 'tracking');
-            debugTelemetry.setSubsystem('surface', 'tracking');
+            // 'detected' (green) when the plane fit drove the pose; 'estimated'
+            // (amber-ish) when we used the single-ray fallback.
+            debugTelemetry.setSubsystem('surface', pose.estimated ? 'detected' : 'estimated');
+
+            if (pose.estimated && pose.extent) {
+              // matrix column 1 (elements 4,5,6) is the surface normal; |y| → tilt.
+              const ny = Math.abs(pose.matrix[5]);
+              const tiltDeg = Math.round((Math.acos(Math.min(1, ny)) * 180) / Math.PI);
+              debugTelemetry.write({
+                surfaceInfo: `plane ${Math.round(pose.confidence * 100)}% · tilt ${tiltDeg}°`,
+              });
+              highlight?.setPose(pose.matrix);
+              highlight?.setSize(pose.extent.u, pose.extent.v);
+              highlight?.setVisible(true);
+            } else {
+              debugTelemetry.write({ surfaceInfo: 'fallback ray' });
+              highlight?.setVisible(false);
+            }
           } else {
             reticle?.setMode('searching');
             lastReticleMatrixRef.current = null;
             debugTelemetry.setSubsystem('hitTest', 'searching');
             debugTelemetry.setSubsystem('surface', 'searching');
+            debugTelemetry.write({ surfaceInfo: null });
+            highlight?.setVisible(false);
           }
 
           placement?.tick(deltaMs);
@@ -462,6 +490,8 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
 
     // Reset refs.
     reticleRef.current = null;
+    highlightRef.current?.dispose();
+    highlightRef.current = null;
     sceneRootRef.current = null;
     lastReticleMatrixRef.current = null;
     placingRef.current = false;

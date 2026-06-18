@@ -317,7 +317,8 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
             });
           }
 
-          // Mirror store deletions and scale-changes into the placement manager.
+          // Mirror store deletions, scale-changes, and rotation-changes into
+          // the placement manager.
           const unsubscribe = usePosterStore.subscribe((state, prev) => {
             const placement = placementRef.current;
             if (!placement) return;
@@ -336,6 +337,9 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
                 before.scale[1] !== poster.scale[1]
               ) {
                 placement.setScale(id, poster.scale[0], poster.scale[1]);
+              }
+              if (before.rotation[2] !== poster.rotation[2]) {
+                placement.setRotation(id, poster.rotation[2]);
               }
             }
           });

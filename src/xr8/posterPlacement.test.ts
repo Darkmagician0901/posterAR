@@ -47,6 +47,31 @@ describe('PosterPlacement', () => {
     expect(sharedAnimator.update).toHaveBeenCalledWith(16)
   })
 
+  it('rotates a poster in-plane by setting mesh.rotation.z', () => {
+    const pp = new PosterPlacement(new Group())
+    pp.place(IDENTITY, new Texture(), 1, 'p1', 'https://example.com/img.webp', null)
+    pp.setRotation('p1', Math.PI / 4)
+    expect(pp.list()[0].mesh.rotation.z).toBeCloseTo(Math.PI / 4)
+  })
+
+  it('ignores setRotation for an unknown id', () => {
+    const pp = new PosterPlacement(new Group())
+    expect(() => pp.setRotation('nope', 1)).not.toThrow()
+  })
+
+  it('keeps scale and rotation independent on the mesh', () => {
+    const pp = new PosterPlacement(new Group())
+    pp.place(IDENTITY, new Texture(), 1, 'p1', 'https://example.com/img.webp', null)
+    pp.setScale('p1', 0.25, 0.5)
+    pp.setRotation('p1', Math.PI / 2)
+    const { mesh, size } = pp.list()[0]
+    // Rotation about the surface normal (z) must not perturb the in-plane
+    // scale factors — the two adjustments compose without shear.
+    expect(mesh.scale.x).toBeCloseTo(0.25 / size.width)
+    expect(mesh.scale.y).toBeCloseTo(0.5 / size.height)
+    expect(mesh.rotation.z).toBeCloseTo(Math.PI / 2)
+  })
+
   it('disposes geometry and material on remove, and delegates texture/animator to the cache', () => {
     const pp = new PosterPlacement(new Group())
     const texture = new Texture()

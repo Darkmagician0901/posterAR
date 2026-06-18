@@ -34,14 +34,11 @@ const _out = new Matrix4()
  * @param hitMatrix Column-major Float32Array from the hit-test pose
  *                  (`readReticlePose().matrix`). Its local +Y is the surface
  *                  normal; its translation is the contact point.
- * @param cameraPos Optional camera world position, used only as a fallback for
- *                  near-horizontal surfaces (where gravity projects to ~zero in
- *                  the plane): the image's top edge is then oriented away from
- *                  the camera, projected into the surface plane. On walls and
- *                  slopes the in-plane "up" is gravity-aligned regardless of
- *                  this argument. When omitted/null — or when the camera also
- *                  sits along the surface normal — we fall back further to the
- *                  hit pose's own in-plane axis so the poster still lies flat.
+ * @param cameraPos Optional camera world position. When supplied, the image's
+ *                  top edge is oriented away from the camera (projected into the
+ *                  surface plane). When omitted/null — or when the camera sits
+ *                  directly along the surface normal — we fall back to the hit
+ *                  pose's own in-plane axis so the poster still lies flat.
  * @returns Column-major Float32Array suitable for `Group.matrix` (a proper
  *          right-handed rotation + translation — no mirroring).
  */
@@ -58,22 +55,17 @@ export function composeFlatPosterMatrix(
   // "up" direction when the camera can't disambiguate the spin.
   _hitInPlane.setFromMatrixColumn(_hit, 2)
 
-  // Desired image "up" = gravity (world up) projected into the surface plane, so
-  // the poster stands upright on a wall and points uphill on a slope. For a
-  // near-horizontal surface (floor/ceiling) this projects to ~zero and we fall
-  // back to the legacy rule. worldUp·normal == normal.y, so the projection is
-  // worldUp - normal.y * normal.
-  _yAxis.set(0, 1, 0).addScaledVector(_normal, -_normal.y)
-
-  // Fallback 1 (near-horizontal surface): point the top AWAY from the camera,
-  // projected into the surface plane — the legacy floor behaviour.
-  if (_yAxis.lengthSq() < 1e-8 && cameraPos) {
+  // Desired image "up" = direction AWAY from the camera, projected into the
+  // surface plane (remove the component along the normal) — the poster's head
+  // points away from where the viewer is standing.
+  if (cameraPos) {
     _fromCam.subVectors(_pos, cameraPos)
     _yAxis.copy(_fromCam).addScaledVector(_normal, -_fromCam.dot(_normal))
+  } else {
+    _yAxis.set(0, 0, 0)
   }
 
-  // Fallback 2 (no camera, or camera along the normal): the hit pose's own
-  // in-plane axis.
+  // Fallbacks for degenerate spin (no camera, or camera along the normal).
   if (_yAxis.lengthSq() < 1e-8) {
     _yAxis.copy(_hitInPlane).addScaledVector(_normal, -_hitInPlane.dot(_normal))
   }

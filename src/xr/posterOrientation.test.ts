@@ -129,32 +129,4 @@ describe('composeFlatPosterMatrix', () => {
     expect(facing.y).toBeCloseTo(expectedNormal.y, 4)
     expect(facing.z).toBeCloseTo(expectedNormal.z, 4)
   })
-
-  it('stands a poster upright on a wall — image top (+Y) points up', () => {
-    // Wall: rotate the hit pose +90° about X so the surface normal points +Z
-    // (toward a camera at +Z). The in-plane "up" should be world-up.
-    const quat = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
-    const m = toMatrix4(
-      composeFlatPosterMatrix(hitMatrix(new Vector3(0, 1.5, -2), quat), new Vector3(0, 1.5, 0)),
-    )
-    const facing = col(m, 2) // +Z = surface normal
-    expect(facing.z).toBeCloseTo(1, 4)
-
-    const up = col(m, 1) // image top
-    expect(up.y).toBeCloseTo(1, 3) // upright: top points up
-    expect(Math.abs(up.x)).toBeLessThan(1e-3)
-    expect(Math.abs(up.z)).toBeLessThan(1e-3)
-  })
-
-  it('points uphill on a tilted wall (gravity projected into the plane)', () => {
-    // 60° leaning surface whose normal points up-and-toward the camera (+Z):
-    // the in-plane up should keep a positive vertical component (uphill), not
-    // flip downward.
-    const quat = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 3)
-    const m = toMatrix4(
-      composeFlatPosterMatrix(hitMatrix(new Vector3(0, 1, -2), quat), new Vector3(0, 1, 0)),
-    )
-    const up = col(m, 1)
-    expect(up.y).toBeGreaterThan(0.2) // clearly upward, not sideways/inverted
-  })
 })

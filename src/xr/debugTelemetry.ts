@@ -114,6 +114,8 @@ export interface TelemetrySnapshot {
   hitTest: 'horizontal' | 'vertical' | null;
   /** Number of posters currently placed. */
   posters: number;
+  /** One-line surface-estimate readout (confidence/tilt or 'fallback'). */
+  surfaceInfo: string | null;
   /** Freeform diagnostic message (e.g. why the engine failed to start). */
   note: string | null;
   hudVisible: boolean;
@@ -150,6 +152,7 @@ const initial: TelemetrySnapshot = {
   fps: 0,
   hitTest: null,
   posters: 0,
+  surfaceInfo: null,
   note: null,
   hudVisible:
     typeof window !== 'undefined' &&

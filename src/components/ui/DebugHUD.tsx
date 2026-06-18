@@ -142,6 +142,10 @@ export const DebugHUD: React.FC = () => {
             <span>{subs.surface}</span>
           </div>
           <div className="debug-hud-row">
+            <span>Surface est.</span>
+            <span>{snapshot.surfaceInfo ?? '—'}</span>
+          </div>
+          <div className="debug-hud-row">
             <span>Posters</span>
             <span>{snapshot.posters}</span>
           </div>

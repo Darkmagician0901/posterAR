@@ -150,6 +150,23 @@ export class PosterPlacement {
   }
 
   /**
+   * Spins a poster within its own surface plane (about the surface normal)
+   * while keeping it anchored at its world transform. Like setScale, the
+   * rotation is applied to the mesh — not the group matrix — so the placement
+   * pose is never disturbed, and it composes with any scale without shear
+   * (both act in/about the plane's local frame). The angle is absolute, not
+   * relative to the placement's default orientation: 0 means "as placed".
+   *
+   * @param id — Id of the poster to rotate; unknown ids are ignored.
+   * @param radians — In-plane spin about the surface normal, in radians.
+   */
+  setRotation(id: string, radians: number): void {
+    const record = this._posters.get(id)
+    if (!record) return
+    record.mesh.rotation.z = radians
+  }
+
+  /**
    * Removes a single poster from the scene and frees its resources.
    *
    * "Dispose" here is three.js's dispose(): GPU-side buffers are not garbage

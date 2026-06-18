@@ -2,8 +2,10 @@
  * PosterControls — collapsible panel for the currently selected poster.
  *
  * Renders only while posterStore has a selectedPosterId. Offers a scale
- * slider (bounded by MIN/MAX_POSTER_SCALE) and a delete button. There are no
- * move/rotate gestures in this app — scale is the only live adjustment.
+ * slider (bounded by MIN/MAX_POSTER_SCALE), an in-plane rotation slider
+ * (bounded by MIN/MAX_POSTER_ROTATION_DEG), and a delete button. There are no
+ * move/pinch/twist gestures in this app — the sliders are the live
+ * adjustments.
  *
  * Exports: PosterControls.
  */
@@ -11,12 +13,17 @@
 import React, { useState } from 'react';
 import { usePosterStore } from '@/store/posterStore';
 import { useUIState } from '@/hooks/useUIState';
-import { MIN_POSTER_SCALE, MAX_POSTER_SCALE } from '@/utils/constants';
+import {
+  MIN_POSTER_SCALE,
+  MAX_POSTER_SCALE,
+  MIN_POSTER_ROTATION_DEG,
+  MAX_POSTER_ROTATION_DEG,
+} from '@/utils/constants';
 import './PosterControls.css';
 
 /**
- * Scale + delete controls for the selected poster. Returns null when no
- * poster is selected.
+ * Scale, rotation, and delete controls for the selected poster. Returns null
+ * when no poster is selected.
  */
 export const PosterControls: React.FC = () => {
   const { selectedPosterId, getPosterById, updatePoster, removePoster } = usePosterStore();
@@ -45,6 +52,27 @@ export const PosterControls: React.FC = () => {
       poster.scale[2],
     ];
     updatePoster(poster.id, { scale: newScaleArray });
+  };
+
+  // The rotation slider spins the poster within its surface plane (about the
+  // surface normal). Stored as radians in rotation[2]; shown/edited in degrees
+  // at the UI boundary. 0° means "as placed".
+  const currentRotationDeg = Math.round((poster.rotation[2] * 180) / Math.PI);
+
+  /**
+   * Applies a new in-plane rotation from the slider to the selected poster.
+   *
+   * @param event — Slider change event; its value is the new angle in degrees.
+   */
+  const handleRotationChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const deg = parseFloat(event.target.value);
+    const radians = (deg * Math.PI) / 180;
+    const newRotation: [number, number, number] = [
+      poster.rotation[0],
+      poster.rotation[1],
+      radians,
+    ];
+    updatePoster(poster.id, { rotation: newRotation });
   };
 
   const handleDelete = () => {
@@ -97,6 +125,28 @@ export const PosterControls: React.FC = () => {
             <div className="poster-scale-labels">
               <span>{MIN_POSTER_SCALE}x</span>
               <span>{MAX_POSTER_SCALE}x</span>
+            </div>
+          </div>
+
+          {/* Rotation slider (in-plane spin about the surface normal) */}
+          <div className="poster-control-group">
+            <label htmlFor="poster-rotation" className="poster-control-label">
+              Rotation: {currentRotationDeg}°
+            </label>
+            <input
+              id="poster-rotation"
+              type="range"
+              min={MIN_POSTER_ROTATION_DEG}
+              max={MAX_POSTER_ROTATION_DEG}
+              step="1"
+              value={currentRotationDeg}
+              onChange={handleRotationChange}
+              className="poster-scale-slider"
+              aria-label="Adjust poster rotation"
+            />
+            <div className="poster-scale-labels">
+              <span>{MIN_POSTER_ROTATION_DEG}°</span>
+              <span>{MAX_POSTER_ROTATION_DEG}°</span>
             </div>
           </div>
 

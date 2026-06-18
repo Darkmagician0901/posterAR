@@ -20,6 +20,14 @@ export const DEFAULT_POSTER_DEPTH = 0.01;
 export const MIN_POSTER_SCALE = 0.1;
 export const MAX_POSTER_SCALE = 3.0;
 
+/**
+ * Poster rotation-slider limits, in degrees. This is the in-plane spin about
+ * the surface normal (rotation[2]); a full −180°…180° sweep covers every
+ * orientation on the surface.
+ */
+export const MIN_POSTER_ROTATION_DEG = -180;
+export const MAX_POSTER_ROTATION_DEG = 180;
+
 /** Maximum number of posters allowed in the scene at once. */
 export const MAX_POSTERS = parseInt(import.meta.env.VITE_MAX_POSTERS || '10', 10);
 

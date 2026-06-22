@@ -24,6 +24,7 @@
 
 import * as THREE from 'three'
 import { debugTelemetry, SubsystemStatus } from '@/xr/debugTelemetry'
+import { createAmbientProbeModules } from '@/xr8/ambientProbe'
 
 // ---------------------------------------------------------------------------
 // onXr8Ready
@@ -252,6 +253,10 @@ export function runXr8(options: Xr8RunOptions): void {
   if (typeof XR8?.CanvasScreenshot?.pipelineModule === 'function') {
     modules.push(XR8.CanvasScreenshot.pipelineModule())
   }
+
+  // Ambient light probe — samples the camera feed to tint posters. Returns
+  // [] when XR8.CameraPixelArray is unavailable, so this is a safe spread.
+  modules.push(...createAmbientProbeModules())
 
   // Optional UX / helper modules from XRExtras / LandingPage bundles.
   if (typeof LandingPage?.pipelineModule === 'function') {

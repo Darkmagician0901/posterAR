@@ -107,3 +107,69 @@ export function estimateAmbient(
     b: prev.b + (target.b - prev.b) * ema,
   }
 }
+
+// ---------------------------------------------------------------------------
+// Engine wiring (not unit tested — exercised on-device, like pipeline.ts).
+// ---------------------------------------------------------------------------
+
+/** Downsampled probe resolution requested from XR8.CameraPixelArray. */
+const PROBE_SIZE = 32
+/** Minimum gap between samples (ms) — ~5 Hz is plenty for ambient. */
+const SAMPLE_INTERVAL_MS = 200
+
+/** Latest smoothed ambient color. White = full brightness (pre-sample). */
+let currentAmbient: AmbientColor = { r: 1, g: 1, b: 1 }
+let lastSampleMs = 0
+
+/** Shape of one XR8.CameraPixelArray result (luminance:false => RGBA). */
+interface CameraPixelArrayResult {
+  pixels: Uint8Array
+  rows: number
+  cols: number
+  rowBytes: number
+}
+
+/** The latest smoothed ambient color (white before any sample arrives). */
+export function getAmbientColor(): AmbientColor {
+  return currentAmbient
+}
+
+/**
+ * Build the camera-pixel + ambient-probe pipeline modules. Returns an empty
+ * array when XR8.CameraPixelArray is missing (older CDN bundle) so callers can
+ * spread the result unconditionally; posters then stay at full brightness.
+ */
+export function createAmbientProbeModules(): Xr8PipelineModule[] {
+  if (typeof XR8?.CameraPixelArray?.pipelineModule !== 'function') return []
+
+  const pixelModule = XR8.CameraPixelArray.pipelineModule({
+    luminance: false,
+    width: PROBE_SIZE,
+    height: PROBE_SIZE,
+  }) as Xr8PipelineModule
+
+  const probeModule: Xr8PipelineModule = {
+    name: 'xrposter-ambient-probe',
+    onUpdate: (args: Record<string, unknown>) => {
+      const now = performance.now()
+      if (now - lastSampleMs < SAMPLE_INTERVAL_MS) return
+
+      // CameraPixelArray output appears under processCpuResult (with a
+      // processGpuResult fallback across engine versions).
+      const cpu = args.processCpuResult as
+        | { camerapixelarray?: CameraPixelArrayResult }
+        | undefined
+      const gpu = args.processGpuResult as
+        | { camerapixelarray?: CameraPixelArrayResult }
+        | undefined
+      const cpa = cpu?.camerapixelarray ?? gpu?.camerapixelarray
+      if (!cpa?.pixels) return
+
+      lastSampleMs = now
+      const count = cpa.rows * cpa.cols
+      currentAmbient = estimateAmbient(cpa.pixels, count, currentAmbient)
+    },
+  }
+
+  return [pixelModule, probeModule]
+}

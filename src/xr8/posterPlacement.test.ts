@@ -72,6 +72,14 @@ describe('PosterPlacement', () => {
     expect(mesh.rotation.z).toBeCloseTo(Math.PI / 2)
   })
 
+  it('renders posters with transparency honored so cut-out alpha shows through', () => {
+    const pp = new PosterPlacement(new Group())
+    pp.place(IDENTITY, new Texture(), 1, 'p1', 'https://example.com/img.png', null)
+    const mat = pp.list()[0].mesh.material as MeshBasicMaterial
+    expect(mat.transparent).toBe(true)
+    expect(mat.alphaTest).toBeCloseTo(0.01)
+  })
+
   it('disposes geometry and material on remove, and delegates texture/animator to the cache', () => {
     const pp = new PosterPlacement(new Group())
     const texture = new Texture()

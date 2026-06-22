@@ -85,7 +85,16 @@ export class PosterPlacement {
     const height = width * (heightOverWidth || 1)
 
     const geometry = new PlaneGeometry(width, height)
-    const material = new MeshBasicMaterial({ map: texture })
+    // transparent + a tiny alphaTest makes the texture's alpha channel show
+    // the real world through (cut-out PNGs and transparent-background GIFs)
+    // instead of rendering transparent regions as an opaque black box. The
+    // small alphaTest discards fully-transparent pixels so depth stays sane
+    // and cut-out edges don't pick up dark halos.
+    const material = new MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      alphaTest: 0.01,
+    })
     const mesh = new Mesh(geometry, material)
 
     const group = new Group()

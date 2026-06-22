@@ -23,6 +23,7 @@ import { acquirePosterTexture, releasePosterTexture } from '@/xr8/posterTextureC
 import { onXr8Ready, runXr8, stopXr8 } from '@/xr8/pipeline';
 import { readReticlePose } from '@/xr8/hitTestController';
 import { PosterPlacement } from '@/xr8/posterPlacement';
+import { getAmbientColor } from '@/xr8/ambientProbe';
 import { composeFlatPosterMatrix } from '@/xr/posterOrientation';
 import { createReticle, Reticle } from '@/xr/reticle';
 import { debugTelemetry } from '@/xr/debugTelemetry';
@@ -416,6 +417,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
           }
 
           placement?.tick(deltaMs);
+          placement?.applyAmbient(getAmbientColor());
           reticle?.tick(now);
           debugTelemetry.tick(now);
           debugTelemetry.write({

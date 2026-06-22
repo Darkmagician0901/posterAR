@@ -72,6 +72,14 @@ describe('PosterPlacement', () => {
     expect(mesh.rotation.z).toBeCloseTo(Math.PI / 2)
   })
 
+  it('renders posters with transparency honored so cut-out alpha shows through', () => {
+    const pp = new PosterPlacement(new Group())
+    pp.place(IDENTITY, new Texture(), 1, 'p1', 'https://example.com/img.png', null)
+    const mat = pp.list()[0].mesh.material as MeshBasicMaterial
+    expect(mat.transparent).toBe(true)
+    expect(mat.alphaTest).toBeCloseTo(0.01)
+  })
+
   it('disposes geometry and material on remove, and delegates texture/animator to the cache', () => {
     const pp = new PosterPlacement(new Group())
     const texture = new Texture()
@@ -95,5 +103,18 @@ describe('PosterPlacement', () => {
     // Cache must be notified so it can decrement the refcount.
     expect(releasePosterTexture).toHaveBeenCalledWith(url)
     expect(pp.size()).toBe(0)
+  })
+
+  it('multiplies every poster material color by the ambient color', () => {
+    const pp = new PosterPlacement(new Group())
+    pp.place(IDENTITY, new Texture(), 1, 'p1', 'https://example.com/a.png', null)
+    pp.place(IDENTITY, new Texture(), 1, 'p2', 'https://example.com/b.png', null)
+    pp.applyAmbient({ r: 0.5, g: 0.6, b: 0.7 })
+    for (const { mesh } of pp.list()) {
+      const mat = mesh.material as MeshBasicMaterial
+      expect(mat.color.r).toBeCloseTo(0.5)
+      expect(mat.color.g).toBeCloseTo(0.6)
+      expect(mat.color.b).toBeCloseTo(0.7)
+    }
   })
 })

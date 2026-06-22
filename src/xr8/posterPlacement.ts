@@ -85,7 +85,16 @@ export class PosterPlacement {
     const height = width * (heightOverWidth || 1)
 
     const geometry = new PlaneGeometry(width, height)
-    const material = new MeshBasicMaterial({ map: texture })
+    // transparent + a tiny alphaTest makes the texture's alpha channel show
+    // the real world through (cut-out PNGs and transparent-background GIFs)
+    // instead of rendering transparent regions as an opaque black box. The
+    // small alphaTest discards fully-transparent pixels so depth stays sane
+    // and cut-out edges don't pick up dark halos.
+    const material = new MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      alphaTest: 0.01,
+    })
     const mesh = new Mesh(geometry, material)
 
     const group = new Group()
@@ -130,6 +139,21 @@ export class PosterPlacement {
         seen.add(animator)
         animator.update(deltaMs)
       }
+    }
+  }
+
+  /**
+   * Multiplies every placed poster's material color by an ambient color so
+   * posters track the room's brightness and color cast. Called once per frame
+   * with the latest estimate from the ambient probe. Passing white
+   * ({ r:1, g:1, b:1 }) leaves posters at full brightness, since
+   * MeshBasicMaterial renders map x color.
+   *
+   * @param color — Ambient color, each channel in [0, 1].
+   */
+  applyAmbient(color: { r: number; g: number; b: number }): void {
+    for (const { mesh } of this._posters.values()) {
+      ;(mesh.material as MeshBasicMaterial).color.setRGB(color.r, color.g, color.b)
     }
   }
 

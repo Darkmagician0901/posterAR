@@ -143,6 +143,21 @@ export class PosterPlacement {
   }
 
   /**
+   * Multiplies every placed poster's material color by an ambient color so
+   * posters track the room's brightness and color cast. Called once per frame
+   * with the latest estimate from the ambient probe. Passing white
+   * ({ r:1, g:1, b:1 }) leaves posters at full brightness, since
+   * MeshBasicMaterial renders map x color.
+   *
+   * @param color — Ambient color, each channel in [0, 1].
+   */
+  applyAmbient(color: { r: number; g: number; b: number }): void {
+    for (const { mesh } of this._posters.values()) {
+      ;(mesh.material as MeshBasicMaterial).color.setRGB(color.r, color.g, color.b)
+    }
+  }
+
+  /**
    * Overrides the displayed size of a poster while keeping it anchored at its
    * world transform. Scale is applied to the mesh, not the group matrix, so
    * the placement pose stored on the group is never disturbed.

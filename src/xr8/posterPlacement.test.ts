@@ -104,4 +104,17 @@ describe('PosterPlacement', () => {
     expect(releasePosterTexture).toHaveBeenCalledWith(url)
     expect(pp.size()).toBe(0)
   })
+
+  it('multiplies every poster material color by the ambient color', () => {
+    const pp = new PosterPlacement(new Group())
+    pp.place(IDENTITY, new Texture(), 1, 'p1', 'https://example.com/a.png', null)
+    pp.place(IDENTITY, new Texture(), 1, 'p2', 'https://example.com/b.png', null)
+    pp.applyAmbient({ r: 0.5, g: 0.6, b: 0.7 })
+    for (const { mesh } of pp.list()) {
+      const mat = mesh.material as MeshBasicMaterial
+      expect(mat.color.r).toBeCloseTo(0.5)
+      expect(mat.color.g).toBeCloseTo(0.6)
+      expect(mat.color.b).toBeCloseTo(0.7)
+    }
+  })
 })

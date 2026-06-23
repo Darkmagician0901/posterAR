@@ -442,7 +442,7 @@ Run the full vitest suite before every push or PR:
 
 ```bash
 npm run test
-# Expected: 29 tests pass, no failures
+# Expected: 65 tests pass, no failures
 ```
 
 During active development, watch mode is useful:
@@ -600,5 +600,5 @@ Thank you for contributing to XR Poster! 🎯
 
 ---
 
-**Last Updated:** 2026-06-08  
+**Last Updated:** 2026-06-23  
 **Version:** 1.0.0

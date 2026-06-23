@@ -30,7 +30,7 @@ npm run test
 npm run test:watch
 ```
 
-**9 test files, 55 tests, all passing, runs in < 1 s:**
+**10 test files, 65 tests, all passing, runs in < 2 s:**
 
 | File | What it covers |
 |------|----------------|
@@ -39,6 +39,7 @@ npm run test:watch
 | `src/utils/imageUpload.test.ts` | Upload validation + WebP compression rules (formats, size caps) |
 | `src/utils/screenshot.test.ts` | Screenshot utilities: crop math, filename generation, blob/data-URL helpers |
 | `src/xr/posterOrientation.test.ts` | `composeFlatPosterMatrix` — flat-placement orientation math (facing normal, head-away, orthonormal basis, degenerate/tilted cases) |
+| `src/xr8/ambientProbe.test.ts` | `estimateAmbient` — camera-color math (brightness mapping, color cast, EMA smoothing) |
 | `src/xr8/gifPlayhead.test.ts` | Pure frame-timing playhead math |
 | `src/xr8/gifAnimator.test.ts` | CanvasTexture animator behavior |
 | `src/xr8/posterPlacement.test.ts` | Poster mesh placement / removal in the scene |
@@ -113,7 +114,7 @@ npm install
 
 # 2. Automated tests (must all pass)
 npm run test
-# Expected: 55 tests pass, no failures
+# Expected: 65 tests pass, no failures
 
 # 3. Type checking
 npm run type-check
@@ -739,5 +740,5 @@ Any other relevant information
 
 ---
 
-**Last Updated:** 2026-06-08  
+**Last Updated:** 2026-06-23  
 **Version:** 1.0.0

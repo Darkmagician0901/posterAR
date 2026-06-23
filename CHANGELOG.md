@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Poster rotation
+- **In-plane rotation slider** in `PosterControls` (±180° about the surface
+  normal) alongside the scale slider. Stored in `rotation[2]` (radians; shown in
+  degrees at the UI) and mirrored into the scene via `PosterPlacement.setRotation`.
+
+### Added — Poster realism (ambient tint + transparency)
+- **Ambient tint** — `src/xr8/ambientProbe.ts` samples the live camera feed (8th
+  Wall has no native light estimation) and multiplies an approximate room color
+  into each poster's material so it tracks the scene's brightness and color cast
+  instead of glowing like a sticker. The pure `estimateAmbient` math is unit-tested.
+- **Transparency** — placed posters now honor PNG/GIF alpha.
+
+### Reverted — General surface detection (unstable on device)
+- An app-side plane-fitting approach (RANSAC/PCA over a hit-test grid) to detect
+  walls/slopes was merged (#18) and then **reverted** (#19) after on-device
+  testing found the surface estimate unstable. Posters remain horizontal-surface
+  only while the feature is reworked; the `feat/general-surface-detection` branch
+  is preserved for that work.
+
 ### Changed — Flat poster placement on detected surfaces
 - **Posters now lie flat on the surface** (floor/table) instead of standing
   upright like a billboard. The image's top edge ("head") is oriented **away
@@ -331,4 +350,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to th
 
 **Maintained by:** XR Poster Team  
 **License:** MIT  
-**Last Updated:** 2026-06-08
+**Last Updated:** 2026-06-23

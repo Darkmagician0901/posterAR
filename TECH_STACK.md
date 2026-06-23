@@ -114,15 +114,19 @@ Tests run with `npm run test` (single pass) or `npm run test:watch` (interactive
 Config: `vitest.config.ts` — `environment: 'happy-dom'`, includes
 `src/**/*.{test,spec}.{ts,tsx}`.
 
-6 test files / 29 tests, all in `src/`:
+10 test files / 65 tests, all in `src/`:
 
 ```
 utils/gifDecode.test.ts        GIF header parsing + data: URL decode
 utils/imageUpload.test.ts      Validation, GIF pass-through, WebP compression
+utils/screenshot.test.ts       Crop/filename/blob + share helpers
+xr/posterOrientation.test.ts   Flat-poster orientation math
+xr8/ambientProbe.test.ts       estimateAmbient camera-color math
 xr8/gifPlayhead.test.ts        Frame-timing math
 xr8/gifAnimator.test.ts        createPosterTexture branching + static fallback
 xr8/posterTextureCache.test.ts Refcount + budget enforcement + dispose
 xr8/posterPlacement.test.ts    place / remove / tick / clear
+components/ar/arCanvasReparent.test.tsx  Canvas-reparent regression guard
 ```
 
 The test environment does not load the 8th Wall engine; `XR8` globals are absent
@@ -187,4 +191,4 @@ Static SPA → Vercel (`vercel.json`), Netlify (`netlify.toml`), Cloudflare Page
 
 ---
 
-**Last updated:** 2026-06-15
+**Last updated:** 2026-06-23

@@ -25,8 +25,11 @@ directly in the mobile browser — no app install required — powered by the
 - **Tap to place** — tap anywhere to drop a poster flat on the detected surface
   at the reticle; the image's top edge ("head") points away from the viewer
   (up to `VITE_MAX_POSTERS`, default 10)
-- **Per-poster controls** — the placed poster is auto-selected; a slider rescales
-  it and a button deletes it
+- **Per-poster controls** — the placed poster is auto-selected; sliders rescale
+  and rotate it (in-plane spin, ±180°) and a button deletes it
+- **Ambient realism** — placed posters are tinted toward the room's brightness
+  and color cast (sampled from the camera feed via `ambientProbe`) and honor
+  PNG/GIF transparency, so they sit in the scene instead of glowing like stickers
 
 ### Content
 - **Custom upload** — JPEG/PNG/WebP compressed client-side to WebP
@@ -167,7 +170,7 @@ xr_poster/
 ### Scripts
 ```bash
 npm run dev          # Dev server (HTTPS, --host)
-npm run test         # vitest run (one-shot; 29 tests across 6 files)
+npm run test         # vitest run (one-shot; 65 tests across 10 files)
 npm run test:watch   # vitest (interactive watch mode)
 npm run type-check   # tsc --noEmit
 npm run build        # tsc && vite build  →  dist/
@@ -223,18 +226,19 @@ older iOS). The Diagnostic Panel explains *why* AR didn't start when it doesn't.
 
 ## <a id="known-limitations"></a>⚠️ Known Limitations
 
-- **Horizontal surfaces only — walls are not supported.** 8th Wall SLAM world
-  tracking detects a single horizontal ground plane; it cannot detect vertical
-  surfaces such as walls. Posters are therefore placed flat on floors and tables
-  only. Placing on a wall ("wall-from-floor") is a deferred future feature.
+- **Horizontal surfaces only — walls are not supported.** 8th Wall detects a
+  single horizontal ground plane; it cannot detect vertical surfaces such as
+  walls. Posters are placed flat on floors and tables only. (An app-side
+  plane-fitting approach to wall/slope detection was prototyped and **reverted
+  as unstable on device**; it is being reworked.)
 - **Screenshots on live AR may be blank.** The 8th Wall canvas is created
   without `preserveDrawingBuffer`, so `canvas.toDataURL()` outside the render
   loop can read an empty frame. Reliable capture needs to read pixels inside an
   engine render callback. The desktop mock path is unaffected. (See
   `src/utils/screenshot.ts`.)
-- **No move/pinch/rotate gestures.** Posters are placed by tapping and resized
-  via the scale slider; free-hand manipulation was part of the old gesture stack
-  and is not implemented on the 8th Wall path.
+- **No move/pinch/twist gestures.** Posters are placed by tapping and adjusted
+  via the scale + rotation sliders; free-hand gesture manipulation was part of
+  the old gesture stack and is not implemented on the 8th Wall path.
 
 ## 🚀 Deployment
 
@@ -256,13 +260,17 @@ pure logic:
 |------|----------|
 | `src/utils/gifDecode.test.ts` | GIF size reading, data: URL decode |
 | `src/utils/imageUpload.test.ts` | Upload validation, compression rules |
+| `src/utils/screenshot.test.ts` | Screenshot filename/format + share utilities |
+| `src/xr/posterOrientation.test.ts` | Flat-poster orientation math (facing normal, head-away, degenerate cases) |
+| `src/xr8/ambientProbe.test.ts` | `estimateAmbient` camera-color math (brightness/cast/EMA) |
 | `src/xr8/gifAnimator.test.ts` | CanvasTexture frame-update logic |
 | `src/xr8/gifPlayhead.test.ts` | Frame-timing playhead |
 | `src/xr8/posterPlacement.test.ts` | Poster mesh placement/removal |
 | `src/xr8/posterTextureCache.test.ts` | Refcounted animator cache + memory budget |
+| `src/components/ar/arCanvasReparent.test.tsx` | Canvas-reparent regression guard |
 
 ```bash
-npm run test         # vitest run  (29 tests, all passing, < 1 s)
+npm run test         # vitest run  (65 tests, all passing, < 2 s)
 npm run test:watch   # vitest interactive watch
 ```
 
@@ -282,6 +290,7 @@ MIT — see [`LICENSE`](LICENSE).
 ## 📚 Documentation
 
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — system design & data flow
+- [`FRONTEND_INTEGRATION.md`](FRONTEND_INTEGRATION.md) — UI/designer handoff: stores, hooks, components
 - [`TECH_STACK.md`](TECH_STACK.md) — stack reference & rationale
 - [`DEPLOYMENT.md`](DEPLOYMENT.md) — deployment guide
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution guidelines
@@ -290,4 +299,4 @@ MIT — see [`LICENSE`](LICENSE).
 
 ---
 
-**Status:** Active · **AR engine:** 8th Wall (XR8) · **Last updated:** 2026-06-15
+**Status:** Active · **AR engine:** 8th Wall (XR8) · **Last updated:** 2026-06-23

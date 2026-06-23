@@ -1,12 +1,12 @@
 # CLAUDE.md — xr-poster
 
-Quick reference for Claude Code sessions. See README.md / ARCHITECTURE.md / TESTING.md for depth.
+Quick reference for Claude Code sessions. See README.md / ARCHITECTURE.md / TESTING.md for depth, and FRONTEND_INTEGRATION.md for the UI/designer handoff surface (stores, hooks, components).
 
 ## Commands
 
 ```bash
 npm run dev           # Vite dev server — HTTPS, --host (required for camera + 8th Wall)
-npm run test          # vitest run — 55 tests, < 1 s
+npm run test          # vitest run — 65 tests, < 2 s
 npm run test:watch    # vitest interactive watch
 npm run type-check    # tsc --noEmit
 npm run build         # tsc && vite build → dist/
@@ -27,7 +27,7 @@ There is **no lint script**.
 On the live path **8th Wall (XR8) owns** the canvas, camera feed, three.js renderer, and render loop. The app registers a custom camera-pipeline module (`onStart` / `onUpdate`) that builds the scene, runs a center-screen hit-test every frame, drives the reticle, and places poster meshes on tap.
 
 - `src/xr/` — engine-AGNOSTIC 3D helpers (reticle, debugTelemetry, desktopMockDriver, posterOrientation)
-- `src/xr8/` — 8th Wall (XR8)-SPECIFIC integration (pipeline, hitTestController, posterPlacement, gifAnimator, gifPlayhead, posterTextureCache)
+- `src/xr8/` — 8th Wall (XR8)-SPECIFIC integration (pipeline, hitTestController, posterPlacement, ambientProbe, canvasScreenshot, gifAnimator, gifPlayhead, posterTextureCache)
 
 State: **Zustand 4** — `posterStore` (placed + uploaded posters), `useUIState` (overlays, toasts).
 
@@ -49,7 +49,8 @@ GIFs are decoded from data: URLs without fetch. `posterTextureCache` releases ac
 - **GIFs must stay GIFs.** They are uploaded uncompressed (max 8 MB) and decoded per-frame to a `CanvasTexture`. Never flatten a GIF to WebP — that collapses all frames to one.
 - **Non-GIF images** are compressed client-side to WebP (≤ 2 MB wire, longest axis ≤ 2048 px, input cap 50 MB).
 - **Screenshots on live AR can be blank.** The XR8 canvas has no `preserveDrawingBuffer`; `canvas.toDataURL()` outside the render loop reads an empty frame. Desktop mock is unaffected.
-- **No move/pinch/rotate gestures.** Interaction is tap-to-place + scale slider only. The old gesture stack (`@use-gesture/*`) was removed in the 8th Wall migration.
+- **No move/pinch/twist gestures.** Interaction is tap-to-place + **scale & rotation sliders** (on the auto-selected poster) + delete. The old gesture stack (`@use-gesture/*`) was removed in the 8th Wall migration.
+- **Placed posters are ambient-tinted.** `ambientProbe` samples the camera feed (no native 8th Wall light estimation) and multiplies an approximate room color into each poster's material; posters also honor PNG/GIF alpha. Pure math (`estimateAmbient`) is unit-tested; engine wiring reads `XR8.CameraPixelArray`.
 - **CSP:** `script-src` must allow `https://cdn.jsdelivr.net`. See `vercel.json` / `public/_headers`.
 - **engine-binary intentionally has no SRI hash.** Its loader fetches runtime chunks (e.g. `slam.js`) dynamically; a static hash can't cover them. Documented inline in `index.html`.
 - **HTTPS (or localhost) required** for camera access and the 8th Wall engine.
@@ -59,7 +60,7 @@ GIFs are decoded from data: URLs without fetch. `posterTextureCache` releases ac
 
 Stack: **vitest ^4.1.8** + **happy-dom ^20.9.0** (configured in `vitest.config.ts`).
 
-**9 test files, 55 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
+**10 test files, 65 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
 
 ## Conventions
 

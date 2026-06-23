@@ -114,9 +114,10 @@ customModules: [sceneModule] }))`. The custom `sceneModule`:
   (`createReticle`). The reticle's head-locked "scanner" ring is added as a
   **child of the camera** so it follows the view with no tracking math.
 - Constructs a `PosterPlacement(sceneRoot)`.
-- Subscribes to `posterStore`: store deletions/scale-changes are mirrored into
-  the three.js scene (removed posters → `placement.remove`, scale diffs →
-  `placement.setScale`). This is the bridge between React state and the scene.
+- Subscribes to `posterStore`: store deletions / scale-changes / rotation-changes
+  are mirrored into the three.js scene (removed posters → `placement.remove`,
+  scale diffs → `placement.setScale`, `rotation[2]` diffs →
+  `placement.setRotation`). This is the bridge between React state and the scene.
 - Registers `touchstart`/`mousedown` on the canvas → `placePoster()`.
 - Sets session/engine/camera/hit-test telemetry and hides the loading screen.
 
@@ -151,7 +152,9 @@ is no WebXR `dom-overlay`.
 |------|----------------|
 | `pipeline.ts` | Engine lifecycle, pipeline assembly, watchdog, tracking telemetry (§4) |
 | `hitTestController.ts` | `readReticlePose()` — one center-screen `XR8.XrController.hitTest(0.5, 0.5, [...])` per frame; prefers `DETECTED_SURFACE > ESTIMATED_SURFACE > FEATURE_POINT`; composes a world `Matrix4` and a `vertical` flag from the hit quaternion. Returns the **real** hit pose (always a horizontal surface — 8th Wall detects only one ground plane; vertical/wall surfaces are not supported; see §13). Reuses module-scoped temporaries to avoid GC. |
-| `posterPlacement.ts` | `PosterPlacement` class — `place/setScale/remove/clear/size/list/tick`. Each poster is a `Group` (with `matrixAutoUpdate = false`, matrix set from the **composed flat matrix** passed in) containing a textured `PlaneGeometry` mesh that faces local +Z. `tick(deltaMs)` forwards elapsed time to each poster's `PosterAnimator` so GIFs animate. **No position `update()`** — SLAM keeps the world frame stable. |
+| `posterPlacement.ts` | `PosterPlacement` class — `place/setScale/setRotation/remove/clear/size/list/tick`. Each poster is a `Group` (with `matrixAutoUpdate = false`, matrix set from the **composed flat matrix** passed in) containing a textured `PlaneGeometry` mesh that faces local +Z; `setRotation` spins it in-plane about the surface normal. Materials are `transparent` (honor PNG/GIF alpha) and tinted by the ambient color (see `ambientProbe.ts` below). `tick(deltaMs)` forwards elapsed time to each poster's `PosterAnimator` so GIFs animate. **No position `update()`** — SLAM keeps the world frame stable. |
+| `ambientProbe.ts` | `estimateAmbient(pixels, opts?)` (pure, unit-tested) reduces a downsampled camera frame to a smoothed `{r,g,b}` ambient color; `getAmbientColor()` reads `XR8.CameraPixelArray` and feeds it. Applied to poster materials so they track room brightness/color cast instead of glowing at full brightness. |
+| `canvasScreenshot.ts` | `isXr8ScreenshotAvailable()` / `takeXr8Photo()` — engine-composited camera+scene capture via the XR8 screenshot module (reliable live-AR capture; see the screenshot caveat in §13). |
 | `posterTextureCache.ts` | URL-keyed, refcounted shared texture/animator cache (`acquirePosterTexture` / `releasePosterTexture`). Enforces a global 64 MB animation-byte budget across all distinct animated GIFs; GIFs that would exceed the remaining budget fall back to a static frame-0 texture. Textures are disposed on the last release, including on the placement error rollback path. |
 | `gifAnimator.ts` | `createPosterTexture(url, { animationByteBudget })` — decodes a GIF URL into a `three.CanvasTexture` + `PosterAnimator` (or a static texture on fallback). `PosterAnimator.tick(deltaMs)` advances the `GifPlayhead` and repaints the canvas each frame. |
 | `gifPlayhead.ts` | Pure frame-timing math — given the GIF frame-delay table and elapsed ms, computes the current frame index with correct loop wrap. No DOM or three.js dependency. |
@@ -295,13 +298,15 @@ stored as an uploaded poster.
   one horizontal ground plane. `DETECTED_SURFACE` / `ESTIMATED_SURFACE` hits are
   always horizontal; `FEATURE_POINT` hits carry no reliable surface normal. The
   `vertical` flag in `readReticlePose()` is computed from the hit quaternion but
-  true wall detection is deferred to a future "wall-from-floor" technique and is
-  not currently implemented.
+  true wall placement is not currently implemented. (An app-side plane-fitting
+  approach — RANSAC/PCA over a hit-test grid — was merged and then reverted after
+  on-device testing found it unstable; it is being reworked on the preserved
+  `feat/general-surface-detection` branch.)
 - **Screenshot may be blank on live AR.** The engine renderer lacks
   `preserveDrawingBuffer`; `toDataURL()` outside the render loop can read an
   empty frame. Documented in `utils/screenshot.ts`.
-- **No move/pinch/rotate gestures.** Placement is tap-based; resize is a slider.
-  Free-hand manipulation belonged to the removed gesture stack.
+- **No move/pinch/twist gestures.** Placement is tap-based; resize and in-plane
+  rotation are sliders. Free-hand manipulation belonged to the removed gesture stack.
 - **iOS needs WebAssembly SIMD** (Safari 16.4+) or the engine won't initialize;
   the watchdog reports this explicitly.
 
@@ -339,4 +344,4 @@ platform specifics (Vercel, Netlify, Cloudflare Pages, Docker) and
 
 ---
 
-**Last updated:** 2026-06-15
+**Last updated:** 2026-06-23

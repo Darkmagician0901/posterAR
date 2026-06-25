@@ -202,6 +202,44 @@ VITE_API_URL=...                 # (optional)
 ```
 Tip: append `?debug=1` to the URL to open the app with the Debug HUD visible.
 
+## Backend (asset persistence)
+
+The app works fully offline (local-only) by default. An optional Fastify REST API
+(`server/`) adds cross-session and cross-device asset persistence backed by
+**PostgreSQL** and any **S3-compatible object store** (tested with Supabase Storage).
+
+### Running the API locally
+
+```bash
+cd server
+npm install
+cp .env.example .env.local   # fill in DATABASE_URL, S3_*, etc.
+npm run migrate              # create the assets table (first time + after updates)
+npm run dev                  # tsx watch — hot-reload dev server (default PORT 8787)
+```
+
+Then point the client at it by adding to your root `.env.local`:
+
+```env
+VITE_API_BASE_URL=http://localhost:8787
+```
+
+Leave `VITE_API_BASE_URL` empty (or unset) to run client-only with no persistence.
+The app degrades gracefully: if the API is unreachable, uploads still produce an
+in-session data URL and the app keeps working.
+
+### Production
+
+Build and start the server, or use the included `server/Dockerfile`:
+
+```bash
+cd server
+npm run build    # tsc → dist/
+npm start        # node dist/server.js
+```
+
+All required environment variables are documented in `server/.env.example`.
+
 ## 📱 Browser Support
 
 | Platform | Browser | Mode |

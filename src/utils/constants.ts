@@ -44,4 +44,8 @@ export const UI_TEXT = {
 /** localStorage keys (namespaced to avoid collisions on shared origins). */
 export const STORAGE_KEYS = {
   TUTORIAL_COMPLETED: 'xr-poster-tutorial-completed',
+  DEVICE_TOKEN: 'xr-poster-device-token',
 };
+
+/** Base URL of the asset persistence API; empty string disables persistence. */
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';

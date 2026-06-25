@@ -1,5 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import pg from 'pg'
 import { loadConfig } from '../config.js'
@@ -17,20 +17,23 @@ export async function runMigrations(pool: pg.Pool): Promise<void> {
     const done = await pool.query('select 1 from _migrations where name = $1', [name])
     if (done.rowCount) continue
     const sql = await readFile(join(MIGRATIONS_DIR, name), 'utf8')
-    await pool.query('begin')
+    const client = await pool.connect()
     try {
-      await pool.query(sql)
-      await pool.query('insert into _migrations (name) values ($1)', [name])
-      await pool.query('commit')
+      await client.query('begin')
+      await client.query(sql)
+      await client.query('insert into _migrations (name) values ($1)', [name])
+      await client.query('commit')
     } catch (err) {
-      await pool.query('rollback')
+      await client.query('rollback')
       throw err
+    } finally {
+      client.release()
     }
   }
 }
 
 // Allow `npm run migrate` to apply migrations directly.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const cfg = loadConfig(process.env)
   runMigrations(getPool(cfg.databaseUrl))
     .then(() => { console.log('migrations applied'); process.exit(0) })

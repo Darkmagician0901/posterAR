@@ -172,10 +172,11 @@ export const usePosterUpload = (): UsePosterUploadReturn => {
         // unsupported format, oversize file, or decode failure).
         const processedImage = await validateAndProcessImage(file);
 
-        // Best-effort: persist to backend so the asset survives refresh. The
-        // return value (remote URL) is currently informational; the gallery is
-        // re-hydrated from the server on next startup.
-        await persistProcessedImage(processedImage);
+        // Fire-and-forget: persistence is best-effort and must never block the
+        // upload UX. persistProcessedImage has its own try/catch (returns null,
+        // never rejects), so `void` cannot produce an unhandled rejection. The
+        // gallery re-hydrates from the server on next startup regardless.
+        void persistProcessedImage(processedImage);
 
         setUploadState((prev) => ({ ...prev, progress: 75 }));
 

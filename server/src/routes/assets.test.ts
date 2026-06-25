@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { buildApp } from '../app'
 import type { AssetRow, AssetsRepo } from '../db/assetsRepo'
 import type { ObjectStore } from '../storage/objectStore'
@@ -83,5 +83,20 @@ describe('assets routes', () => {
     })
     expect(res.statusCode).toBe(400)
     expect(repo.rows).toHaveLength(0)
+  })
+
+  it('returns a generic 500 without leaking error details when the repo throws', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const throwingRepo: AssetsRepo = {
+      async insert() { throw new Error('pg: relation "assets" secret-detail') },
+      async listByOwner() { throw new Error('pg: relation "assets" secret-detail') },
+      async deleteById() { throw new Error('pg: relation "assets" secret-detail') },
+    }
+    const a = buildApp({ repo: throwingRepo, store })
+    const res = await a.inject({ method: 'GET', url: '/api/assets', headers: { 'x-owner-id': 'owner-1' } })
+    expect(res.statusCode).toBe(500)
+    expect(res.json()).toEqual({ error: 'internal error' })
+    expect(res.payload).not.toContain('secret-detail')
+    errSpy.mockRestore()
   })
 })

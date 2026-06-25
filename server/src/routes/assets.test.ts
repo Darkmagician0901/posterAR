@@ -75,4 +75,13 @@ describe('assets routes', () => {
     expect(res.statusCode).toBe(204)
     expect(repo.rows).toHaveLength(0)
   })
+
+  it('POST rejects an owner header with path-traversal characters', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/assets',
+      headers: { 'x-owner-id': '../victim' }, payload: validBody,
+    })
+    expect(res.statusCode).toBe(400)
+    expect(repo.rows).toHaveLength(0)
+  })
 })

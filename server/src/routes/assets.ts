@@ -20,9 +20,11 @@ const EXT: Record<string, string> = {
   'image/jpeg': 'jpg',
 }
 
+const OWNER_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
+
 function ownerOf(req: { headers: Record<string, unknown> }): string | null {
   const v = req.headers['x-owner-id']
-  return typeof v === 'string' && v.length > 0 ? v : null
+  return typeof v === 'string' && OWNER_ID_RE.test(v) ? v : null
 }
 
 export function registerAssetRoutes(

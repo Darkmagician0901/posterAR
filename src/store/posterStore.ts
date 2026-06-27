@@ -122,6 +122,13 @@ interface PosterStore {
    * @param imageUrl — Image URL the next placement should use.
    */
   setCurrentPosterImage: (imageUrl: string) => void;
+  /**
+   * Merges server-persisted assets into the gallery on startup. Appends any
+   * whose id is not already present; never changes currentPosterImage.
+   *
+   * @param assets — Remote assets returned by listAssets().
+   */
+  hydrateUploads: (assets: import('@/services/posterApi').RemoteAsset[]) => void;
 }
 
 /**
@@ -271,5 +278,25 @@ export const usePosterStore = create<PosterStore>((set, get) => ({
   // Set current poster image
   setCurrentPosterImage: (imageUrl: string) => {
     set({ currentPosterImage: imageUrl });
+  },
+
+  // Merge server-persisted assets into the gallery without changing currentPosterImage
+  hydrateUploads: (assets) => {
+    set((state) => {
+      const present = new Set(state.uploadedPosters.map((p) => p.id));
+      const additions: UploadedPoster[] = assets
+        .filter((a) => !present.has(a.id))
+        .map((a) => ({
+          id: a.id,
+          imageUrl: a.url,
+          name: a.originalName ?? 'Saved poster',
+          uploadedAt: Date.now(),
+          width: a.width,
+          height: a.height,
+        }));
+      return additions.length
+        ? { uploadedPosters: [...state.uploadedPosters, ...additions] }
+        : state;
+    });
   },
 }));

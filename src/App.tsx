@@ -14,8 +14,8 @@ import { useEffect, useState } from 'react';
 import { detectXRSupport } from '@/utils/deviceDetection';
 import { XRSupport } from '@/types';
 import { UI_TEXT } from '@/utils/constants';
-import { ARExperience } from '@/components/ar/ARExperience';
 import { DesktopMockMode } from '@/components/ar/DesktopMockMode';
+import { StoryARExperience } from '@/components/ar/StoryARExperience';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Toast } from '@/components/ui/Toast';
@@ -149,11 +149,7 @@ function App() {
             <Toast />
             <InstructionsOverlay />
             <DiagnosticPanel />
-            <ARExperience
-              mode="live"
-              onSessionStart={() => console.log('AR session started')}
-              onSessionEnd={() => console.log('AR session ended')}
-            />
+            <StoryARExperience />
             <DeviceInfoButton
               show={showDeviceInfo}
               onToggle={() => setShowDeviceInfo((s) => !s)}

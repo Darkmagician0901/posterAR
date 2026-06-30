@@ -7,7 +7,7 @@
  * facts and bridges index.html's engine-load diagnostics into telemetry.
  *
  * Default export: App. Key dependencies: deviceDetection, debugTelemetry,
- * ARExperience, DesktopMockMode.
+ * StoryARExperience, DesktopMockMode.
  */
 
 import { useEffect, useState } from 'react';
@@ -26,7 +26,7 @@ import { debugTelemetry } from '@/xr/debugTelemetry';
 /**
  * Root component that detects device capabilities once and renders one of
  * three branches:
- *   1. hasAR8 (mobile + camera + secure context) → ARExperience via 8th Wall
+ *   1. hasAR8 (mobile + camera + secure context) → StoryARExperience via 8th Wall
  *   2. isDesktop                                 → DesktopMockMode
  *   3. Everything else                           → "AR Not Supported" panel
  *
@@ -147,7 +147,6 @@ function App() {
         <MainLayout>
           <div className="app-container">
             <Toast />
-            <InstructionsOverlay />
             <DiagnosticPanel />
             <StoryARExperience />
             <DeviceInfoButton

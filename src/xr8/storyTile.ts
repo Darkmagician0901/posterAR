@@ -85,9 +85,9 @@ export class StoryTile {
       });
       const geometry = new PlaneGeometry(width, height);
       this._mesh = new Mesh(geometry, this._material);
-      // The flat pose puts +Z up out of the ground; rotate the plane so it
-      // lies face-up on the surface with the art's top pointing away.
-      this._mesh.rotation.x = -Math.PI / 2;
+      // composeFlatPosterMatrix already orients the group so local +Z is the surface
+      // normal, so the +Z-facing plane lies flat on the ground (art top pointing away
+      // from the viewer) — matching PosterPlacement. No extra mesh rotation needed.
       this._group.add(this._mesh);
       return;
     }

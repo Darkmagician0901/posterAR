@@ -55,6 +55,8 @@ export const createSurfaceHighlight = (): SurfaceHighlight => {
   mesh.matrixAutoUpdate = false
   mesh.visible = false
   const tmp = new Matrix4()
+  let lastU = DEFAULT_SIZE_M
+  let lastV = DEFAULT_SIZE_M
 
   return {
     object: mesh,
@@ -63,6 +65,9 @@ export const createSurfaceHighlight = (): SurfaceHighlight => {
       mesh.matrix.copy(tmp)
     },
     setSize(u, v) {
+      if (u === lastU && v === lastV) return
+      lastU = u
+      lastV = v
       mesh.geometry.dispose()
       mesh.geometry = new PlaneGeometry(u, v).rotateX(-Math.PI / 2)
     },

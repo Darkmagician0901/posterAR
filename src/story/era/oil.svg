@@ -1,0 +1,43 @@
+<svg width="660" height="336" viewBox="0 0 330 168" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="oilA" cx="0.4" cy="0.4" r="0.75">
+        <stop offset="0%" stop-color="#2DF7E0"/><stop offset="26%" stop-color="#7B2FF7"/><stop offset="52%" stop-color="#2D7FFF"/><stop offset="78%" stop-color="#E84BC0"/><stop offset="100%" stop-color="#1a0e2e"/>
+        <animateTransform attributeName="gradientTransform" type="rotate" from="0 .5 .5" to="360 .5 .5" dur="9s" repeatCount="indefinite"/>
+      </radialGradient>
+      <radialGradient id="oilB" cx="0.5" cy="0.5" r="0.7">
+        <stop offset="0%" stop-color="#F7E038"/><stop offset="35%" stop-color="#E84BC0"/><stop offset="65%" stop-color="#2D7FFF"/><stop offset="100%" stop-color="#0c0818"/>
+        <animateTransform attributeName="gradientTransform" type="rotate" from="360 .5 .5" to="0 .5 .5" dur="12s" repeatCount="indefinite"/>
+      </radialGradient>
+      <radialGradient id="oilC" cx="0.45" cy="0.5" r="0.7">
+        <stop offset="0%" stop-color="#86F7C4"/><stop offset="40%" stop-color="#7B2FF7"/><stop offset="75%" stop-color="#E84BC0"/><stop offset="100%" stop-color="#0c0818"/>
+        <animateTransform attributeName="gradientTransform" type="rotate" from="0 .5 .5" to="-360 .5 .5" dur="10s" repeatCount="indefinite"/>
+      </radialGradient>
+    </defs>
+    <!-- main spreading iridescent pool -->
+    <ellipse cx="160" cy="120" rx="158" ry="42" fill="url(#oilA)" opacity="0.94"/>
+    <ellipse cx="80" cy="138" rx="64" ry="18" fill="url(#oilB)" opacity="0.85"/>
+    <ellipse cx="256" cy="134" rx="60" ry="17" fill="url(#oilC)" opacity="0.82"/>
+    <!-- ripples where drips land -->
+    <ellipse class="a-ripple" cx="130" cy="116" rx="20" ry="6" fill="none" stroke="#9fe8ff" stroke-width="1.5" opacity=".6"/>
+    <ellipse class="a-ripple" style="animation-delay:1.3s" cx="200" cy="124" rx="18" ry="5" fill="none" stroke="#e89fff" stroke-width="1.5" opacity=".5"/>
+    <!-- leaking rusty pipe (top right) dripping into pool -->
+    <g stroke="#0c0a08" stroke-width="2">
+      <rect x="250" y="30" width="60" height="13" fill="#5a4438"/><rect x="250" y="30" width="60" height="4" fill="#7a5a48"/>
+      <rect x="250" y="43" width="13" height="40" fill="#4a382e"/><rect x="252" y="60" width="9" height="6" fill="#7a3a2a"/>
+    </g>
+    <!-- falling drips from pipe -->
+    <ellipse class="a-drip" cx="256" cy="86" rx="3" ry="5" fill="#1a0e2e"/>
+    <ellipse class="a-drip" style="animation-delay:1.3s" cx="256" cy="86" rx="2.5" ry="4" fill="#2a1840"/>
+    <!-- tipped oil drum -->
+    <g stroke="#0c0a08" stroke-width="2">
+      <rect x="40" y="80" width="48" height="32" rx="3" fill="#3a3630" transform="rotate(16 64 96)"/>
+      <rect x="44" y="86" width="48" height="6" fill="#222" transform="rotate(16 68 89)"/>
+      <rect x="44" y="100" width="48" height="6" fill="#222" transform="rotate(16 68 103)"/>
+      <ellipse cx="92" cy="116" rx="16" ry="6" fill="#0c0818"/>
+      <text x="60" y="100" font-size="9" fill="#b8862a" font-family="monospace" transform="rotate(16 64 96)">⬢</text>
+    </g>
+    <!-- second standing drum -->
+    <g stroke="#0c0a08" stroke-width="2">
+      <rect x="282" y="92" width="30" height="40" rx="2" fill="#444038"/><rect x="282" y="104" width="30" height="5" fill="#26221c"/><rect x="282" y="118" width="30" height="5" fill="#26221c"/>
+    </g>
+  </svg>

@@ -1,0 +1,85 @@
+<svg width="660" height="350" viewBox="0 0 330 175" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
+    <!-- (overhead sun + rays handled by the screen-level sunburst layer) -->
+    <!-- two tall, healthy trees framing the lot -->
+    <ellipse cx="34" cy="142" rx="22.32" ry="4.9" fill="#1c2410" opacity=".16"/>
+  <g class="a-swaysm" style="transform-origin:center bottom;animation-delay:0s">
+    <rect x="26.5" y="54.3" width="15" height="85.7" fill="#7a5230" stroke="#1c2410" stroke-width="2"/>
+    <rect x="26.5" y="54.3" width="5.1" height="85.7" fill="#5e3e22"/>
+    <path d="M24.5 140 q 9.5 6 19.0 0" fill="#6a4626" stroke="#1c2410" stroke-width="1.5"/>
+    <circle cx="34" cy="45.0" r="31" fill="#3C6B1F" stroke="#1c2410" stroke-width="2"/>
+    <circle cx="16.9" cy="49.6" r="18.6" fill="#5E9E33"/>
+    <circle cx="51.0" cy="48.1" r="18.6" fill="#5E9E33"/>
+    <circle cx="34" cy="35.7" r="20.5" fill="#6FB23E"/>
+    <circle cx="24.7" cy="29.5" r="12.4" fill="#86C24E"/>
+    <circle cx="21.6" cy="40.4" r="2.4" fill="#E84BC0" stroke="#1c2410" stroke-width="1"/><circle cx="48.0" cy="43.5" r="2.4" fill="#F08A1E" stroke="#1c2410" stroke-width="1"/><circle cx="30.9" cy="27.9" r="2.4" fill="#E84BC0" stroke="#1c2410" stroke-width="1"/><circle cx="40.2" cy="54.3" r="2.4" fill="#F08A1E" stroke="#1c2410" stroke-width="1"/><circle cx="16.9" cy="50.6" r="2.4" fill="#E84BC0" stroke="#1c2410" stroke-width="1"/>
+  </g>
+    <ellipse cx="300" cy="142" rx="18.72" ry="4.1" fill="#1c2410" opacity=".16"/>
+  <g class="a-sway2" style="transform-origin:center bottom;animation-delay:1.1s">
+    <rect x="294.0" y="59.8" width="12" height="80.2" fill="#7a5230" stroke="#1c2410" stroke-width="2"/>
+    <rect x="294.0" y="59.8" width="4.1" height="80.2" fill="#5e3e22"/>
+    <path d="M292.0 140 q 8.0 6 16.0 0" fill="#6a4626" stroke="#1c2410" stroke-width="1.5"/>
+    <circle cx="300" cy="52.0" r="26" fill="#3C6B1F" stroke="#1c2410" stroke-width="2"/>
+    <circle cx="285.7" cy="55.9" r="15.6" fill="#5E9E33"/>
+    <circle cx="314.3" cy="54.6" r="15.6" fill="#5E9E33"/>
+    <circle cx="300" cy="44.2" r="17.2" fill="#6FB23E"/>
+    <circle cx="292.2" cy="39.0" r="10.4" fill="#86C24E"/>
+    <circle cx="289.6" cy="48.1" r="2.4" fill="#E84BC0" stroke="#1c2410" stroke-width="1"/><circle cx="311.7" cy="50.7" r="2.4" fill="#E84BC0" stroke="#1c2410" stroke-width="1"/><circle cx="297.4" cy="37.7" r="2.4" fill="#E84BC0" stroke="#1c2410" stroke-width="1"/><circle cx="305.2" cy="59.8" r="2.4" fill="#E84BC0" stroke="#1c2410" stroke-width="1"/><circle cx="285.7" cy="56.7" r="2.4" fill="#E84BC0" stroke="#1c2410" stroke-width="1"/>
+  </g>
+    <!-- a tiny off-grid home with a rain barrel -->
+    <ellipse cx="109" cy="142" rx="33" ry="7.3" fill="#1c2410" opacity=".16"/>
+  <g stroke="#1c1810" stroke-width="2">
+    <rect x="84" y="108" width="50" height="32" fill="#E8D2A4"/>
+    <rect x="84" y="108" width="8.0" height="32" fill="#d6ba84"/>
+    <polygon points="80,108 109,88 109,108" fill="#C2442E"/>
+    <polygon points="109,88 138,108 109,108" fill="#9a3522"/>
+    <rect x="92.0" y="122.0" width="11" height="18" fill="#5E9E33"/>
+    <circle cx="100.5" cy="131.0" r="1.1" fill="#1c1810"/>
+    <rect x="113.0" y="115.0" width="13" height="13" fill="#bfe0ee"/>
+    <path d="M119.5 115.0 v13 M113.0 121.5 h13" stroke="#1c1810" stroke-width="1.1" fill="none"/>
+    <rect x="111.0" y="128.0" width="17" height="4" fill="#7a4a2c"/>
+    <circle cx="115.0" cy="127.0" r="2" fill="#E84BC0"/><circle cx="124.0" cy="127.0" r="2" fill="#F7E038"/>
+    <rect x="135.0" y="124.0" width="10" height="16" fill="#3f7d6a"/>
+    <rect x="135.0" y="124.0" width="10" height="3" fill="#56a08a"/>
+    <path d="M134.0 124.0 q-3 4 1 16.0" fill="none" stroke="#8a8f93" stroke-width="1.5"/>
+  </g>
+    <!-- a composting bio-toilet -->
+    <ellipse cx="215" cy="142" rx="21.599999999999998" ry="4.8" fill="#1c2410" opacity=".16"/>
+  <g stroke="#1c1810" stroke-width="2">
+    <rect x="226.0" y="82.0" width="5" height="20" fill="#8a979c"/>
+    <rect x="224.0" y="79.0" width="9" height="4" fill="#5a6a6f"/>
+    <rect x="200" y="98" width="30" height="42" fill="#caa46a"/>
+    <g stroke="#a07b44" stroke-width="1" fill="none"><path d="M200 109.0 h30 M200 120.0 h30 M200 131.0 h30"/></g>
+    <rect x="197.0" y="93.0" width="36.0" height="6" fill="#5E9E33"/>
+    <rect x="203.0" y="104.0" width="24.0" height="36.0" fill="#9a7038"/>
+    <g transform="translate(215,116.0)" stroke="#1c2410" stroke-width="1"><path d="M0 0 q6 -6 0 -12 q-6 6 0 12 z" fill="#86C24E"/><path d="M0 0 V-10" fill="none"/></g>
+    <circle cx="223.0" cy="124.0" r="1.4" fill="#1c1810"/>
+  </g>
+    <!-- a few detailed wildflowers on the ground -->
+    <g class="a-sway" style="transform-origin:center bottom;animation-delay:0s">
+    <rect x="149.5" y="126.5" width="5" height="14.5" fill="#3f7d28" stroke="#1c2410" stroke-width="1.4"/>
+    <polygon points="150,133.75 144,125.83 138,127.75 143.4,136.75" fill="#4f932e" stroke="#1c2410" stroke-width="1.4"/><path d="M150 133.75 L140.4 129.8" stroke="#2f5e1c" stroke-width="1.2" fill="none"/>
+    <polygon points="154,139.75 159.5,132.49 165,134.25 160.05,142.75" fill="#4f932e" stroke="#1c2410" stroke-width="1.4"/><path d="M154 139.75 L162.8 136.3" stroke="#2f5e1c" stroke-width="1.2" fill="none"/>
+    <rect x="150.0" y="103.2" width="4.0" height="11.9" fill="#E27FB4" stroke="#1c2410" stroke-width="1" transform="rotate(0 152 117)"/><rect x="150.0" y="103.2" width="4.0" height="11.9" fill="#F4B6D6" stroke="#1c2410" stroke-width="1" transform="rotate(36 152 117)"/><rect x="150.0" y="103.2" width="4.0" height="11.9" fill="#E27FB4" stroke="#1c2410" stroke-width="1" transform="rotate(72 152 117)"/><rect x="150.0" y="103.2" width="4.0" height="11.9" fill="#F4B6D6" stroke="#1c2410" stroke-width="1" transform="rotate(108 152 117)"/><rect x="150.0" y="103.2" width="4.0" height="11.9" fill="#E27FB4" stroke="#1c2410" stroke-width="1" transform="rotate(144 152 117)"/><rect x="150.0" y="103.2" width="4.0" height="11.9" fill="#F4B6D6" stroke="#1c2410" stroke-width="1" transform="rotate(180 152 117)"/><rect x="150.0" y="103.2" width="4.0" height="11.9" fill="#E27FB4" stroke="#1c2410" stroke-width="1" transform="rotate(216 152 117)"/><rect x="150.0" y="103.2" width="4.0" height="11.9" fill="#F4B6D6" stroke="#1c2410" stroke-width="1" transform="rotate(252 152 117)"/><rect x="150.0" y="103.2" width="4.0" height="11.9" fill="#E27FB4" stroke="#1c2410" stroke-width="1" transform="rotate(288 152 117)"/><rect x="150.0" y="103.2" width="4.0" height="11.9" fill="#F4B6D6" stroke="#1c2410" stroke-width="1" transform="rotate(324 152 117)"/>
+    <circle cx="152" cy="117" r="4.8" fill="#F7E038" stroke="#1c2410" stroke-width="1.2"/>
+    <circle cx="150.5" cy="115.5" r="1.1" fill="#fff" opacity=".5"/>
+  </g>
+    <g class="a-sway3" style="transform-origin:center bottom;animation-delay:1.4s">
+    <rect x="167.5" y="120.5" width="5" height="20.5" fill="#3f7d28" stroke="#1c2410" stroke-width="1.4"/>
+    <polygon points="168,130.75 162,122.83 156,124.75 161.4,133.75" fill="#4f932e" stroke="#1c2410" stroke-width="1.4"/><path d="M168 130.75 L158.4 126.8" stroke="#2f5e1c" stroke-width="1.2" fill="none"/>
+    <polygon points="172,136.75 177.5,129.49 183,131.25 178.05,139.75" fill="#4f932e" stroke="#1c2410" stroke-width="1.4"/><path d="M172 136.75 L180.8 133.3" stroke="#2f5e1c" stroke-width="1.2" fill="none"/>
+    <rect x="167.8" y="94.8" width="4.4" height="13.1" fill="#d8e4ec" stroke="#1c2410" stroke-width="1" transform="rotate(0 170 110)"/><rect x="167.8" y="94.8" width="4.4" height="13.1" fill="#ffffff" stroke="#1c2410" stroke-width="1" transform="rotate(36 170 110)"/><rect x="167.8" y="94.8" width="4.4" height="13.1" fill="#d8e4ec" stroke="#1c2410" stroke-width="1" transform="rotate(72 170 110)"/><rect x="167.8" y="94.8" width="4.4" height="13.1" fill="#ffffff" stroke="#1c2410" stroke-width="1" transform="rotate(108 170 110)"/><rect x="167.8" y="94.8" width="4.4" height="13.1" fill="#d8e4ec" stroke="#1c2410" stroke-width="1" transform="rotate(144 170 110)"/><rect x="167.8" y="94.8" width="4.4" height="13.1" fill="#ffffff" stroke="#1c2410" stroke-width="1" transform="rotate(180 170 110)"/><rect x="167.8" y="94.8" width="4.4" height="13.1" fill="#d8e4ec" stroke="#1c2410" stroke-width="1" transform="rotate(216 170 110)"/><rect x="167.8" y="94.8" width="4.4" height="13.1" fill="#ffffff" stroke="#1c2410" stroke-width="1" transform="rotate(252 170 110)"/><rect x="167.8" y="94.8" width="4.4" height="13.1" fill="#d8e4ec" stroke="#1c2410" stroke-width="1" transform="rotate(288 170 110)"/><rect x="167.8" y="94.8" width="4.4" height="13.1" fill="#ffffff" stroke="#1c2410" stroke-width="1" transform="rotate(324 170 110)"/>
+    <circle cx="170" cy="110" r="5.3" fill="#F08A1E" stroke="#1c2410" stroke-width="1.2"/>
+    <circle cx="168.3" cy="108.3" r="1.3" fill="#fff" opacity=".5"/>
+  </g>
+    <g class="a-sway2" style="transform-origin:center bottom;animation-delay:2.1s">
+    <rect x="255.5" y="124.0" width="5" height="17.0" fill="#3f7d28" stroke="#1c2410" stroke-width="1.4"/>
+    <polygon points="256,132.5 250,124.58 244,126.5 249.4,135.5" fill="#4f932e" stroke="#1c2410" stroke-width="1.4"/><path d="M256 132.5 L246.4 128.5" stroke="#2f5e1c" stroke-width="1.2" fill="none"/>
+    <polygon points="260,138.5 265.5,131.24 271,133 266.05,141.5" fill="#4f932e" stroke="#1c2410" stroke-width="1.4"/><path d="M260 138.5 L268.8 135.0" stroke="#2f5e1c" stroke-width="1.2" fill="none"/>
+    <rect x="256.0" y="102.0" width="4.0" height="11.3" fill="#A87FE0" stroke="#1c2410" stroke-width="1" transform="rotate(0 258 115)"/><rect x="256.0" y="102.0" width="4.0" height="11.3" fill="#C8A6F2" stroke="#1c2410" stroke-width="1" transform="rotate(36 258 115)"/><rect x="256.0" y="102.0" width="4.0" height="11.3" fill="#A87FE0" stroke="#1c2410" stroke-width="1" transform="rotate(72 258 115)"/><rect x="256.0" y="102.0" width="4.0" height="11.3" fill="#C8A6F2" stroke="#1c2410" stroke-width="1" transform="rotate(108 258 115)"/><rect x="256.0" y="102.0" width="4.0" height="11.3" fill="#A87FE0" stroke="#1c2410" stroke-width="1" transform="rotate(144 258 115)"/><rect x="256.0" y="102.0" width="4.0" height="11.3" fill="#C8A6F2" stroke="#1c2410" stroke-width="1" transform="rotate(180 258 115)"/><rect x="256.0" y="102.0" width="4.0" height="11.3" fill="#A87FE0" stroke="#1c2410" stroke-width="1" transform="rotate(216 258 115)"/><rect x="256.0" y="102.0" width="4.0" height="11.3" fill="#C8A6F2" stroke="#1c2410" stroke-width="1" transform="rotate(252 258 115)"/><rect x="256.0" y="102.0" width="4.0" height="11.3" fill="#A87FE0" stroke="#1c2410" stroke-width="1" transform="rotate(288 258 115)"/><rect x="256.0" y="102.0" width="4.0" height="11.3" fill="#C8A6F2" stroke="#1c2410" stroke-width="1" transform="rotate(324 258 115)"/>
+    <circle cx="258" cy="115" r="4.5" fill="#F7E038" stroke="#1c2410" stroke-width="1.2"/>
+    <circle cx="256.6" cy="113.6" r="1.1" fill="#fff" opacity=".5"/>
+  </g>
+    <!-- a couple of pollinators -->
+    <g class="a-flutter" transform="translate(140,66)"><path d="M0 0 q-7 -6 -3 4 q-3 -7 -6 0 z" fill="#E84BC0" stroke="#1c1810" stroke-width="1"/><path d="M0 0 q7 -6 3 4 q3 -7 6 0 z" fill="#FBB04C" stroke="#1c1810" stroke-width="1"/></g>
+    <g class="a-flutter3" style="animation-delay:1.8s" transform="translate(236,54)"><path d="M0 0 q-6 -5 -2 3 q-2 -6 -5 0 z" fill="#7B2FF7" stroke="#1c1810" stroke-width="1"/><path d="M0 0 q6 -5 2 3 q2 -6 5 0 z" fill="#86C24E" stroke="#1c1810" stroke-width="1"/></g>
+  </svg>

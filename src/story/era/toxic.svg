@@ -1,0 +1,99 @@
+<svg width="660" height="336" viewBox="0 0 330 168" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <pattern id="mesh" width="11" height="11" patternUnits="userSpaceOnUse">
+        <path d="M0 0 L11 11 M11 0 L0 11" stroke="#c9cdb0" stroke-width="1" opacity=".42" fill="none"/>
+      </pattern>
+    </defs>
+    <!-- contaminated ground tint + cracked dead earth -->
+    <rect x="0" y="120" width="330" height="48" fill="#7a7a32" opacity=".14"/>
+    <g stroke="#3e3e20" stroke-width="2.5" fill="none" opacity=".8">
+      <path d="M8 134 L60 122 L108 136 L160 120 L212 134 L268 122 L324 136"/>
+      <path d="M60 122 L66 148"/><path d="M160 120 L152 150"/><path d="M212 134 L222 152"/><path d="M108 136 L102 154"/><path d="M268 122 L262 146"/>
+    </g>
+    <!-- toxic vapor rising from the poisoned soil -->
+    <g class="a-rise" style="animation-delay:0s" opacity=".5">
+    <ellipse cx="96" cy="138" rx="9" ry="6" fill="#9aa83a"/>
+    <ellipse cx="100" cy="128" rx="7" ry="5" fill="#a8b64a"/>
+    <ellipse cx="94" cy="119" rx="5" ry="4" fill="#b6c24a"/>
+    <circle cx="99" cy="112" r="3" fill="#c2cc5a"/>
+  </g>
+    <g class="a-rise" style="animation-delay:1.6s" opacity=".5">
+    <ellipse cx="224" cy="140" rx="9" ry="6" fill="#9aa83a"/>
+    <ellipse cx="228" cy="130" rx="7" ry="5" fill="#a8b64a"/>
+    <ellipse cx="222" cy="121" rx="5" ry="4" fill="#b6c24a"/>
+    <circle cx="227" cy="114" r="3" fill="#c2cc5a"/>
+  </g>
+    <!-- big, gnarled dead trees behind the fence -->
+    <ellipse cx="118" cy="147" rx="18" ry="4.0" fill="#1c2410" opacity=".16"/>
+  <g transform="translate(118 146) scale(1)"><g class="a-swaysm" style="transform-origin:center bottom;animation-delay:0s">
+    <rect x="-5" y="-80" width="10" height="80" fill="#2a2418" stroke="#120e08" stroke-width="2"/>
+    <rect x="-5" y="-80" width="3.5" height="80" fill="#3e3526"/>
+    <path d="M-1 -78 q-4 -22 1 -44" stroke="#120e08" stroke-width="1" fill="none" opacity=".5"/>
+    <g stroke="#2a2418" stroke-linecap="round" fill="none">
+      <path d="M0 -58 L-22 -78" stroke-width="6"/><path d="M-22 -78 L-35 -95" stroke-width="3.5"/><path d="M-22 -78 L-13 -98" stroke-width="3"/><path d="M-30 -87 L-41 -91" stroke-width="2"/>
+      <path d="M0 -64 L22 -84" stroke-width="6"/><path d="M22 -84 L35 -99" stroke-width="3.5"/><path d="M22 -84 L13 -105" stroke-width="3"/><path d="M30 -92 L41 -97" stroke-width="2"/>
+      <path d="M0 -78 L-4 -101" stroke-width="4.5"/><path d="M-4 -101 L-12 -112" stroke-width="2.5"/><path d="M-4 -101 L7 -109" stroke-width="2.5"/>
+      <path d="M-2 -44 L-19 -52" stroke-width="4"/><path d="M-19 -52 L-29 -50" stroke-width="2"/>
+      <path d="M2 -50 L18 -60" stroke-width="4"/><path d="M18 -60 L29 -67" stroke-width="2.5"/>
+    </g></g></g>
+    <ellipse cx="250" cy="147" rx="12.959999999999999" ry="2.9" fill="#1c2410" opacity=".16"/>
+  <g transform="translate(250 146) scale(0.72)"><g class="a-sway2" style="transform-origin:center bottom;animation-delay:1s">
+    <rect x="-5" y="-80" width="10" height="80" fill="#2a2418" stroke="#120e08" stroke-width="2"/>
+    <rect x="-5" y="-80" width="3.5" height="80" fill="#3e3526"/>
+    <path d="M-1 -78 q-4 -22 1 -44" stroke="#120e08" stroke-width="1" fill="none" opacity=".5"/>
+    <g stroke="#2a2418" stroke-linecap="round" fill="none">
+      <path d="M0 -58 L-22 -78" stroke-width="6"/><path d="M-22 -78 L-35 -95" stroke-width="3.5"/><path d="M-22 -78 L-13 -98" stroke-width="3"/><path d="M-30 -87 L-41 -91" stroke-width="2"/>
+      <path d="M0 -64 L22 -84" stroke-width="6"/><path d="M22 -84 L35 -99" stroke-width="3.5"/><path d="M22 -84 L13 -105" stroke-width="3"/><path d="M30 -92 L41 -97" stroke-width="2"/>
+      <path d="M0 -78 L-4 -101" stroke-width="4.5"/><path d="M-4 -101 L-12 -112" stroke-width="2.5"/><path d="M-4 -101 L7 -109" stroke-width="2.5"/>
+      <path d="M-2 -44 L-19 -52" stroke-width="4"/><path d="M-19 -52 L-29 -50" stroke-width="2"/>
+      <path d="M2 -50 L18 -60" stroke-width="4"/><path d="M18 -60 L29 -67" stroke-width="2.5"/>
+    </g></g></g>
+    <!-- leaking hazard barrel -->
+    <g stroke="#1c1810" stroke-width="2">
+      <ellipse cx="52" cy="146" rx="22" ry="5" fill="#6a7a24" opacity=".6" stroke="none"/>
+      <ellipse cx="53" cy="108" rx="17" ry="4" fill="#d6c63e"/>
+      <rect x="36" y="108" width="34" height="40" fill="#c2b22e"/>
+      <rect x="36" y="108" width="9" height="40" fill="#d6c63e" opacity=".5"/>
+      <rect x="36" y="120" width="34" height="5" fill="#8a7c1e"/><rect x="36" y="134" width="34" height="5" fill="#8a7c1e"/>
+      <circle cx="53" cy="118" r="7" fill="#1c1810"/><circle cx="53" cy="116" r="3" fill="#c2b22e"/><rect x="50.5" y="119" width="5" height="2" fill="#c2b22e"/>
+      <path d="M44 148 q9 6 20 -1" fill="#6a7a24" opacity=".7" stroke="none"/>
+    </g>
+    <!-- chain-link fence: locked gate, X-brace, TOXIC sign -->
+    <rect x="12" y="97" width="306" height="4" fill="#6a6e60" stroke="#1c1c14" stroke-width="1.5"/>
+    <rect x="12" y="100" width="128" height="46" fill="url(#mesh)"/>
+    <rect x="198" y="100" width="120" height="46" fill="url(#mesh)"/>
+    <rect x="140" y="100" width="58" height="46" fill="url(#mesh)"/>
+    <rect x="141" y="100" width="56" height="46" fill="none" stroke="#6a6e60" stroke-width="2"/>
+    <line x1="169" y1="100" x2="169" y2="146" stroke="#6a6e60" stroke-width="2.5"/>
+    <g stroke="#c2442e" stroke-width="3" opacity=".85"><line x1="143" y1="103" x2="195" y2="143"/><line x1="195" y1="103" x2="143" y2="143"/></g>
+    <path d="M162 122 q7 6 14 0 q-7 9 -14 0" fill="none" stroke="#9a9a8a" stroke-width="2"/>
+    <rect x="165" y="125" width="8" height="7" fill="#c9a227" stroke="#1c1c14" stroke-width="1.5"/>
+    <rect x="9" y="97" width="6" height="49" fill="#5a5e52" stroke="#1c1c14" stroke-width="1.5"/><rect x="137" y="97" width="6" height="49" fill="#5a5e52" stroke="#1c1c14" stroke-width="1.5"/><rect x="195" y="97" width="6" height="49" fill="#5a5e52" stroke="#1c1c14" stroke-width="1.5"/><rect x="315" y="97" width="6" height="49" fill="#5a5e52" stroke="#1c1c14" stroke-width="1.5"/>
+    <line x1="149" y1="98" x2="149" y2="100" stroke="#1c1c14" stroke-width="1"/><line x1="189" y1="98" x2="189" y2="100" stroke="#1c1c14" stroke-width="1"/>
+    <rect x="141" y="97" width="56" height="22" fill="#e8c020" stroke="#1c1c14" stroke-width="2"/>
+    <rect x="141" y="97" width="56" height="22" fill="none" stroke="#1c1c14" stroke-width="2" stroke-dasharray="5 4"/>
+    <text x="169" y="112" font-size="9" fill="#1c1c14" text-anchor="middle" font-family="'Press Start 2P',monospace">TOXIC</text>
+    <circle class="a-blink" cx="140" cy="91" r="3.5" fill="#e8503c" stroke="#1c1c14" stroke-width="1"/>
+    <!-- contaminant placards wired to the fence (lead, arsenic, cadmium) -->
+    <g>
+    <line x1="66" y1="107" x2="66" y2="112" stroke="#3a3a2a" stroke-width="1.5"/>
+    <line x1="80" y1="107" x2="80" y2="112" stroke="#3a3a2a" stroke-width="1.5"/>
+    <rect x="62" y="111" width="22" height="24" fill="#1d2012" stroke="#9aa83a" stroke-width="2"/>
+    <text x="65" y="119" font-size="5" fill="#9aa83a" font-family="'Press Start 2P',monospace">82</text>
+    <text x="73" y="130" font-size="9" fill="#d6e07a" text-anchor="middle" font-family="'Press Start 2P',monospace">Pb</text>
+  </g>
+    <g>
+    <line x1="236" y1="109" x2="236" y2="114" stroke="#3a3a2a" stroke-width="1.5"/>
+    <line x1="250" y1="109" x2="250" y2="114" stroke="#3a3a2a" stroke-width="1.5"/>
+    <rect x="232" y="113" width="22" height="24" fill="#1d2012" stroke="#9aa83a" stroke-width="2"/>
+    <text x="235" y="121" font-size="5" fill="#9aa83a" font-family="'Press Start 2P',monospace">33</text>
+    <text x="243" y="132" font-size="9" fill="#d6e07a" text-anchor="middle" font-family="'Press Start 2P',monospace">As</text>
+  </g>
+    <g>
+    <line x1="290" y1="107" x2="290" y2="112" stroke="#3a3a2a" stroke-width="1.5"/>
+    <line x1="304" y1="107" x2="304" y2="112" stroke="#3a3a2a" stroke-width="1.5"/>
+    <rect x="286" y="111" width="22" height="24" fill="#1d2012" stroke="#9aa83a" stroke-width="2"/>
+    <text x="289" y="119" font-size="5" fill="#9aa83a" font-family="'Press Start 2P',monospace">48</text>
+    <text x="297" y="130" font-size="9" fill="#d6e07a" text-anchor="middle" font-family="'Press Start 2P',monospace">Cd</text>
+  </g>
+  </svg>

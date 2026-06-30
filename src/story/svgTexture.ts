@@ -22,8 +22,37 @@ export interface EraTexture {
   aspect: number;
 }
 
+/** Source frame parsed from an SVG: width, height, and aspect (height/width). */
+export interface SvgFrame {
+  w: number
+  h: number
+  aspect: number
+}
+
 /** Longest-axis raster size in pixels. Pixel-art stays crisp; keep it modest. */
 const RASTER_MAX = 1024;
+
+/**
+ * Parses width/height/aspect from an SVG's viewBox, falling back to a 660x350
+ * frame when the viewBox is absent or malformed. Pure string logic (no DOM) so
+ * it is unit-testable.
+ *
+ * @param svg — A complete `<svg …>…</svg>` string.
+ * @returns The parsed `{ w, h, aspect }`.
+ */
+export function svgFrame(svg: string): SvgFrame {
+  const vb = /viewBox="([\d.\s-]+)"/.exec(svg)
+  let w = 660
+  let h = 350
+  if (vb) {
+    const parts = vb[1].trim().split(/\s+/).map(Number)
+    if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+      w = parts[2]
+      h = parts[3]
+    }
+  }
+  return { w, h, aspect: h / w }
+}
 
 /**
  * Rasterizes an SVG document string to a CanvasTexture.
@@ -35,17 +64,7 @@ const RASTER_MAX = 1024;
  */
 export async function svgToTexture(svg: string): Promise<EraTexture> {
   // Pull width/height (or viewBox) to decide the raster dimensions + aspect.
-  const vb = /viewBox="([\d.\s-]+)"/.exec(svg);
-  let w = 660;
-  let h = 350;
-  if (vb) {
-    const parts = vb[1].trim().split(/\s+/).map(Number);
-    if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
-      w = parts[2];
-      h = parts[3];
-    }
-  }
-  const aspect = h / w;
+  const { w, h, aspect } = svgFrame(svg)
 
   const scale = RASTER_MAX / Math.max(w, h);
   const pxW = Math.max(1, Math.round(w * scale));

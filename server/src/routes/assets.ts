@@ -3,22 +3,28 @@ import { z } from 'zod'
 import type { AssetsRepo } from '../db/assetsRepo.js'
 import type { ObjectStore } from '../storage/objectStore.js'
 
+/**
+ * Allowed upload types and their storage-key extensions. The schema only
+ * accepts these keys: any other contentType (text/html, image/svg+xml, …)
+ * would be presigned verbatim and later served from the public bucket origin
+ * as active content — a stored-XSS vector.
+ */
+const EXT = {
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+} as const
+
 const createBody = z.object({
   id: z.string().uuid(),
-  contentType: z.string().min(1),
+  contentType: z.enum(Object.keys(EXT) as [keyof typeof EXT, ...(keyof typeof EXT)[]]),
   isAnimated: z.boolean(),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   byteSize: z.number().int().positive(),
   originalName: z.string().nullable().optional(),
 })
-
-const EXT: Record<string, string> = {
-  'image/webp': 'webp',
-  'image/gif': 'gif',
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-}
 
 const OWNER_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 
@@ -39,8 +45,7 @@ export function registerAssetRoutes(
     const parsed = createBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'invalid body' })
     const b = parsed.data
-    const ext = EXT[b.contentType] ?? 'bin'
-    const key = `${owner}/${b.id}.${ext}`
+    const key = `${owner}/${b.id}.${EXT[b.contentType]}`
 
     await repo.insert({
       id: b.id, owner_id: owner, storage_key: key, content_type: b.contentType,

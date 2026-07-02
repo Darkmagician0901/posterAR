@@ -7,7 +7,7 @@
  * facts and bridges index.html's engine-load diagnostics into telemetry.
  *
  * Default export: App. Key dependencies: deviceDetection, debugTelemetry,
- * ARExperience, DesktopMockMode.
+ * StoryARExperience, DesktopMockMode.
  */
 
 import { useEffect, useState } from 'react';
@@ -18,6 +18,7 @@ import { isPersistenceEnabled, listAssets } from '@/services/posterApi';
 import { usePosterStore } from '@/store/posterStore';
 import { ARExperience } from '@/components/ar/ARExperience';
 import { DesktopMockMode } from '@/components/ar/DesktopMockMode';
+import { StoryARExperience } from '@/components/ar/StoryARExperience';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Toast } from '@/components/ui/Toast';
@@ -28,7 +29,7 @@ import { debugTelemetry } from '@/xr/debugTelemetry';
 /**
  * Root component that detects device capabilities once and renders one of
  * three branches:
- *   1. hasAR8 (mobile + camera + secure context) → ARExperience via 8th Wall
+ *   1. hasAR8 (mobile + camera + secure context) → StoryARExperience via 8th Wall
  *   2. isDesktop                                 → DesktopMockMode
  *   3. Everything else                           → "AR Not Supported" panel
  *
@@ -158,13 +159,8 @@ function App() {
         <MainLayout>
           <div className="app-container">
             <Toast />
-            <InstructionsOverlay />
             <DiagnosticPanel />
-            <ARExperience
-              mode="live"
-              onSessionStart={() => console.log('AR session started')}
-              onSessionEnd={() => console.log('AR session ended')}
-            />
+            <StoryARExperience />
             <DeviceInfoButton
               show={showDeviceInfo}
               onToggle={() => setShowDeviceInfo((s) => !s)}

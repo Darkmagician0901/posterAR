@@ -1,0 +1,278 @@
+/**
+ * StoryOverlay.css — pixel/civic HUD styling for the AR story.
+ *
+ * Visual identity carried over from the design prototype: Press Start 2P,
+ * green/orange palette, soft dark cards. Requires the Press Start 2P font to
+ * be available (add the Google Fonts <link> in index.html — see FUSION_PLAN).
+ *
+ * z-index sits above the engine canvas (zIndex 1) and the generic overlay
+ * layer; the root ignores pointer events so taps reach the canvas, and only
+ * the interactive controls re-enable them.
+ */
+
+:root {
+  --story-green: #5e9e33;
+  --story-green-lt: #86c24e;
+  --story-orange: #f08a1e;
+  --story-ink: #1c1810;
+}
+
+.story-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  font-family: 'Press Start 2P', ui-monospace, monospace;
+  color: #fff;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.story-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: background 0.8s ease;
+}
+
+/* ── Cards (intro / outro) ─────────────────────────────────────────────── */
+.story-card {
+  position: absolute;
+  left: 50%;
+  bottom: 13%;
+  transform: translateX(-50%);
+  width: min(86vw, 460px);
+  padding: 18px 18px 20px;
+  background: rgba(20, 18, 14, 0.82);
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  text-align: center;
+  pointer-events: auto;
+  backdrop-filter: blur(2px);
+}
+.story-card-intro {
+  bottom: auto;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.story-kicker {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--story-orange);
+  margin-bottom: 12px;
+}
+.story-title {
+  font-size: 17px;
+  line-height: 1.5;
+  margin: 0 0 12px;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+.story-sub {
+  font-size: 9px;
+  line-height: 1.9;
+  color: #d8d2c4;
+  margin: 0 0 14px;
+}
+
+/* ── Scan prompt ───────────────────────────────────────────────────────── */
+.story-scan {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 8px;
+  line-height: 1.6;
+  color: #cfd8c4;
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+}
+.story-scan.ready {
+  color: #0e0b07;
+  background: var(--story-orange);
+}
+.story-scan-ring {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  animation: story-pulse 1.4s ease-in-out infinite;
+}
+@keyframes story-pulse {
+  0%, 100% { transform: scale(0.7); opacity: 0.5; }
+  50% { transform: scale(1); opacity: 1; }
+}
+
+/* ── Era title (top) ───────────────────────────────────────────────────── */
+.story-era-head {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 54px);
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  animation: story-fade-down 0.5s ease both;
+}
+.story-year {
+  font-size: 26px;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55), 0 0 18px rgba(255, 210, 120, 0.5);
+}
+.story-era-title {
+  margin-top: 8px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--story-orange);
+}
+@keyframes story-fade-down {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ── Docent + narration ────────────────────────────────────────────────── */
+.story-docent-row {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 96px;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+.story-cube {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 38px;
+  margin-bottom: 2px;
+  filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.4));
+  animation: story-bob 3.2s ease-in-out infinite;
+}
+.story-cube-top,
+.story-cube-left,
+.story-cube-right {
+  position: absolute;
+  width: 17px;
+  height: 17px;
+}
+.story-cube-top {
+  top: 0;
+  left: 8px;
+  background: var(--story-green-lt);
+  transform: rotate(45deg) scaleY(0.58);
+  transform-origin: center;
+}
+.story-cube-left {
+  bottom: 2px;
+  left: 1px;
+  height: 21px;
+  background: var(--story-green);
+  transform: skewY(26deg);
+}
+.story-cube-right {
+  bottom: 2px;
+  right: 1px;
+  height: 21px;
+  background: #4a7d28;
+  transform: skewY(-26deg);
+}
+@keyframes story-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.story-narration {
+  flex: 1 1 auto;
+  text-align: left;
+  font-family: inherit;
+  font-size: 9px;
+  line-height: 1.95;
+  color: #f4efe4;
+  background: rgba(20, 18, 14, 0.82);
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  padding: 12px 13px;
+  pointer-events: auto;
+  cursor: pointer;
+  backdrop-filter: blur(2px);
+}
+.story-caret {
+  color: var(--story-orange);
+  animation: story-blink 0.8s steps(2) infinite;
+}
+@keyframes story-blink {
+  50% { opacity: 0; }
+}
+
+/* ── Bottom bar: timeline + nav ────────────────────────────────────────── */
+.story-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+  padding: 0 14px;
+  pointer-events: auto;
+}
+.story-timeline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: rgba(20, 18, 14, 0.7);
+  border-radius: 999px;
+}
+.story-stop {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.story-stop-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #4a4640;
+  border: 2px solid #2a2620;
+  transition: all 0.25s ease;
+}
+.story-stop.done .story-stop-dot { background: var(--story-green); }
+.story-stop.active .story-stop-dot {
+  background: var(--story-orange);
+  box-shadow: 0 0 10px rgba(240, 138, 30, 0.8);
+  transform: scale(1.25);
+}
+.story-stop-label {
+  font-size: 6px;
+  color: #8a8478;
+}
+.story-stop.active .story-stop-label { color: #fff; }
+
+.story-nav {
+  display: flex;
+  gap: 10px;
+}
+.story-btn {
+  flex: 1;
+  font-family: inherit;
+  font-size: 11px;
+  color: #fff;
+  background: var(--story-orange);
+  border: none;
+  border-radius: 12px;
+  padding: 14px 10px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.3);
+}
+.story-btn:active { transform: translateY(2px); box-shadow: none; }
+.story-btn:disabled { opacity: 0.4; cursor: default; }
+.story-btn-ghost {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+}
+.story-card .story-btn { margin-top: 8px; width: 100%; }

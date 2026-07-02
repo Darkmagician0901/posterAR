@@ -16,7 +16,6 @@ import { XRSupport } from '@/types';
 import { UI_TEXT } from '@/utils/constants';
 import { isPersistenceEnabled, listAssets } from '@/services/posterApi';
 import { usePosterStore } from '@/store/posterStore';
-import { ARExperience } from '@/components/ar/ARExperience';
 import { DesktopMockMode } from '@/components/ar/DesktopMockMode';
 import { StoryARExperience } from '@/components/ar/StoryARExperience';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';

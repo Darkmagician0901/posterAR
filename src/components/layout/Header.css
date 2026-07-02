@@ -1,51 +1,22 @@
 /**
  * Header Component Styles
+ *
+ * Only the floating Exit AR control remains — the full-width title bar was
+ * removed so the camera view stays clean.
  */
 
-.app-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  z-index: 1001;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.header-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-/* App title */
-.app-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  color: white;
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-}
-
-.title-icon {
-  font-size: 28px;
-  line-height: 1;
-}
-
-/* Exit AR button */
+/* Exit AR button — floats top-right over the camera feed */
 .exit-ar-button {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  right: 16px;
+  z-index: 1001;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
   background: rgba(244, 67, 54, 0.2);
+  backdrop-filter: blur(10px);
   border: 2px solid #f44336;
   border-radius: 12px;
   color: white;
@@ -84,18 +55,6 @@
 
 /* Mobile optimizations */
 @media (max-width: 768px) {
-  .header-content {
-    padding: 10px 16px;
-  }
-
-  .app-title {
-    font-size: 20px;
-  }
-
-  .title-icon {
-    font-size: 24px;
-  }
-
   .exit-ar-button {
     padding: 8px 16px;
     font-size: 13px;
@@ -108,14 +67,6 @@
 
 /* Small mobile devices */
 @media (max-width: 480px) {
-  .app-title {
-    font-size: 18px;
-  }
-
-  .title-icon {
-    font-size: 20px;
-  }
-
   .exit-ar-button {
     padding: 6px 12px;
     font-size: 12px;

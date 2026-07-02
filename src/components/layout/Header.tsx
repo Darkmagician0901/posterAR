@@ -1,9 +1,10 @@
 /**
  * Header Component
  *
- * Fixed app header showing the app title and, while an AR session is
- * running, an "Exit AR" button. Rendered by ARExperience on the live path;
- * purely presentational — session teardown lives in the onExitAR callback.
+ * While an AR session is running, renders a floating "Exit AR" button pinned
+ * to the top-right corner; otherwise renders nothing. The former full-width
+ * title bar was removed so the camera view stays clean. Purely
+ * presentational — session teardown lives in the onExitAR callback.
  */
 
 import React from 'react';
@@ -17,30 +18,18 @@ interface HeaderProps {
 }
 
 /**
- * Application header bar with conditional AR-exit control.
+ * Floating AR-exit control (no title bar).
  */
 export const Header: React.FC<HeaderProps> = ({ isARActive, onExitAR }) => {
+  if (!isARActive || !onExitAR) return null;
   return (
-    <header className="app-header" role="banner">
-      <div className="header-content">
-        {/* App title */}
-        <h1 className="app-title">
-          <span className="title-icon">🎨</span>
-          XR Poster
-        </h1>
-
-        {/* Exit AR button (only shown when AR is active) */}
-        {isARActive && onExitAR && (
-          <button
-            className="exit-ar-button"
-            onClick={onExitAR}
-            aria-label="Exit AR mode"
-          >
-            <span className="exit-icon">✕</span>
-            <span className="exit-label">Exit AR</span>
-          </button>
-        )}
-      </div>
-    </header>
+    <button
+      className="exit-ar-button"
+      onClick={onExitAR}
+      aria-label="Exit AR mode"
+    >
+      <span className="exit-icon">✕</span>
+      <span className="exit-label">Exit AR</span>
+    </button>
   );
 };

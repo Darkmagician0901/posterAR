@@ -14,6 +14,9 @@ import { useEffect, useState } from 'react';
 import { detectXRSupport } from '@/utils/deviceDetection';
 import { XRSupport } from '@/types';
 import { UI_TEXT } from '@/utils/constants';
+import { isPersistenceEnabled, listAssets } from '@/services/posterApi';
+import { usePosterStore } from '@/store/posterStore';
+import { ARExperience } from '@/components/ar/ARExperience';
 import { DesktopMockMode } from '@/components/ar/DesktopMockMode';
 import { StoryARExperience } from '@/components/ar/StoryARExperience';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
@@ -129,6 +132,15 @@ function App() {
       }
     }, 1000);
     return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!isPersistenceEnabled()) return;
+    let cancelled = false;
+    listAssets()
+      .then((assets) => { if (!cancelled) usePosterStore.getState().hydrateUploads(assets); })
+      .catch((err) => console.warn('Asset hydration failed:', err));
+    return () => { cancelled = true; };
   }, []);
 
   if (isLoading) {

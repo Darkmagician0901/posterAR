@@ -17,6 +17,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { validateAndProcessImage, ProcessedImage, formatBytes } from '@/utils/imageUpload';
+import { persistAsset, isPersistenceEnabled } from '@/services/posterApi';
 import { useUIState } from './useUIState';
 
 /**
@@ -66,6 +67,53 @@ export interface UsePosterUploadReturn {
   /** Opens the OS file picker by clicking the hidden input. */
   triggerFileInput: () => void;
 }
+
+/**
+ * Decodes a `data:<mime>;base64,<data>` URL into a Blob WITHOUT fetch
+ * (happy-dom's fetch does not reliably support data: URLs in tests).
+ *
+ * @param dataUrl — A base64 data URL (e.g. from ProcessedImage.dataUrl).
+ * @returns A Blob carrying the decoded bytes with the URL's MIME type.
+ */
+const dataUrlToBlob = (dataUrl: string): Blob => {
+  const [header, b64] = dataUrl.split(',', 2);
+  const mime = header.match(/data:([^;]+)/)?.[1] ?? 'application/octet-stream';
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+};
+
+/**
+ * Best-effort persistence of a processed image to the backend. Converts the
+ * processed data URL back to a Blob and uploads it. Returns the remote URL on
+ * success, or null when persistence is disabled or fails (never throws — the
+ * in-session data URL keeps working either way).
+ *
+ * @param processed — Output of validateAndProcessImage.
+ * @returns Remote asset URL, or null.
+ */
+export const persistProcessedImage = async (
+  processed: ProcessedImage,
+): Promise<string | null> => {
+  if (!isPersistenceEnabled()) return null;
+  try {
+    const blob = dataUrlToBlob(processed.dataUrl);
+    const asset = await persistAsset({
+      id: crypto.randomUUID(),
+      blob,
+      contentType: processed.mimeType,
+      isAnimated: processed.mimeType === 'image/gif',
+      width: processed.width,
+      height: processed.height,
+      originalName: processed.originalName,
+    });
+    return asset.url;
+  } catch (err) {
+    console.warn('Asset persistence failed (continuing with local copy):', err);
+    return null;
+  }
+};
 
 /**
  * Hook handling poster file selection, validation, client-side compression,
@@ -123,6 +171,12 @@ export const usePosterUpload = (): UsePosterUploadReturn => {
         // Validate and process image (throws with a user-facing message on
         // unsupported format, oversize file, or decode failure).
         const processedImage = await validateAndProcessImage(file);
+
+        // Fire-and-forget: persistence is best-effort and must never block the
+        // upload UX. persistProcessedImage has its own try/catch (returns null,
+        // never rejects), so `void` cannot produce an unhandled rejection. The
+        // gallery re-hydrates from the server on next startup regardless.
+        void persistProcessedImage(processedImage);
 
         setUploadState((prev) => ({ ...prev, progress: 75 }));
 

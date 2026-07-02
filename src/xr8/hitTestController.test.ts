@@ -14,7 +14,7 @@ describe('readReticlePose', () => {
     expect(readReticlePose()).toBeNull()
   })
 
-  it('returns a flat pose with a default surface extent on a horizontal hit', () => {
+  it('returns a flat pose on a horizontal hit', () => {
     ;(globalThis as { XR8?: unknown }).XR8 = {
       XrController: {
         hitTest: () => [
@@ -30,7 +30,6 @@ describe('readReticlePose', () => {
     const pose = readReticlePose()
     expect(pose).not.toBeNull()
     expect(pose?.vertical).toBe(false)
-    expect(pose?.extent).toEqual({ u: 1, v: 1 })
     // Translation column (matrix elements 12,13,14) = the hit position.
     expect(Array.from(pose!.matrix.slice(12, 15))).toEqual([1, 0, -2])
   })

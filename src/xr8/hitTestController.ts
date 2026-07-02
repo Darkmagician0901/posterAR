@@ -24,14 +24,6 @@ export interface ReticlePose {
   matrix: Float32Array
   /** True when the surface is a wall (its normal is roughly horizontal). */
   vertical: boolean
-  /**
-   * Approximate footprint of the surface around the hit point, in metres
-   * (u = width, v = depth). 8th Wall hit results carry no real surface size,
-   * so this is a fixed default footprint — not a measured extent — that gives
-   * the placement surface-highlight a stable size. Optional: consumers that
-   * don't need a footprint (e.g. poster placement) simply ignore it.
-   */
-  extent?: { u: number; v: number }
 }
 
 // ── module-scoped temporaries — reused every frame to avoid GC pressure ──────
@@ -40,10 +32,6 @@ const _pos = new Vector3()
 const _quat = new Quaternion()
 const _scale = new Vector3(1, 1, 1)
 const _normal = new Vector3()
-
-/** Fixed placement-footprint size, in metres. 8th Wall reports no real surface
- *  size, so the surface highlight uses this stable default (see ReticlePose). */
-const DEFAULT_SURFACE_EXTENT_M = 1.0
 
 /**
  * Runs a centre-screen hit-test via XR8.XrController.hitTest and returns the
@@ -103,6 +91,5 @@ export function readReticlePose(): ReticlePose | null {
   return {
     matrix: new Float32Array(_m4.elements),
     vertical,
-    extent: { u: DEFAULT_SURFACE_EXTENT_M, v: DEFAULT_SURFACE_EXTENT_M },
   }
 }

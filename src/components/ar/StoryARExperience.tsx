@@ -9,8 +9,8 @@
  *
  * Reuses the project's existing engine plumbing verbatim: onXr8Ready / runXr8
  * (pipeline.ts), readReticlePose (hitTestController), composeFlatPosterMatrix
- * (posterOrientation), createReticle / createSurfaceHighlight. The only new
- * 3D piece is StoryTile (one swappable, transparent ground plane).
+ * (posterOrientation), createReticle. The only new 3D piece is StoryTile
+ * (one swappable, transparent ground plane).
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -28,7 +28,6 @@ import { readReticlePose } from '@/xr8/hitTestController';
 import { StoryTile } from '@/xr8/storyTile';
 import { composeFlatPosterMatrix } from '@/xr/posterOrientation';
 import { createReticle, Reticle } from '@/xr/reticle';
-import { createSurfaceHighlight, SurfaceHighlight } from '@/xr/surfaceHighlight';
 import { debugTelemetry } from '@/xr/debugTelemetry';
 import { useUIState } from '@/hooks/useUIState';
 import { useArLoadProgress } from '@/hooks/useArLoadProgress';
@@ -53,7 +52,6 @@ export const StoryARExperience: React.FC = () => {
   // Pipeline-scoped refs (created in onStart, used in onUpdate + cleanup).
   const tileRef = useRef<StoryTile | null>(null);
   const reticleRef = useRef<Reticle | null>(null);
-  const highlightRef = useRef<SurfaceHighlight | null>(null);
   const sceneRootRef = useRef<Group | null>(null);
   const lastReticleMatrixRef = useRef<Float32Array | null>(null);
   const tapListenersRef = useRef<{
@@ -149,10 +147,6 @@ export const StoryARExperience: React.FC = () => {
           camera.add(reticle.scanner);
           reticleRef.current = reticle;
 
-          const highlight = createSurfaceHighlight();
-          scene.add(highlight.object);
-          highlightRef.current = highlight;
-
           tileRef.current = new StoryTile(sceneRoot);
 
           if (typeof XR8?.XrController?.updateCameraProjectionMatrix === 'function') {
@@ -191,7 +185,6 @@ export const StoryARExperience: React.FC = () => {
           lastFrameTimeRef.current = now;
 
           const reticle = reticleRef.current;
-          const highlight = highlightRef.current;
           const storyPlaced = useStoryStore.getState().placed;
           const pose = readReticlePose();
 
@@ -201,15 +194,9 @@ export const StoryARExperience: React.FC = () => {
             // looking at the diorama, not aiming.
             if (storyPlaced) {
               reticle?.setMode('searching');
-              highlight?.setVisible(false);
             } else {
               reticle?.setPose(pose.matrix);
               reticle?.setMode('tracking');
-              highlight?.setPose(pose.matrix);
-              if (pose.extent) {
-                highlight?.setSize(pose.extent.u, pose.extent.v);
-                highlight?.setVisible(true);
-              }
               if (!reportedReadyRef.current) {
                 reportedReadyRef.current = true;
                 setSurfaceReady(true);
@@ -220,7 +207,6 @@ export const StoryARExperience: React.FC = () => {
           } else {
             lastReticleMatrixRef.current = null;
             if (!storyPlaced) reticle?.setMode('searching');
-            highlight?.setVisible(false);
             debugTelemetry.setSubsystem('hitTest', 'searching');
           }
 
@@ -255,8 +241,6 @@ export const StoryARExperience: React.FC = () => {
     }
 
     reticleRef.current = null;
-    highlightRef.current?.dispose();
-    highlightRef.current = null;
     sceneRootRef.current = null;
     lastReticleMatrixRef.current = null;
     lastFrameTimeRef.current = null;

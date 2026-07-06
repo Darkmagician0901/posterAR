@@ -76,6 +76,16 @@ describe('assets routes', () => {
     expect(repo.rows).toHaveLength(0)
   })
 
+  it('POST rejects a contentType outside the image allowlist', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/assets',
+      headers: { 'x-owner-id': 'owner-1' },
+      payload: { ...validBody, contentType: 'text/html' },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(repo.rows).toHaveLength(0)
+  })
+
   it('POST rejects an owner header with path-traversal characters', async () => {
     const res = await app.inject({
       method: 'POST', url: '/api/assets',

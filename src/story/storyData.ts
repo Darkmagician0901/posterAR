@@ -88,9 +88,8 @@ export const STORY_ERAS: StoryEra[] = [
 
 /** Title-card copy shown before the first era (the "place the story" moment). */
 export const STORY_INTRO = {
-  title: 'THE GROUND REMEMBERS',
-  subtitle:
-    "You're standing on 10th & Center. This soil has lived four lives. Tap the ground to begin.",
+  title: 'WELCOME TO THE EMERGING MEDIA LAB',
+  subtitle: 'This experience is for demonstration purposes only.',
 } as const;
 
 /** Outro copy shown after the final era. */

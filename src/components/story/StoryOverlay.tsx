@@ -56,7 +56,7 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
       {/* ── Intro / scan card ─────────────────────────────────────────── */}
       {!placed && phase !== 'outro' && (
         <div className="story-card story-card-intro">
-          <div className="story-kicker">10TH &amp; CENTER</div>
+          <div className="story-kicker">DEMO EXPERIENCE</div>
           <h1 className="story-title">{STORY_INTRO.title}</h1>
           <p className="story-sub">{STORY_INTRO.subtitle}</p>
           <div className={`story-scan ${surfaceReady ? 'ready' : ''}`}>

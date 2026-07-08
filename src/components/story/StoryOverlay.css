@@ -50,10 +50,12 @@
   pointer-events: auto;
   backdrop-filter: blur(2px);
 }
+/* Intro card sits near the top so it never covers the centre-screen
+   placement reticle (the green circle that guides where to tap). */
 .story-card-intro {
   bottom: auto;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  top: calc(env(safe-area-inset-top, 0px) + 76px);
+  transform: translateX(-50%);
 }
 
 .story-kicker {

@@ -24,7 +24,7 @@ import { onXr8Ready, runXr8, stopXr8 } from '@/xr8/pipeline';
 import { readReticlePose } from '@/xr8/hitTestController';
 import { PosterPlacement } from '@/xr8/posterPlacement';
 import { getAmbientColor } from '@/xr8/ambientProbe';
-import { composeFlatPosterMatrix } from '@/xr/posterOrientation';
+import { composePosterMatrix } from '@/xr/posterOrientation';
 import { createReticle, Reticle } from '@/xr/reticle';
 import { debugTelemetry } from '@/xr/debugTelemetry';
 import { usePosterStore } from '@/store/posterStore';
@@ -215,7 +215,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
       } catch {
         cameraPos = null;
       }
-      const placeMatrix = composeFlatPosterMatrix(matrix, cameraPos);
+      const placeMatrix = composePosterMatrix(matrix, cameraPos);
 
       // TEMPORARY: log that placement.place is about to be called.
       debugTelemetry.logEvent('placement.place: calling…');

@@ -9,7 +9,8 @@
  *
  * 8th Wall's SLAM keeps the world frame stable, so once the tile's group
  * matrix is set it simply stays put — no per-frame anchor update needed. The
- * tile is laid flat via the matrix supplied by composeFlatPosterMatrix().
+ * tile's orientation (upright or flat) comes entirely from the matrix supplied
+ * by composePosterMatrix(); this class just decomposes and applies it.
  */
 
 import {
@@ -51,10 +52,11 @@ export class StoryTile {
   }
 
   /**
-   * Plants the tile flat on the detected surface.
+   * Plants the tile on the detected surface at the given pose.
    *
-   * @param matrix — 16 column-major floats of the flat pose (normally from
-   *   composeFlatPosterMatrix(readReticlePose().matrix, cameraPos)).
+   * @param matrix — 16 column-major floats of the pose (normally from
+   *   composePosterMatrix(readReticlePose().matrix, cameraPos)), which already
+   *   encodes the upright-or-flat orientation.
    */
   place(matrix: Float32Array): void {
     const m = new Matrix4().fromArray(matrix as unknown as number[]);
@@ -85,9 +87,9 @@ export class StoryTile {
       });
       const geometry = new PlaneGeometry(width, height);
       this._mesh = new Mesh(geometry, this._material);
-      // composeFlatPosterMatrix already orients the group so local +Z is the surface
-      // normal, so the +Z-facing plane lies flat on the ground (art top pointing away
-      // from the viewer) — matching PosterPlacement. No extra mesh rotation needed.
+      // composePosterMatrix already orients the group (upright facing the viewer,
+      // or flat on the ground per the POSTER_STANDS_UPRIGHT toggle), so the
+      // +Z-facing plane needs no extra mesh rotation — matching PosterPlacement.
       this._group.add(this._mesh);
       return;
     }

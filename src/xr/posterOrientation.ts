@@ -2,7 +2,14 @@
  * posterOrientation.ts
  *
  * Engine-agnostic helper that turns a hit-test pose into the transform used to
- * lay a poster FLAT on the surface (instead of standing it up).
+ * place a poster on the detected surface. Two orientations are supported:
+ *
+ *   - FLAT  (`composeFlatPosterMatrix`)   — the poster lies on the ground.
+ *   - UPRIGHT (`composeUprightPosterMatrix`) — the poster stands vertically
+ *     like a sign, facing the viewer.
+ *
+ * `composePosterMatrix` picks between them via the `POSTER_STANDS_UPRIGHT`
+ * toggle so callers don't have to care which one is active.
  *
  * Why this exists: a three.js PlaneGeometry faces its local +Z. The 8th Wall
  * hit-test pose follows the convention "local +Y = surface normal", so feeding
@@ -12,11 +19,22 @@
  * and we choose the in-plane spin so the image's top edge (+Y) points away
  * from the viewer (the photo's "head" faces away from where you stand).
  *
- * Pure function: reads only its arguments + module-scoped temporaries, so it is
- * unit-testable without any 8th Wall / browser globals.
+ * Pure functions: they read only their arguments + module-scoped temporaries,
+ * so they are unit-testable without any 8th Wall / browser globals.
  */
 
 import { Matrix4, Vector3 } from 'three'
+
+/**
+ * Master switch for how a tapped asset is oriented.
+ *
+ * `true`  → posters STAND upright, facing the viewer (current default).
+ * `false` → posters lie FLAT on the detected ground (the original behaviour).
+ *
+ * Kept as a single exported constant so the "standing vs. flat" decision has
+ * exactly one home and can be flipped back without touching the call sites.
+ */
+export const POSTER_STANDS_UPRIGHT = true
 
 // ── module-scoped temporaries — reused to avoid per-placement allocation ─────
 const _hit = new Matrix4()
@@ -26,7 +44,28 @@ const _hitInPlane = new Vector3()
 const _fromCam = new Vector3()
 const _xAxis = new Vector3()
 const _yAxis = new Vector3()
+const _zAxis = new Vector3()
 const _out = new Matrix4()
+
+/** Gravity-up: the direction an upright poster's top edge points. */
+const WORLD_UP = new Vector3(0, 1, 0)
+
+/**
+ * Build the world transform for a tapped poster, honoring the
+ * `POSTER_STANDS_UPRIGHT` toggle (upright by default, flat when disabled).
+ *
+ * Both branches share the same signature and return convention, so call sites
+ * can switch behaviour purely through the toggle. See the two delegates for the
+ * per-orientation geometry.
+ */
+export function composePosterMatrix(
+  hitMatrix: Float32Array,
+  cameraPos?: Vector3 | null,
+): Float32Array {
+  return POSTER_STANDS_UPRIGHT
+    ? composeUprightPosterMatrix(hitMatrix, cameraPos)
+    : composeFlatPosterMatrix(hitMatrix, cameraPos)
+}
 
 /**
  * Build the world transform that lays a poster flat in the surface plane.
@@ -84,6 +123,69 @@ export function composeFlatPosterMatrix(
   _yAxis.crossVectors(_normal, _xAxis).normalize()
 
   _out.makeBasis(_xAxis, _yAxis, _normal)
+  _out.setPosition(_pos)
+  return new Float32Array(_out.elements)
+}
+
+/**
+ * Build the world transform that stands a poster UPRIGHT at the contact point,
+ * like a sign planted in the ground and turned to face the viewer.
+ *
+ * The plane's top edge (+Y) is gravity-up regardless of how the detected
+ * surface is tilted, and its facing axis (+Z) points horizontally toward the
+ * camera so the art reads head-on. The poster is centered on the contact point
+ * (it pivots there), so with the default poster size roughly its lower half
+ * sits below the surface — grounding the bottom edge is a deliberate follow-up.
+ *
+ * @param hitMatrix Column-major Float32Array from the hit-test pose. Only its
+ *                  translation (the contact point) is used here — the standing
+ *                  orientation is derived from gravity + the camera, not the
+ *                  surface normal.
+ * @param cameraPos Optional camera world position. When supplied, the poster
+ *                  turns to face it (projected onto the horizontal plane). When
+ *                  omitted/null — or when the camera sits directly overhead — we
+ *                  fall back to the hit pose's in-plane axis, then a default, so
+ *                  the poster still stands vertically.
+ * @returns Column-major Float32Array suitable for `Group.matrix` (a proper
+ *          right-handed rotation + translation — no mirroring).
+ */
+export function composeUprightPosterMatrix(
+  hitMatrix: Float32Array,
+  cameraPos?: Vector3 | null,
+): Float32Array {
+  _hit.fromArray(hitMatrix)
+  _pos.setFromMatrixColumn(_hit, 3)
+
+  // Image "up" is true vertical so the poster stands regardless of surface tilt.
+  _yAxis.copy(WORLD_UP)
+
+  // Facing (+Z) = horizontal direction toward the camera, so the art faces you.
+  if (cameraPos) {
+    _fromCam.subVectors(cameraPos, _pos)
+    _zAxis.copy(_fromCam).addScaledVector(_yAxis, -_fromCam.dot(_yAxis))
+  } else {
+    _zAxis.set(0, 0, 0)
+  }
+
+  // Fallbacks for a degenerate facing (no camera, or camera directly overhead).
+  if (_zAxis.lengthSq() < 1e-8) {
+    _hitInPlane.setFromMatrixColumn(_hit, 2)
+    _zAxis.copy(_hitInPlane).addScaledVector(_yAxis, -_hitInPlane.dot(_yAxis))
+  }
+  if (_zAxis.lengthSq() < 1e-8) {
+    // Extreme degenerate — any horizontal facing will do.
+    _zAxis.set(0, 0, 1)
+  }
+  _zAxis.normalize()
+
+  // Right-handed orthonormal basis with the poster facing the viewer:
+  //   yAxis = world up (poster stands vertically)
+  //   xAxis = yAxis × zAxis
+  //   zAxis = xAxis × yAxis  (re-derived for strict orthogonality)
+  _xAxis.crossVectors(_yAxis, _zAxis).normalize()
+  _zAxis.crossVectors(_xAxis, _yAxis).normalize()
+
+  _out.makeBasis(_xAxis, _yAxis, _zAxis)
   _out.setPosition(_pos)
   return new Float32Array(_out.elements)
 }

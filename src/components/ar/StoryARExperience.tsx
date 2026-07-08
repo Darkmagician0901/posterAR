@@ -26,7 +26,7 @@ import {
 import { onXr8Ready, runXr8, stopXr8 } from '@/xr8/pipeline';
 import { readReticlePose } from '@/xr8/hitTestController';
 import { StoryTile } from '@/xr8/storyTile';
-import { composeFlatPosterMatrix } from '@/xr/posterOrientation';
+import { composePosterMatrix } from '@/xr/posterOrientation';
 import { createReticle, Reticle } from '@/xr/reticle';
 import { debugTelemetry } from '@/xr/debugTelemetry';
 import { useUIState } from '@/hooks/useUIState';
@@ -107,7 +107,7 @@ export const StoryARExperience: React.FC = () => {
       cameraPos = null;
     }
 
-    tile.place(composeFlatPosterMatrix(matrix, cameraPos));
+    tile.place(composePosterMatrix(matrix, cameraPos));
     useStoryStore.getState().place();
     addToast({ type: 'success', message: 'The ground remembers…' });
     debugTelemetry.logEvent('story: diorama planted');

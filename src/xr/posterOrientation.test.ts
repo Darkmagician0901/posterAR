@@ -1,13 +1,18 @@
 /**
  * posterOrientation.test.ts
  *
- * Unit tests for the pure `composeFlatPosterMatrix` helper. No 8th Wall or
- * browser globals required — exercises the geometry directly.
+ * Unit tests for the pure orientation helpers (flat + upright + dispatcher).
+ * No 8th Wall or browser globals required — exercises the geometry directly.
  */
 
 import { describe, it, expect } from 'vitest'
 import { Matrix4, Quaternion, Vector3 } from 'three'
-import { composeFlatPosterMatrix } from './posterOrientation'
+import {
+  composeFlatPosterMatrix,
+  composeUprightPosterMatrix,
+  composePosterMatrix,
+  POSTER_STANDS_UPRIGHT,
+} from './posterOrientation'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -128,5 +133,87 @@ describe('composeFlatPosterMatrix', () => {
     expect(facing.x).toBeCloseTo(expectedNormal.x, 4)
     expect(facing.y).toBeCloseTo(expectedNormal.y, 4)
     expect(facing.z).toBeCloseTo(expectedNormal.z, 4)
+  })
+})
+
+describe('composeUprightPosterMatrix', () => {
+  it('stands the poster vertically — image top (+Y) is gravity-up', () => {
+    const pose = hitMatrix(new Vector3(0, 0, -2))
+    const camera = new Vector3(0, 1.5, 0)
+    const m = toMatrix4(composeUprightPosterMatrix(pose, camera))
+
+    const up = col(m, 1)
+    expect(up.x).toBeCloseTo(0, 4)
+    expect(up.y).toBeCloseTo(1, 4) // straight up → stands upright
+    expect(up.z).toBeCloseTo(0, 4)
+  })
+
+  it('faces the viewer — facing axis (+Z) is horizontal, toward the camera', () => {
+    // Poster at (0,0,-2); camera at (0,1.5,0) → horizontally the camera is at +Z.
+    const pose = hitMatrix(new Vector3(0, 0, -2))
+    const camera = new Vector3(0, 1.5, 0)
+    const m = toMatrix4(composeUprightPosterMatrix(pose, camera))
+
+    const facing = col(m, 2)
+    expect(Math.abs(facing.y)).toBeLessThan(EPS) // horizontal (no vertical tilt)
+    expect(facing.z).toBeCloseTo(1, 4) // points toward the viewer
+  })
+
+  it('keeps the contact point as the translation', () => {
+    const pos = new Vector3(1.2, 0.3, -3.4)
+    const m = toMatrix4(composeUprightPosterMatrix(hitMatrix(pos), new Vector3(0, 1.6, 0)))
+    const t = col(m, 3)
+    expect(t.x).toBeCloseTo(pos.x, 5)
+    expect(t.y).toBeCloseTo(pos.y, 5)
+    expect(t.z).toBeCloseTo(pos.z, 5)
+  })
+
+  it('produces a right-handed, orthonormal basis (no mirroring)', () => {
+    const m = toMatrix4(
+      composeUprightPosterMatrix(hitMatrix(new Vector3(0.5, 0, -2)), new Vector3(0.3, 1.6, 0.2)),
+    )
+    const x = col(m, 0)
+    const y = col(m, 1)
+    const z = col(m, 2)
+
+    expect(x.length()).toBeCloseTo(1, 5)
+    expect(y.length()).toBeCloseTo(1, 5)
+    expect(z.length()).toBeCloseTo(1, 5)
+    expect(x.dot(y)).toBeCloseTo(0, 5)
+    expect(x.dot(z)).toBeCloseTo(0, 5)
+    expect(y.dot(z)).toBeCloseTo(0, 5)
+
+    expect(det3(m)).toBeCloseTo(1, 4)
+  })
+
+  it('still stands vertically when no camera is supplied (fallback facing)', () => {
+    const m = toMatrix4(composeUprightPosterMatrix(hitMatrix(new Vector3(0, 0, -2)), null))
+    expect(col(m, 1).y).toBeCloseTo(1, 4) // still upright
+    expect(Math.abs(col(m, 2).y)).toBeLessThan(EPS) // facing stays horizontal
+    expect(col(m, 0).length()).toBeCloseTo(1, 5)
+    expect(det3(m)).toBeCloseTo(1, 4)
+  })
+
+  it('stands vertically even on a tilted surface (ignores the hit normal)', () => {
+    // Tilt the hit pose 30° about X; an upright poster must still point straight up.
+    const quat = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 6)
+    const m = toMatrix4(
+      composeUprightPosterMatrix(hitMatrix(new Vector3(0, 0, -2), quat), new Vector3(0, 1.6, 0)),
+    )
+    const up = col(m, 1)
+    expect(up.x).toBeCloseTo(0, 4)
+    expect(up.y).toBeCloseTo(1, 4)
+    expect(up.z).toBeCloseTo(0, 4)
+  })
+})
+
+describe('composePosterMatrix (toggle dispatcher)', () => {
+  it('matches the upright composer while POSTER_STANDS_UPRIGHT is on', () => {
+    expect(POSTER_STANDS_UPRIGHT).toBe(true)
+    const pose = hitMatrix(new Vector3(0, 0, -2))
+    const camera = new Vector3(0, 1.5, 0)
+    const dispatched = composePosterMatrix(pose, camera)
+    const upright = composeUprightPosterMatrix(pose, camera)
+    expect(Array.from(dispatched)).toEqual(Array.from(upright))
   })
 })

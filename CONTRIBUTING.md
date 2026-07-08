@@ -185,7 +185,7 @@ const MyComponent: React.FC<Props> = ({ data }) => {
 ```
 src/
 ├── components/       # React components
-│   ├── ar/          # ARExperience (live 8th Wall), DesktopMockMode
+│   ├── ar/          # StoryARExperience (live 8th Wall), DesktopMockMode; ARExperience retained but unused (legacy)
 │   ├── ui/          # UI components (+ co-located .css)
 │   └── layout/      # Header, MainLayout
 ├── hooks/           # Custom React hooks / UI store
@@ -390,7 +390,7 @@ Relates to #456
 - Refactored Z component
 
 ## Testing
-- [ ] `npm run test` passes (all 29 automated tests)
+- [ ] `npm run test` passes (all 86 automated tests)
 - [ ] `npm run type-check` passes
 - [ ] Build succeeds
 - [ ] Tested on iOS Safari 16.4+ (for AR features)
@@ -442,7 +442,7 @@ Run the full vitest suite before every push or PR:
 
 ```bash
 npm run test
-# Expected: 65 tests pass, no failures
+# Expected: 86 tests pass, no failures
 ```
 
 During active development, watch mode is useful:

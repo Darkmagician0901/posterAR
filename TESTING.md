@@ -30,20 +30,27 @@ npm run test
 npm run test:watch
 ```
 
-**10 test files, 65 tests, all passing, runs in < 2 s:**
+**17 test files, 86 tests, all passing, runs in < 2 s:**
 
-| File | What it covers |
-|------|----------------|
-| `src/components/ar/arCanvasReparent.test.tsx` | Regression: canvas reparent by XRExtras must not break React's DOM anchor |
-| `src/utils/gifDecode.test.ts` | GIF decode adapter (gifuct-js), size reading, data: URL decode |
-| `src/utils/imageUpload.test.ts` | Upload validation + WebP compression rules (formats, size caps) |
-| `src/utils/screenshot.test.ts` | Screenshot utilities: crop math, filename generation, blob/data-URL helpers |
-| `src/xr/posterOrientation.test.ts` | `composeFlatPosterMatrix` — flat-placement orientation math (facing normal, head-away, orthonormal basis, degenerate/tilted cases) |
-| `src/xr8/ambientProbe.test.ts` | `estimateAmbient` — camera-color math (brightness mapping, color cast, EMA smoothing) |
-| `src/xr8/gifPlayhead.test.ts` | Pure frame-timing playhead math |
-| `src/xr8/gifAnimator.test.ts` | CanvasTexture animator behavior |
-| `src/xr8/posterPlacement.test.ts` | Poster mesh placement / removal in the scene |
-| `src/xr8/posterTextureCache.test.ts` | Refcounted shared animator cache, memory budget, texture disposal |
+| File | Tests | What it covers |
+|------|-------|----------------|
+| `src/components/ar/arCanvasReparent.test.tsx` | 2 | Regression: canvas reparent by XRExtras must not break React's DOM anchor |
+| `src/hooks/usePosterUpload.persist.test.ts` | 2 | Persists processed uploads via `posterApi`; returns `null` (no throw) when persistence fails |
+| `src/services/posterApi.test.ts` | 2 | Client `persistAsset` / `listAssets` — presigned-URL upload flow, owner-scoped fetch |
+| `src/store/posterStore.hydrate.test.ts` | 2 | `hydrateUploads` merges remote assets into the gallery without duplicating ids or touching the current poster |
+| `src/store/storyStore.test.ts` | 8 | Story mode phase/era state machine (scanning → placed → outro; place/next/prev/jumpTo) |
+| `src/story/svgTexture.test.ts` | 3 | `svgFrame` — SVG viewBox parsing, aspect ratio, fallback/malformed-input handling |
+| `src/utils/deviceToken.test.ts` | 2 | `getDeviceToken` — generates and persists a stable per-device id in localStorage |
+| `src/utils/gifDecode.test.ts` | 3 | GIF decode adapter (gifuct-js), size reading, data: URL decode |
+| `src/utils/imageUpload.test.ts` | 3 | Upload validation + WebP compression rules (formats, size caps) |
+| `src/utils/screenshot.test.ts` | 13 | Screenshot utilities: crop math, filename generation, blob/data-URL helpers |
+| `src/xr/posterOrientation.test.ts` | 7 | `composeFlatPosterMatrix` — flat-placement orientation math (facing normal, head-away, orthonormal basis, degenerate/tilted cases) |
+| `src/xr8/ambientProbe.test.ts` | 5 | `estimateAmbient` — camera-color math (brightness mapping, color cast, EMA smoothing) |
+| `src/xr8/gifPlayhead.test.ts` | 5 | Pure frame-timing playhead math |
+| `src/xr8/gifAnimator.test.ts` | 4 | CanvasTexture animator behavior |
+| `src/xr8/hitTestController.test.ts` | 2 | `readReticlePose` — hit-test pose reading from the `XR8` global (null when engine absent, flat pose on a horizontal hit) |
+| `src/xr8/posterPlacement.test.ts` | 9 | Poster mesh placement / removal in the scene |
+| `src/xr8/posterTextureCache.test.ts` | 14 | Refcounted shared animator cache, memory budget, texture disposal |
 
 ### Testing philosophy
 
@@ -114,7 +121,7 @@ npm install
 
 # 2. Automated tests (must all pass)
 npm run test
-# Expected: 65 tests pass, no failures
+# Expected: 86 tests pass, no failures
 
 # 3. Type checking
 npm run type-check

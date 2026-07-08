@@ -18,7 +18,7 @@ The app splits cleanly into two halves:
 
 | Layer | Owns | You (UI) touch it via |
 |-------|------|-----------------------|
-| **AR engine** (`src/xr8/`, `src/xr/`, `ARExperience`) | Camera feed, three.js canvas, render loop, hit-test, reticle, poster meshes, tap-to-place, ambient tint | **State only** — you mutate stores, the AR layer mirrors them into the 3D scene |
+| **AR engine** (`src/xr8/`, `src/xr/`, `StoryARExperience`) | Camera feed, three.js canvas, render loop, hit-test, reticle, poster/diorama meshes, tap-to-place, ambient tint | **State only** — you mutate stores, the AR layer mirrors them into the 3D scene |
 | **UI** (`src/components/`, `src/hooks/`) | Toolbars, overlays, modals, toasts, the whole 2D DOM on top of the canvas | Directly — this is your surface |
 
 **The golden rule:** you never call three.js or 8th Wall. You drive everything
@@ -42,25 +42,35 @@ three branches. Your UI lives **inside** the first two.
 
 | Branch | When | What's live |
 |--------|------|-------------|
-| `ARExperience` | mobile + camera + HTTPS (`hasAR8`) | Real 8th Wall AR |
+| `StoryARExperience` | mobile + camera + HTTPS (`hasAR8`) | Real 8th Wall AR — "THE GROUND REMEMBERS" 5-era story/diorama mode |
 | `DesktopMockMode` | desktop | Webcam + mouse-look sandbox (same placement/UI code) |
 | "AR Not Supported" | anything else | Static message + device-info table |
 
 Both live branches mount the same shared overlays: `<Toast />`,
-`<InstructionsOverlay />`, `<DiagnosticPanel />`. **Develop on desktop** — the
-mock branch exercises your UI, the stores, placement, scaling, and rotation
-without a phone. Only the camera-composited screenshot and ambient tint differ
-from device.
+`<InstructionsOverlay />` (desktop only), `<DiagnosticPanel />`. **Develop on
+desktop** — the mock branch exercises your UI, the stores, placement, scaling,
+and rotation without a phone. Only the camera-composited screenshot and
+ambient tint differ from device.
 
-`ARExperience` props (set by `App`, not usually by you):
+**`StoryARExperience` takes no props** — it's a plain `React.FC` (`export const
+StoryARExperience: React.FC = () => { ... }`) whose state comes entirely from
+`useUIState`, `useArLoadProgress`, and `@/store/storyStore`'s `useStoryStore`
+(narrative phase/era state for the story mode — not covered in depth here
+since the story UI is not yet part of the general integration surface), not
+from props set by `App`.
 
-```ts
-interface ARExperienceProps {
-  mode?: 'dev' | 'live';        // 'dev' force-opens the debug HUD; default 'live'
-  onSessionStart?: () => void;  // fired when the AR session goes live
-  onSessionEnd?: () => void;    // fired on teardown
-}
-```
+> **Legacy note — `ARExperience` (`components/ar/ARExperience.tsx`).** An
+> older multi-poster placement UI is still in the tree but is **not mounted**
+> by `App.tsx` on the live branch (retained intentionally, not deleted). If
+> you're integrating against it specifically, its old prop contract was:
+> ```ts
+> interface ARExperienceProps {
+>   mode?: 'dev' | 'live';        // 'dev' force-opens the debug HUD; default 'live'
+>   onSessionStart?: () => void;  // fired when the AR session goes live
+>   onSessionEnd?: () => void;    // fired on teardown
+> }
+> ```
+> This does not apply to the shipped live path.
 
 ---
 
@@ -104,11 +114,18 @@ const updatePoster = usePosterStore((s) => s.updatePoster);
 | `removeUploadedPoster` | `(id) => void` | Falls back `currentPosterImage` to first remaining upload, or the bundled default |
 | `setCurrentPosterImage` | `(imageUrl: string) => void` | Gallery selection — picks what the next tap places |
 
-> **Placement is engine-driven.** The user taps the screen → `ARExperience`
+> **Placement is engine-driven.** The user taps the screen → the AR layer
 > reads the reticle pose and calls `addPoster` with the world transform +
 > `currentPosterImage`. Your job is to set `currentPosterImage` (via the
 > gallery / upload) and to render / scale / rotate / delete from the `posters`
 > list. You do **not** position posters from the DOM.
+>
+> **Note:** on the live mobile branch this multi-poster flow belongs to the
+> retained-legacy `ARExperience`, not the shipped `StoryARExperience` (which
+> places a single diorama tile via `useStoryStore` instead — see §2). The
+> desktop mock branch (`DesktopMockMode`) still exercises this exact
+> `posterStore.addPoster` flow, so `usePosterStore` remains the right surface
+> to build multi-poster UI against and to test on desktop.
 
 ### 3.2 `useUIState` — overlays + toasts
 
@@ -140,9 +157,11 @@ addToast({ type: 'success', message: 'Poster placed' });
 
 ### 4.1 `usePosterUpload()` — pick / validate / compress an image
 
-Everything is client-side; "upload" = decode + compress to a `data:` URL (no
-network). GIFs are preserved and animated; other images become WebP. Validation
-errors never throw — they surface as `{ success: false, error }` **and** a toast.
+By default everything is client-side; "upload" = decode + compress to a `data:`
+URL (no network). GIFs are preserved and animated; other images become WebP.
+When the optional `VITE_API_BASE_URL` persistence API is configured, the asset is
+additionally uploaded to the server (see §8). Validation errors never throw —
+they surface as `{ success: false, error }` **and** a toast.
 
 ```ts
 const {
@@ -222,20 +241,29 @@ Props below are the integration contract.
 
 | Component | Props | Role |
 |-----------|-------|------|
-| `ControlPanel` | `{ isARActive: boolean }` | Floating toolbar: clear / photo / upload / gallery / help / debug. Renders `null` until the session is active. Owns gallery + photo-preview modals internally |
-| `PosterControls` | _none_ | **Scale slider + rotation slider + delete** for the selected poster. Renders `null` when nothing is selected |
-| `PosterGallery` | `{ onClose: () => void }` | Modal grid of default + uploaded images; selecting one sets `currentPosterImage` |
+| `ControlPanel` | `{ isARActive: boolean }` | Floating toolbar: clear / photo / upload / gallery / help / debug. Renders `null` until the session is active. Owns gallery + photo-preview modals internally. **Legacy** — only mounted by the retained `ARExperience`, not the shipped live path |
+| `PosterControls` | _none_ | **Scale slider + rotation slider + delete** for the selected poster. Renders `null` when nothing is selected. **Legacy** — same as above |
+| `PosterGallery` | `{ onClose: () => void }` | Modal grid of default + uploaded images; selecting one sets `currentPosterImage`. **Legacy** — same as above |
 | `PhotoPreview` | `{ photo, canShare, isSharing, onSave, onShare, onClose }` | Full-screen captured-photo preview with save/share |
 | `Toast` | _none_ | Renders the `useUIState` toast queue. Mount once near the root |
-| `InstructionsOverlay` | _none_ | Tutorial overlay; reads/writes `useUIState.showInstructions` |
+| `InstructionsOverlay` | _none_ | Tutorial overlay; reads/writes `useUIState.showInstructions`. Mounted on the desktop-mock branch only |
 | `DiagnosticPanel` | _none_ | Always-on subsystem health (engine/camera/motion/tracking/hit-test) |
 | `DebugHUD` | _none_ | FPS + live subsystem state; toggle via the Debug button or `?debug=1` |
+| `StoryOverlay` | `{ surfaceReady: boolean }` | 2D HUD for the live "THE GROUND REMEMBERS" branch: era-colored vignette, docent narration (typewriter), year/title card, five-stop timeline, scan/next/back controls. Reads/writes `useStoryStore` directly; only `surfaceReady` is passed down (from the reticle hit-test state) |
+
+> `ControlPanel` / `PosterControls` / `PosterGallery` are the multi-poster UI
+> for the retained-legacy `ARExperience` and are not rendered by
+> `StoryARExperience` or `DesktopMockMode` today. Build against them only if
+> you are extending that legacy path specifically.
 
 **Ambient realism (automatic, no UI needed):** placed posters are tinted toward
 the room's brightness and color cast — the engine samples a tiny downsampled
 camera frame (`ambientProbe`) so a poster doesn't glow like a sticker. Posters
 also honor **PNG/GIF transparency**. You don't drive any of this; just know that
 placed posters won't look flat-lit, and that transparent images show through.
+(This applies to `PosterPlacement` meshes — the legacy `ARExperience` path and
+`DesktopMockMode`. The live `StoryARExperience` diorama tile is a plain
+untinted transparent material; it does not apply ambient color.)
 
 ---
 
@@ -296,8 +324,13 @@ Tunables in `@/utils/constants`: `DEFAULT_POSTER_WIDTH/HEIGHT/DEPTH`,
   `canvas.toDataURL()`.
 - **HTTPS (or localhost) required** for camera + engine. Plain `http://` won't
   reach the AR branch.
-- **Everything is client-side** — no backend; uploaded images live only in
-  memory (data URLs) for the session.
+- **Client-side by default** — with no `VITE_API_BASE_URL` configured, there's
+  no backend and uploaded images live only in memory (data URLs) for the
+  session. When `VITE_API_BASE_URL` **is** set, uploads are also persisted to
+  a server API (`src/services/posterApi.ts`: `POST /api/assets` then `PUT` to
+  a signed URL) and `App.tsx` hydrates previously-uploaded posters from that
+  API on load — check `isPersistenceEnabled()` if your UI needs to branch on
+  this.
 
 ---
 
@@ -347,6 +380,10 @@ const { percent, label, error } = useArLoadProgress(showLoading);
 | Photo flow | `src/hooks/useScreenshot.ts` |
 | Loading progress | `src/hooks/useArLoadProgress.ts` |
 | Toolbar / modals | `src/components/ui/*` |
-| Scale + rotation + delete controls | `src/components/ui/PosterControls.tsx` |
-| AR session lifecycle | `src/components/ar/ARExperience.tsx` |
+| Scale + rotation + delete controls (legacy `ARExperience` path) | `src/components/ui/PosterControls.tsx` |
+| Live AR session lifecycle | `src/components/ar/StoryARExperience.tsx` |
+| Story narrative state | `src/store/storyStore.ts` |
+| Story 2D HUD | `src/components/story/StoryOverlay.tsx` |
+| Retained-legacy multi-poster AR UI (not mounted on live) | `src/components/ar/ARExperience.tsx` |
+| Asset persistence API (optional, `VITE_API_BASE_URL`) | `src/services/posterApi.ts` |
 | Types | `src/types/index.ts`, `src/utils/constants.ts` |

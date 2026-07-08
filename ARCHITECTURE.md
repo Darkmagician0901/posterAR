@@ -36,7 +36,7 @@ implementation, which uses the **8th Wall (XR8)** WebAR engine driving a plain
 │                                                                            │
 │  React app (src/)                                                          │
 │   App.tsx ── detectXRSupport() ──▶ one of 3 branches                       │
-│     ├─ hasAR8  → <ARExperience mode="live">   (8th Wall owns the canvas)    │
+│     ├─ hasAR8  → <StoryARExperience>          (8th Wall owns the canvas)    │
 │     ├─ desktop → <DesktopMockMode>            (raw three.js + webcam)       │
 │     └─ else    → "AR Not Supported" panel                                  │
 │                                                                            │
@@ -70,7 +70,7 @@ scene* and *reacts to frames*.
    mirrors per-script load state into telemetry, distinguishing a **fatal**
    engine-script failure from a **non-fatal** optional-helper failure.
 4. Renders the branch:
-   - **`hasAR8`** (`isMobile && hasCamera && secureContext`) → `ARExperience`.
+   - **`hasAR8`** (`isMobile && hasCamera && secureContext`) → `StoryARExperience`.
    - **`isDesktop`** → `DesktopMockMode`.
    - else → the unsupported panel with a device-info table.
 
@@ -103,46 +103,62 @@ WASM/SIMD failures.
 
 ---
 
-## 5. Live AR pipeline (`components/ar/ARExperience.tsx`)
+## 5. Live AR pipeline (`components/ar/StoryARExperience.tsx`)
 
-On "Start AR", the component calls `onXr8Ready(() => runXr8({ canvas,
-customModules: [sceneModule] }))`. The custom `sceneModule`:
+The shipped live-AR path is **`StoryARExperience`** — "THE GROUND REMEMBERS", a
+5-era story/diorama mode. Instead of placing many user posters, it plants
+**one** diorama tile (`StoryTile`, `src/xr8/storyTile.ts`) on the detected
+ground and swaps that tile's texture as the user steps through the eras via
+the `StoryOverlay` HUD (`src/components/story/StoryOverlay.tsx`).
+`StoryARExperience` is a plain `React.FC` with **no props**;
+all of its state comes from `useUIState`, `useArLoadProgress`, and
+`useStoryStore` (`src/store/storyStore.ts`).
+
+On "Start AR" (`startSession()`), the component calls `onXr8Ready(() =>
+runXr8({ canvas, customModules: [sceneModule] }))`. The custom `sceneModule`:
 
 **`onStart`** (once, when the engine is ready):
 - Gets `{ scene, camera }` from `XR8.Threejs.xrScene()`.
-- Adds lighting, a `sceneRoot` Group (holds placed posters), and the reticle
-  (`createReticle`). The reticle's head-locked "scanner" ring is added as a
-  **child of the camera** so it follows the view with no tracking math.
-- Constructs a `PosterPlacement(sceneRoot)`.
-- Subscribes to `posterStore`: store deletions / scale-changes / rotation-changes
-  are mirrored into the three.js scene (removed posters → `placement.remove`,
-  scale diffs → `placement.setScale`, `rotation[2]` diffs →
-  `placement.setRotation`). This is the bridge between React state and the scene.
-- Registers `touchstart`/`mousedown` on the canvas → `placePoster()`.
-- Sets session/engine/camera/hit-test telemetry and hides the loading screen.
+- Adds lighting, a `sceneRoot` Group, and the reticle (`createReticle`). The
+  reticle's head-locked "scanner" ring is added as a **child of the camera**
+  so it follows the view with no tracking math.
+- Constructs a `StoryTile(sceneRoot)` — the single swappable diorama mesh.
+- Registers `touchstart`/`mousedown` on the canvas → `placeStory()`.
+- Sets session/engine/hit-test telemetry and hides the loading screen.
 
 **`onUpdate`** (every frame):
-- Marks `firstFrame`, runs `readReticlePose()`, and drives the reticle into
-  `tracking` (with the pose matrix + horizontal/vertical tint) or `searching`.
-- Calls `placement.tick(deltaMs)` to advance active GIF animators (see §6a).
-- Caches the last reticle matrix for the next placement, updates FPS + hit-test
-  telemetry. No allocation in the hot path beyond the pose `Float32Array`.
+- Runs `readReticlePose()` and drives the reticle into `tracking` (until the
+  diorama is placed, after which the reticle is hidden — the user is just
+  looking around) or `searching`.
+- Calls `tile.tick(deltaMs)` (currently a no-op; reserved for animated era
+  textures).
+- Caches the last reticle matrix for the next placement and ticks telemetry.
 
-**`placePoster()`** (on tap): loads/caches the current poster texture, computes
-aspect, calls `posterStore.addPoster(...)` (which enforces `maxPosters` and
-auto-selects). Then it reads the camera world position from
-`XR8.Threejs.xrScene().camera.position` and calls `composeFlatPosterMatrix(matrix,
-cameraPos)` (`src/xr/posterOrientation.ts`) to build a flat-on-surface transform
-— the poster's facing axis (+Z) coincides with the surface normal, and the
-image's top edge points away from the viewer. The resulting matrix is passed to
-`placement.place(...)`. On any failure the store entry is rolled back.
+**`placeStory()`** (on the first tap only — later taps are a no-op once
+placed): reads the last cached reticle matrix and the camera world position
+from `XR8.Threejs.xrScene().camera.position`, then calls
+`composeFlatPosterMatrix(matrix, cameraPos)` (`src/xr/posterOrientation.ts`)
+to build a flat-on-surface transform — the tile's facing axis (+Z) coincides
+with the surface normal, and the art's top edge points away from the viewer.
+The resulting matrix is passed to `tile.place(...)`, and `useStoryStore` is
+marked `placed`.
 
-**`handleExitAR()`**: `stopXr8()`, unsubscribe the store, `placement.clear()`,
-remove listeners, reset refs + telemetry.
+**`handleExitAR()`**: `stopXr8()`, `tile.clear()`, remove listeners, reset
+refs + telemetry, reset the story store.
 
-The DOM UI (control panel, poster controls, loading screen, HUD) is ordinary
+The DOM UI (`Header`, `LoadingScreen`, `DebugHUD`, `StoryOverlay`) is ordinary
 React layered over the engine canvas with `position: fixed` + `z-index` — there
 is no WebXR `dom-overlay`.
+
+> **Retained legacy: `components/ar/ARExperience.tsx`.** The original
+> multi-poster placement UI (many user-uploaded posters, `PosterControls`
+> scale/rotation sliders, `ControlPanel`, `PosterGallery`) still exists in the
+> tree and still compiles, but **`App.tsx` no longer mounts it** — the live
+> branch renders `StoryARExperience` instead. It is kept intentionally (not
+> deleted) rather than actively maintained; its `ARExperienceProps` (`mode`,
+> `onSessionStart`, `onSessionEnd`) and the `posterStore`-driven placement flow
+> described in older revisions of this doc apply only to that inactive
+> component, not to the shipped live path.
 
 ---
 
@@ -158,6 +174,7 @@ is no WebXR `dom-overlay`.
 | `posterTextureCache.ts` | URL-keyed, refcounted shared texture/animator cache (`acquirePosterTexture` / `releasePosterTexture`). Enforces a global 64 MB animation-byte budget across all distinct animated GIFs; GIFs that would exceed the remaining budget fall back to a static frame-0 texture. Textures are disposed on the last release, including on the placement error rollback path. |
 | `gifAnimator.ts` | `createPosterTexture(url, { animationByteBudget })` — decodes a GIF URL into a `three.CanvasTexture` + `PosterAnimator` (or a static texture on fallback). `PosterAnimator.tick(deltaMs)` advances the `GifPlayhead` and repaints the canvas each frame. |
 | `gifPlayhead.ts` | Pure frame-timing math — given the GIF frame-delay table and elapsed ms, computes the current frame index with correct loop wrap. No DOM or three.js dependency. |
+| `storyTile.ts` | `StoryTile` class — the single AR-anchored diorama mesh used by `StoryARExperience` (`place/setTexture/tick/clear`). Where `PosterPlacement` manages many opaque posters, this plants **one** transparent (`alphaTest`) tile once via the composed flat matrix and swaps its texture per story era; laid flat the same way as posters, via `composeFlatPosterMatrix`. |
 | `globals.d.ts` | Ambient typings: `Xr8HitResult`, `Xr8PipelineModule`, and the `XR8`/`XRExtras`/`LandingPage` globals (deliberately `any` — full engine typings are out of scope). |
 
 ---
@@ -224,13 +241,23 @@ be exercised. "Place poster" mirrors the live path through `posterStore`.
 
 ## 9. State management
 
-Two Zustand stores, no Provider:
+Zustand stores, no Provider:
 
 - **`store/posterStore.ts`** — `posters` (placed, capped at `maxPosters`),
   `uploadedPosters` (gallery), `currentPosterImage`, `selectedPosterId`, plus
-  actions. The scene mirrors store mutations via the subscription set up in
-  `ARExperience.onStart`. The authoritative world transform of a placed poster
-  is the three.js group matrix in `PosterPlacement`, **not** the store fields.
+  actions. `App.tsx` hydrates `uploadedPosters` from the server on load when
+  asset persistence is enabled (see §12, Security). The mirroring of store mutations into
+  the three.js scene via a subscription set up in `onStart` — described for
+  `PosterPlacement` in §5's older revisions — is wired up in the **retained
+  legacy `ARExperience`**, not in the live `StoryARExperience`. The
+  authoritative world transform of a placed poster is the three.js group
+  matrix in `PosterPlacement`, **not** the store fields.
+- **`store/storyStore.ts`** — narrative state for the live "THE GROUND
+  REMEMBERS" path: `phase` (`scanning`/`ready`/`placed`/`outro`), `eraIndex`,
+  `placed`, plus navigation actions (`place/next/prev/jumpTo/reset`).
+  `StoryARExperience` reads/writes it directly (not via React props); the 2D
+  `StoryOverlay` HUD reads it to drive the title card, narration, and
+  timeline.
 - **`hooks/useUIState.ts`** — overlay visibility, active modal, and the toast
   queue (auto-dismiss after `duration` ms).
 
@@ -284,8 +311,12 @@ stored as an uploaded poster.
   `engine-binary` intentionally omits SRI because its loader fetches runtime
   chunks (`slam.js`) dynamically that a static hash cannot cover (rationale
   documented inline in `index.html`).
-- **Client-only data** — image processing and screenshots are entirely
-  client-side; nothing is uploaded.
+- **Client-only data by default** — image processing and screenshots are
+  entirely client-side; nothing is uploaded **when `VITE_API_BASE_URL` is not
+  configured**. When it is set (`isPersistenceEnabled()` in
+  `src/services/posterApi.ts`), uploaded assets are persisted via `POST
+  /api/assets` (metadata) followed by a `PUT` to a signed upload URL, and
+  `App.tsx` hydrates previously-uploaded posters from that server API on load.
 - HTTPS enforced in production; HSTS preload.
 
 ---
@@ -315,20 +346,38 @@ stored as an uploaded poster.
 ## 14. Testing
 
 Automated unit/integration tests run under **Vitest** with a **happy-dom**
-environment (`vitest.config.ts`). The six test files cover the GIF pipeline and
-poster-placement logic:
+environment (`vitest.config.ts`, `include: ['src/**/*.{test,spec}.{ts,tsx}']`).
+**17 test files, 86 test cases** cover the GIF pipeline, poster/story
+placement, upload validation, ambient color, hit-testing, and persistence
+logic:
 
 | File | Coverage |
 |------|----------|
 | `src/utils/gifDecode.test.ts` | GIF header parsing, data: URL decode, error paths |
 | `src/utils/imageUpload.test.ts` | Validation, GIF pass-through, WebP compression |
+| `src/utils/screenshot.test.ts` | Screenshot utility behavior |
+| `src/utils/deviceToken.test.ts` | Device-token generation/persistence |
+| `src/xr/posterOrientation.test.ts` | `composeFlatPosterMatrix` flat-orientation math |
 | `src/xr8/gifPlayhead.test.ts` | Frame-timing math, loop wrap |
 | `src/xr8/gifAnimator.test.ts` | `createPosterTexture` branching, static fallback |
 | `src/xr8/posterTextureCache.test.ts` | Refcount, budget enforcement, dispose |
 | `src/xr8/posterPlacement.test.ts` | `place/remove/tick/clear` |
+| `src/xr8/hitTestController.test.ts` | `readReticlePose()` hit-priority + matrix composition |
+| `src/xr8/ambientProbe.test.ts` | `estimateAmbient` color-estimation math |
+| `src/components/ar/arCanvasReparent.test.tsx` | Canvas reparent regression |
+| `src/store/posterStore.hydrate.test.ts` | Hydrating uploaded posters from the asset API |
+| `src/store/storyStore.test.ts` | Story phase/era transitions |
+| `src/story/svgTexture.test.ts` | SVG-to-texture rasterization for story eras |
+| `src/services/posterApi.test.ts` | Asset-persistence API client (`persistAsset`/`listAssets`) |
+| `src/hooks/usePosterUpload.persist.test.ts` | Upload flow with persistence enabled |
+
+A separate `server/` test suite (`server/src/config.test.ts`,
+`server/src/routes/assets.test.ts`, `server/src/storage/objectStore.test.ts`)
+exists outside the root Vitest `include` glob and is **not** run by `npm run
+test`.
 
 ```
-npm run test        # vitest run (CI)
+npm run test        # vitest run (CI) — 17 test files, 86 tests
 npm run test:watch  # vitest (interactive watch)
 ```
 

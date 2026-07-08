@@ -38,8 +38,9 @@ Reference for the libraries, tools, and platform APIs the app actually uses.
 |---------|---------|------|
 | `react` / `react-dom` | 18.3.1 | UI framework |
 | `three` | ^0.160.0 | 3D rendering (plain three.js; the 8th Wall `Threejs` pipeline module renders the scene) |
-| `zustand` | ^4.4.7 | State (`posterStore`, `useUIState`) |
+| `zustand` | ^4.4.7 | State (`posterStore`, `useUIState`, `storyStore`) |
 | `gifuct-js` | ^2.1.2 | GIF decoding — parses frame data and delays from an `ArrayBuffer`; used by `gifDecode.ts` to animate GIF posters without a server round-trip |
+| `@fontsource/press-start-2p` | ^5.2.7 | Pixel font for the story UI, imported via `main.tsx` |
 
 The AR engine is **not** an npm package — it is loaded from CDN at runtime (see below).
 
@@ -98,13 +99,15 @@ surface (see [`ARCHITECTURE.md`](ARCHITECTURE.md) §7).
 
 ## State management — Zustand
 
-Two stores, no Provider/context:
+Three stores, no Provider/context:
 - `store/posterStore.ts` — placed posters (capped at `maxPosters`), uploaded
   posters, current image, selection.
 - `hooks/useUIState.ts` — overlay visibility, active modal, toast queue.
+- `store/storyStore.ts` — story/era progression state.
 
 The 3D scene mirrors `posterStore` mutations via a store subscription in
-`ARExperience` (see [`ARCHITECTURE.md`](ARCHITECTURE.md) §5).
+`StoryARExperience`, the live AR branch (the older `ARExperience` is retained
+in the codebase as inactive legacy). See [`ARCHITECTURE.md`](ARCHITECTURE.md) §5.
 
 ---
 
@@ -114,19 +117,26 @@ Tests run with `npm run test` (single pass) or `npm run test:watch` (interactive
 Config: `vitest.config.ts` — `environment: 'happy-dom'`, includes
 `src/**/*.{test,spec}.{ts,tsx}`.
 
-10 test files / 65 tests, all in `src/`:
+17 test files / 86 tests, all in `src/`:
 
 ```
 utils/gifDecode.test.ts        GIF header parsing + data: URL decode
 utils/imageUpload.test.ts      Validation, GIF pass-through, WebP compression
 utils/screenshot.test.ts       Crop/filename/blob + share helpers
+utils/deviceToken.test.ts      Per-device identifier generation/persistence
 xr/posterOrientation.test.ts   Flat-poster orientation math
 xr8/ambientProbe.test.ts       estimateAmbient camera-color math
 xr8/gifPlayhead.test.ts        Frame-timing math
 xr8/gifAnimator.test.ts        createPosterTexture branching + static fallback
+xr8/hitTestController.test.ts  XrController.hitTest → reticle pose mapping
 xr8/posterTextureCache.test.ts Refcount + budget enforcement + dispose
 xr8/posterPlacement.test.ts    place / remove / tick / clear
 components/ar/arCanvasReparent.test.tsx  Canvas-reparent regression guard
+store/storyStore.test.ts       Story/era progression state transitions
+store/posterStore.hydrate.test.ts  Hydrating posters from the persistence API
+story/svgTexture.test.ts       SVG → three.js texture conversion
+services/posterApi.test.ts     Asset-persistence REST client (upload/list)
+hooks/usePosterUpload.persist.test.ts  Upload hook's persistence-enabled path
 ```
 
 The test environment does not load the 8th Wall engine; `XR8` globals are absent

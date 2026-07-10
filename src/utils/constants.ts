@@ -45,6 +45,10 @@ export const UI_TEXT = {
 export const STORAGE_KEYS = {
   TUTORIAL_COMPLETED: 'xr-poster-tutorial-completed',
   DEVICE_TOKEN: 'xr-poster-device-token',
+  /** Admin panel's local ContentDoc draft (Phase 1: the only persistence). */
+  CONTENT_DRAFT: 'xr-poster-content-draft',
+  /** sessionStorage flag set by the (placeholder) admin gate. */
+  ADMIN_SESSION: 'xr-poster-admin-ok',
 };
 
 /** Base URL of the asset persistence API; empty string disables persistence. */

@@ -1,6 +1,24 @@
 # Admin Panel — Planning Document
 
-**Status:** PLANNING ONLY — no implementation has started. Deliverable of the 2026-07-08 planning session.
+**Status:** Reviewed 2026-07-09 — implementation of the UI-first slice approved (see Decisions below).
+
+## Decisions from the 2026-07-09 review
+
+1. **Backend/DB deployment is deferred** (resolves the ordering half of Open Question 1). Do not stand up the Fastify server, Postgres, or Supabase storage yet.
+2. **The admin panel ships first**, deployed through Vercel exactly like the rest of the site: the `/admin` lazy chunk inside this SPA. Until the backend exists, the panel edits a draft ContentDoc held in `localStorage`; **Publish stays disabled** (labelled "backend pending") and **Preview** works locally by opening the experience with the draft applied. When the backend lands, the panel's save/publish calls point at it — the editor UI doesn't change.
+3. When the backend does land, it will be **Vercel serverless functions** over the planned Postgres + storage (option 1b in §3), matching "deployed similarly through Vercel".
+4. **Implementation subagents run on the `sonnet` model**, per-task, following the repo's established subagent-driven plan execution.
+5. Implementation goes on a dedicated, conventionally named branch (`feat/admin-panel-ui`), separate from this planning-doc branch.
+
+**Revised phasing** (supersedes the ordering in §7; scopes unchanged, order and cut-lines changed):
+
+| Phase | Scope | Status |
+|---|---|---|
+| **1 — Admin panel UI on Vercel (no backend)** | ContentDoc schema + bundled defaults; visitor-side content store (defaults + local-preview override); `/admin` lazy chunk with story/copy/settings editors; draft in `localStorage`; local Preview; Publish disabled. | approved — in progress |
+| **2 — Backend + publish** | Vercel functions: `GET /api/content`, admin login, draft PUT, publish; wire the panel's save/publish/preview to it; CDN caching. | pending |
+| **3 — Era art management** | As §7 Phase 3 (needs the storage bucket). | pending |
+| **4 — Hardening + docs** | As §7 Phase 4. | pending |
+
 
 **Goal:** a single-admin panel for the "THE GROUND REMEMBERS" WebAR experience (this repo, deployed on Vercel as `postarr`) that can (1) edit all user-facing text, (2) upload/replace/delete image assets, (3) assign assets to placement slots, and (4) publish changes to the live experience **without a redeploy**.
 
@@ -188,7 +206,7 @@ Total: roughly **7–10 working days**, front-loaded so Phase 1 alone already de
 
 ## 8. Open questions requiring your decision
 
-1. **Is the Fastify API deployed anywhere today, and is `VITE_API_BASE_URL` set in the Vercel project?** Decides API hosting: extend `server/` (1a) vs. Vercel serverless functions over the same Supabase resources (1b, my recommendation if nothing is deployed). Nothing in the repo answers this.
+1. ~~**Is the Fastify API deployed anywhere today, and is `VITE_API_BASE_URL` set in the Vercel project?**~~ **Decided 2026-07-09:** backend deployment is deferred entirely; the panel ships UI-first through Vercel, and the backend arrives later as Vercel serverless functions (1b). Whether the Fastify server was ever deployed no longer gates anything.
 2. **Publish model — confirm explicit draft → preview → publish** (assumed here, since this is a public installation and the brief's placeholder was unfilled). If you'd rather have edits go live immediately, Phase 2 shrinks by ~1 day and preview tokens disappear.
 3. **Text scope:** is story + HUD copy (Section 6, item 5 exclusions) the right boundary, or must diagnostics/desktop-mock/unsupported-panel copy be editable too?
 4. **Era count:** fixed 5 slots for v1 (assumed), or is add/remove/reorder eras a requirement? (Meaningful extra work: timeline UI, art-slot lifecycle, key management.)

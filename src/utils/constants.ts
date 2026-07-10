@@ -41,7 +41,7 @@ export const UI_TEXT = {
   LOADING: 'Loading...',
 };
 
-/** localStorage keys (namespaced to avoid collisions on shared origins). */
+/** localStorage/sessionStorage keys (namespaced to avoid collisions on shared origins). */
 export const STORAGE_KEYS = {
   TUTORIAL_COMPLETED: 'xr-poster-tutorial-completed',
   DEVICE_TOKEN: 'xr-poster-device-token',

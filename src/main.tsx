@@ -7,6 +7,10 @@
  * /admin is served from the same SPA but as a SEPARATE lazy chunk: visitors
  * never download the admin panel code, and the panel never boots the AR
  * engine pipeline.
+ *
+ * Note: /admin still loads the visitor entry chunk and the 8th Wall <script>
+ * tags over the network (single-entry SPA); splitting a dedicated admin HTML
+ * entry is deferred to the backend phase.
  */
 
 import React, { Suspense } from 'react';

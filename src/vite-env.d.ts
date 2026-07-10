@@ -9,6 +9,7 @@ interface ImportMetaEnv {
   readonly VITE_SENTRY_DSN?: string;
   readonly VITE_ENABLE_DEBUG_MODE?: string;
   readonly VITE_MAX_POSTERS?: string;
+  readonly VITE_ADMIN_PASSPHRASE?: string;
 }
 
 interface ImportMeta {

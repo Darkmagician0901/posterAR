@@ -53,7 +53,6 @@ export const StoryARExperience: React.FC = () => {
   // Pipeline-scoped refs (created in onStart, used in onUpdate + cleanup).
   const tileRef = useRef<StoryTile | null>(null);
   const reticleRef = useRef<Reticle | null>(null);
-  const sceneRootRef = useRef<Group | null>(null);
   const lastReticleMatrixRef = useRef<Float32Array | null>(null);
   const tapListenersRef = useRef<{
     canvas: HTMLCanvasElement;
@@ -141,7 +140,6 @@ export const StoryARExperience: React.FC = () => {
 
           const sceneRoot = new Group();
           scene.add(sceneRoot);
-          sceneRootRef.current = sceneRoot;
 
           const reticle = createReticle();
           scene.add(reticle.mesh);
@@ -245,7 +243,6 @@ export const StoryARExperience: React.FC = () => {
     }
 
     reticleRef.current = null;
-    sceneRootRef.current = null;
     lastReticleMatrixRef.current = null;
     lastFrameTimeRef.current = null;
     reportedReadyRef.current = false;

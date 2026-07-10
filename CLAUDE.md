@@ -20,14 +20,16 @@ There is **no lint script**.
 
 | Condition | Branch |
 |-----------|--------|
-| Mobile + secure context (`hasAR8`) | `ARExperience` — live 8th Wall AR |
+| Mobile + secure context (`hasAR8`) | `StoryARExperience` — live 8th Wall AR |
 | Desktop | `DesktopMockMode` — webcam + mouse-look sandbox |
 | Otherwise | "AR Not Supported" panel |
+
+`StoryARExperience` is a 5-era "THE GROUND REMEMBERS" story/diorama mode — it's what ships. `ARExperience` still exists but is retained legacy (unused, not wired into `App.tsx`).
 
 On the live path **8th Wall (XR8) owns** the canvas, camera feed, three.js renderer, and render loop. The app registers a custom camera-pipeline module (`onStart` / `onUpdate`) that builds the scene, runs a center-screen hit-test every frame, drives the reticle, and places poster meshes on tap.
 
 - `src/xr/` — engine-AGNOSTIC 3D helpers (reticle, debugTelemetry, desktopMockDriver, posterOrientation)
-- `src/xr8/` — 8th Wall (XR8)-SPECIFIC integration (pipeline, hitTestController, posterPlacement, ambientProbe, canvasScreenshot, gifAnimator, gifPlayhead, posterTextureCache)
+- `src/xr8/` — 8th Wall (XR8)-SPECIFIC integration (pipeline, hitTestController, posterPlacement, ambientProbe, canvasScreenshot, gifAnimator, gifPlayhead, posterTextureCache, storyTile)
 - `src/content/` — the editable-content contract: `ContentDoc` schema, bundled defaults (derived from `storyData.ts`), `sanitizeContentDoc`
 - `src/admin/` — the `/admin` content panel (separate lazy chunk via `main.tsx`; Phase 1 edits a localStorage draft, Publish disabled until the backend phase — see `docs/admin-panel-plan.md`)
 
@@ -62,7 +64,7 @@ GIFs are decoded from data: URLs without fetch. `posterTextureCache` releases ac
 
 Stack: **vitest ^4.1.8** + **happy-dom ^20.9.0** (configured in `vitest.config.ts`).
 
-**20 test files, 113 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation, content-doc sanitization, content resolution, admin draft persistence). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
+**20 test files, 113 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation, story state, SVG-texture generation, asset persistence & upload hydration, device-token, content-doc sanitization, content resolution, admin draft persistence). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
 
 ## Conventions
 

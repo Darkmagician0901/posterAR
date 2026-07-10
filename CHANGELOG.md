@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Story mode ("THE GROUND REMEMBERS")
+- **`StoryARExperience`** is now the live AR experience rendered on the mobile
+  8th Wall path — a focused, single-diorama narrative mode that swaps a tile's
+  texture across five eras as the user progresses, driven by `useStoryStore`
+  and presented through the `StoryOverlay` HUD (title card, docent narration,
+  timeline, controls). New `src/story/` module (`storyData`, `eraArt`,
+  `svgTexture`) and `src/xr8/storyTile.ts` support it. The prior general-purpose
+  `ARExperience` (place-many-posters) is retained in the tree but is no longer
+  wired up — unused legacy.
+
+### Added — Optional asset persistence
+- **Client `src/services/posterApi.ts`** can persist uploaded assets (presigned
+  upload + owner-scoped listing) to a companion `server/` backend, gated by the
+  `VITE_API_BASE_URL` environment variable; when unset, uploads remain
+  local-only and behavior is unchanged. `posterStore.hydrateUploads` merges any
+  persisted assets back into the gallery on load without duplicating ids.
+
+### Changed — Test suite growth
+- The vitest suite grew to **86 tests across 17 files** (from 29 tests across
+  6 files), adding coverage for story-mode state, SVG texture framing, the
+  persistence client/hydration path, device tokens, and hit-test pose reading.
+
 ### Added — Poster rotation
 - **In-plane rotation slider** in `PosterControls` (±180° about the surface
   normal) alongside the scale slider. Stored in `rotation[2]` (radians; shown in

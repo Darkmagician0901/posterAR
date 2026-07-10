@@ -6,7 +6,7 @@ Quick reference for Claude Code sessions. See README.md / ARCHITECTURE.md / TEST
 
 ```bash
 npm run dev           # Vite dev server — HTTPS, --host (required for camera + 8th Wall)
-npm run test          # vitest run — 65 tests, < 2 s
+npm run test          # vitest run — 86 tests, < 2 s
 npm run test:watch    # vitest interactive watch
 npm run type-check    # tsc --noEmit
 npm run build         # tsc && vite build → dist/
@@ -20,14 +20,16 @@ There is **no lint script**.
 
 | Condition | Branch |
 |-----------|--------|
-| Mobile + secure context (`hasAR8`) | `ARExperience` — live 8th Wall AR |
+| Mobile + secure context (`hasAR8`) | `StoryARExperience` — live 8th Wall AR |
 | Desktop | `DesktopMockMode` — webcam + mouse-look sandbox |
 | Otherwise | "AR Not Supported" panel |
+
+`StoryARExperience` is a 5-era "THE GROUND REMEMBERS" story/diorama mode — it's what ships. `ARExperience` still exists but is retained legacy (unused, not wired into `App.tsx`).
 
 On the live path **8th Wall (XR8) owns** the canvas, camera feed, three.js renderer, and render loop. The app registers a custom camera-pipeline module (`onStart` / `onUpdate`) that builds the scene, runs a center-screen hit-test every frame, drives the reticle, and places poster meshes on tap.
 
 - `src/xr/` — engine-AGNOSTIC 3D helpers (reticle, debugTelemetry, desktopMockDriver, posterOrientation)
-- `src/xr8/` — 8th Wall (XR8)-SPECIFIC integration (pipeline, hitTestController, posterPlacement, ambientProbe, canvasScreenshot, gifAnimator, gifPlayhead, posterTextureCache)
+- `src/xr8/` — 8th Wall (XR8)-SPECIFIC integration (pipeline, hitTestController, posterPlacement, ambientProbe, canvasScreenshot, gifAnimator, gifPlayhead, posterTextureCache, storyTile)
 
 State: **Zustand 4** — `posterStore` (placed + uploaded posters), `useUIState` (overlays, toasts).
 
@@ -60,7 +62,7 @@ GIFs are decoded from data: URLs without fetch. `posterTextureCache` releases ac
 
 Stack: **vitest ^4.1.8** + **happy-dom ^20.9.0** (configured in `vitest.config.ts`).
 
-**10 test files, 65 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
+**17 test files, 86 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation, story state, SVG-texture generation, asset persistence & upload hydration, device-token). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
 
 ## Conventions
 

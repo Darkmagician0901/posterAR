@@ -346,6 +346,9 @@ VITE_SENTRY_DSN=https://xxxxx@xxxxx.ingest.sentry.io/xxxxx
 # Feature Flags
 VITE_ENABLE_DEBUG_MODE=false
 VITE_MAX_POSTERS=10
+
+# Asset Persistence (optional — enables uploading/hydrating posters via the server API)
+VITE_API_BASE_URL=https://api.xr-poster.com
 ```
 
 ### Setting Environment Variables

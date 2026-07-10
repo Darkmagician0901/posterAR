@@ -23,8 +23,8 @@ import {
   Texture,
 } from 'three';
 
-/** Width of the diorama in metres (height follows the art aspect). */
-const TILE_WIDTH_M = 0.9;
+/** Default diorama width in metres (height follows the art aspect). */
+const DEFAULT_TILE_WIDTH_M = 0.9;
 
 /**
  * Owns the lifecycle of the one diorama tile: planting it at a hit-test pose,
@@ -33,17 +33,20 @@ const TILE_WIDTH_M = 0.9;
 export class StoryTile {
   private readonly _sceneRoot: Group;
   private readonly _group: Group;
+  private readonly _widthM: number;
   private _mesh: Mesh | null = null;
   private _material: MeshBasicMaterial | null = null;
   private _placed = false;
 
   /**
    * @param sceneRoot — Group the tile is added under (the engine scene group).
+   * @param widthM — Diorama width in metres (admin-tunable; default 0.9).
    */
-  constructor(sceneRoot: Group) {
+  constructor(sceneRoot: Group, widthM: number = DEFAULT_TILE_WIDTH_M) {
     this._sceneRoot = sceneRoot;
     this._group = new Group();
     this._sceneRoot.add(this._group);
+    this._widthM = widthM;
   }
 
   /** Whether the tile has been planted on the ground yet. */
@@ -72,7 +75,7 @@ export class StoryTile {
    * @param aspect — height / width of the art, to size the plane.
    */
   setTexture(texture: Texture, aspect: number): void {
-    const width = TILE_WIDTH_M;
+    const width = this._widthM;
     const height = width * (aspect || 1);
 
     if (!this._mesh || !this._material) {

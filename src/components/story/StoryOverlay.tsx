@@ -14,7 +14,7 @@
 
 import React from 'react';
 import { useStoryStore } from '@/store/storyStore';
-import { STORY_ERAS, STORY_INTRO, STORY_OUTRO } from '@/story/storyData';
+import { useContentStore } from '@/store/contentStore';
 import { useStoryTypewriter } from './useStoryTypewriter';
 import './StoryOverlay.css';
 
@@ -30,7 +30,8 @@ interface StoryOverlayProps {
 
 export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
   const { phase, eraIndex, placed, next, prev, jumpTo, reset } = useStoryStore();
-  const era = STORY_ERAS[eraIndex];
+  const { doc, isPreview } = useContentStore();
+  const era = doc.eras[eraIndex];
 
   // Type the narration only while an era is on screen.
   const { shown, done, skip } = useStoryTypewriter(
@@ -38,10 +39,11 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
     phase === 'placed'
   );
 
-  const isLast = eraIndex === STORY_ERAS.length - 1;
+  const isLast = eraIndex === doc.eras.length - 1;
 
   return (
     <div className="story-overlay" aria-live="polite">
+      {isPreview && <div className="story-preview-badge">DRAFT PREVIEW</div>}
       {/* Era mood vignette (the prototype's "wash"). */}
       <div
         className="story-vignette"
@@ -56,12 +58,12 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
       {/* ── Intro / scan card ─────────────────────────────────────────── */}
       {!placed && phase !== 'outro' && (
         <div className="story-card story-card-intro">
-          <div className="story-kicker">DEMO EXPERIENCE</div>
-          <h1 className="story-title">{STORY_INTRO.title}</h1>
-          <p className="story-sub">{STORY_INTRO.subtitle}</p>
+          <div className="story-kicker">{doc.intro.kicker}</div>
+          <h1 className="story-title">{doc.intro.title}</h1>
+          <p className="story-sub">{doc.intro.subtitle}</p>
           <div className={`story-scan ${surfaceReady ? 'ready' : ''}`}>
             <span className="story-scan-ring" />
-            {surfaceReady ? 'TAP THE GROUND TO PLACE' : 'MOVE PHONE TO FIND THE GROUND'}
+            {surfaceReady ? doc.ui.tapPrompt : doc.ui.scanPrompt}
           </div>
         </div>
       )}
@@ -97,13 +99,13 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
       {/* ── Outro card ────────────────────────────────────────────────── */}
       {phase === 'outro' && (
         <div className="story-card story-card-outro">
-          <h1 className="story-title">{STORY_OUTRO.title}</h1>
-          <p className="story-sub">{STORY_OUTRO.subtitle}</p>
+          <h1 className="story-title">{doc.outro.title}</h1>
+          <p className="story-sub">{doc.outro.subtitle}</p>
           <button className="story-btn" onClick={() => jumpTo(0)}>
-            WALK IT AGAIN
+            {doc.outro.replayLabel}
           </button>
           <button className="story-btn story-btn-ghost" onClick={reset}>
-            PLACE SOMEWHERE ELSE
+            {doc.outro.resetLabel}
           </button>
         </div>
       )}
@@ -112,7 +114,7 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
       {phase === 'placed' && (
         <div className="story-bottom">
           <div className="story-timeline" role="tablist" aria-label="Eras">
-            {STORY_ERAS.map((e, i) => (
+            {doc.eras.map((e, i) => (
               <button
                 key={e.key}
                 role="tab"
@@ -135,10 +137,10 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
               onClick={prev}
               disabled={eraIndex === 0}
             >
-              ‹ BACK
+              {doc.ui.backLabel}
             </button>
             <button className="story-btn" onClick={next}>
-              {isLast ? 'FINISH' : 'NEXT ›'}
+              {isLast ? doc.ui.finishLabel : doc.ui.nextLabel}
             </button>
           </div>
         </div>

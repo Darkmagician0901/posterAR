@@ -32,6 +32,7 @@ import { debugTelemetry } from '@/xr/debugTelemetry';
 import { useUIState } from '@/hooks/useUIState';
 import { useArLoadProgress } from '@/hooks/useArLoadProgress';
 import { useStoryStore } from '@/store/storyStore';
+import { useContentStore } from '@/store/contentStore';
 import { eraSvg } from '@/story/eraArt';
 import { svgToTexture } from '@/story/svgTexture';
 import { STORY_ERAS } from '@/story/storyData';
@@ -147,7 +148,10 @@ export const StoryARExperience: React.FC = () => {
           camera.add(reticle.scanner);
           reticleRef.current = reticle;
 
-          tileRef.current = new StoryTile(sceneRoot);
+          tileRef.current = new StoryTile(
+            sceneRoot,
+            useContentStore.getState().doc.settings.tileWidthM,
+          );
 
           if (typeof XR8?.XrController?.updateCameraProjectionMatrix === 'function') {
             XR8.XrController.updateCameraProjectionMatrix({

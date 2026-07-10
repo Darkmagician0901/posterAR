@@ -6,7 +6,7 @@ Quick reference for Claude Code sessions. See README.md / ARCHITECTURE.md / TEST
 
 ```bash
 npm run dev           # Vite dev server — HTTPS, --host (required for camera + 8th Wall)
-npm run test          # vitest run — 65 tests, < 2 s
+npm run test          # vitest run — 113 tests, < 2 s
 npm run test:watch    # vitest interactive watch
 npm run type-check    # tsc --noEmit
 npm run build         # tsc && vite build → dist/
@@ -28,8 +28,10 @@ On the live path **8th Wall (XR8) owns** the canvas, camera feed, three.js rende
 
 - `src/xr/` — engine-AGNOSTIC 3D helpers (reticle, debugTelemetry, desktopMockDriver, posterOrientation)
 - `src/xr8/` — 8th Wall (XR8)-SPECIFIC integration (pipeline, hitTestController, posterPlacement, ambientProbe, canvasScreenshot, gifAnimator, gifPlayhead, posterTextureCache)
+- `src/content/` — the editable-content contract: `ContentDoc` schema, bundled defaults (derived from `storyData.ts`), `sanitizeContentDoc`
+- `src/admin/` — the `/admin` content panel (separate lazy chunk via `main.tsx`; Phase 1 edits a localStorage draft, Publish disabled until the backend phase — see `docs/admin-panel-plan.md`)
 
-State: **Zustand 4** — `posterStore` (placed + uploaded posters), `useUIState` (overlays, toasts).
+State: **Zustand 4** — `posterStore` (placed + uploaded posters), `useUIState` (overlays, toasts), `storyStore` (era walkthrough), `contentStore` (editable content; `/?preview=local` shows the admin draft), `adminDraftStore` (admin-panel draft, autosaved to localStorage).
 
 ## GIF Pipeline
 
@@ -60,7 +62,7 @@ GIFs are decoded from data: URLs without fetch. `posterTextureCache` releases ac
 
 Stack: **vitest ^4.1.8** + **happy-dom ^20.9.0** (configured in `vitest.config.ts`).
 
-**10 test files, 65 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
+**20 test files, 113 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation, content-doc sanitization, content resolution, admin draft persistence). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
 
 ## Conventions
 

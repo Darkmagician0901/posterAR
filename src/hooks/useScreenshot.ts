@@ -71,9 +71,7 @@ export interface UseScreenshotReturn {
  *   canvas.toDataURL() read (which may be blank on live AR).
  */
 const defaultCapture = (): Promise<ScreenshotResult> =>
-  isXr8ScreenshotAvailable()
-    ? takeXr8Photo()
-    : captureScreenshot({ format: 'jpeg' });
+  isXr8ScreenshotAvailable() ? takeXr8Photo() : captureScreenshot({ format: 'jpeg' });
 
 /**
  * Hook providing capture-to-preview plus save/download and Web Share of the
@@ -86,9 +84,7 @@ const defaultCapture = (): Promise<ScreenshotResult> =>
  *   the `capturePhoto` / `savePhoto` / `sharePhoto` / `closePreview` actions.
  *   None of the actions throw; failures surface as error toasts.
  */
-export const useScreenshot = (
-  options: UseScreenshotOptions = {}
-): UseScreenshotReturn => {
+export const useScreenshot = (options: UseScreenshotOptions = {}): UseScreenshotReturn => {
   const { capture = defaultCapture } = options;
   const { addToast } = useUIState();
 
@@ -106,8 +102,7 @@ export const useScreenshot = (
       setPhoto(result);
       return true;
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to capture photo';
+      const message = error instanceof Error ? error.message : 'Failed to capture photo';
       addToast({ type: 'error', message });
       return false;
     } finally {
@@ -121,8 +116,7 @@ export const useScreenshot = (
       downloadScreenshot(photo);
       addToast({ type: 'success', message: 'Photo saved' });
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to save photo';
+      const message = error instanceof Error ? error.message : 'Failed to save photo';
       addToast({ type: 'error', message });
     }
   }, [photo, addToast]);

@@ -60,11 +60,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
     >
       <div className="toast-icon">{getIcon()}</div>
       <div className="toast-message">{toast.message}</div>
-      <button
-        className="toast-close"
-        onClick={handleClose}
-        aria-label="Close notification"
-      >
+      <button className="toast-close" onClick={handleClose} aria-label="Close notification">
         ×
       </button>
     </div>

@@ -165,7 +165,7 @@ const loadImageBitmap = async (file: File): Promise<ImageBitmap | HTMLImageEleme
 const fitWithin = (
   width: number,
   height: number,
-  maxDim: number
+  maxDim: number,
 ): { width: number; height: number } => {
   const longest = Math.max(width, height);
   if (longest <= maxDim) {
@@ -191,7 +191,7 @@ const fitWithin = (
 const drawToCanvas = (
   source: ImageBitmap | HTMLImageElement,
   width: number,
-  height: number
+  height: number,
 ): HTMLCanvasElement => {
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -222,7 +222,7 @@ const canvasToWebp = (canvas: HTMLCanvasElement, quality: number): Promise<Blob>
         resolve(blob);
       },
       'image/webp',
-      quality
+      quality,
     );
   });
 
@@ -277,7 +277,7 @@ const fileToDataUrl = (file: File): Promise<string> =>
 const compressToTarget = async (
   source: ImageBitmap | HTMLImageElement,
   origW: number,
-  origH: number
+  origH: number,
 ): Promise<{ blob: Blob; width: number; height: number; quality: number }> => {
   let { width, height } = fitWithin(origW, origH, MAX_IMAGE_DIMENSION);
   let quality = INITIAL_QUALITY;

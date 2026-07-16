@@ -66,7 +66,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
       ? 100
       : Math.min(100, Math.max(0, progress as number))
     : 0;
-  const heading = isDeterminate ? stageLabel ?? message : message;
+  const heading = isDeterminate ? (stageLabel ?? message) : message;
 
   return (
     <div
@@ -84,9 +84,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
         </div>
 
         {/* Loading message */}
-        <div className={`loading-message ${error ? 'loading-message-error' : ''}`}>
-          {heading}
-        </div>
+        <div className={`loading-message ${error ? 'loading-message-error' : ''}`}>{heading}</div>
 
         {isDeterminate ? (
           <div
@@ -114,9 +112,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
         )}
 
         {/* Additional hint */}
-        <div className="loading-hint">
-          Move your phone to scan surfaces
-        </div>
+        <div className="loading-hint">Move your phone to scan surfaces</div>
       </div>
     </div>
   );

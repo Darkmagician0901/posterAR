@@ -14,14 +14,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  AmbientLight,
-  Camera,
-  DirectionalLight,
-  Group,
-  Scene,
-  Vector3,
-} from 'three';
+import { AmbientLight, Camera, DirectionalLight, Group, Scene, Vector3 } from 'three';
 
 import { onXr8Ready, runXr8, stopXr8 } from '@/xr8/pipeline';
 import { readReticlePose } from '@/xr8/hitTestController';
@@ -98,9 +91,7 @@ export const StoryARExperience: React.FC = () => {
 
     let cameraPos: Vector3 | null = null;
     try {
-      const xrScene = XR8?.Threejs?.xrScene?.() as
-        | { camera?: { position?: Vector3 } }
-        | undefined;
+      const xrScene = XR8?.Threejs?.xrScene?.() as { camera?: { position?: Vector3 } } | undefined;
       cameraPos = xrScene?.camera?.position ?? null;
     } catch {
       cameraPos = null;

@@ -7,16 +7,11 @@
  * texture (animator === null).
  */
 
-import {
-  CanvasTexture,
-  SRGBColorSpace,
-  Texture,
-  TextureLoader,
-} from 'three'
+import { CanvasTexture, SRGBColorSpace, Texture, TextureLoader } from 'three';
 
-import { DecodedFrame, decodeGifFrames, readGifSize } from '@/utils/gifDecode'
-import { GifPlayhead } from '@/xr8/gifPlayhead'
-import { MAX_IMAGE_DIMENSION } from '@/utils/imageUpload'
+import { DecodedFrame, decodeGifFrames, readGifSize } from '@/utils/gifDecode';
+import { GifPlayhead } from '@/xr8/gifPlayhead';
+import { MAX_IMAGE_DIMENSION } from '@/utils/imageUpload';
 
 /** Minimal interface PosterPlacement / ARExperience depend on. */
 export interface PosterAnimator {
@@ -26,26 +21,26 @@ export interface PosterAnimator {
    *
    * @param deltaMs — Milliseconds elapsed since the previous frame.
    */
-  update(deltaMs: number): void
+  update(deltaMs: number): void;
   /** Releases the canvases and the GPU texture. Call exactly once. */
-  dispose(): void
+  dispose(): void;
 }
 
 /** Result of createPosterTexture: a texture plus animation metadata. */
 export interface PosterTexture {
   /** The three.js texture to map onto the poster mesh. */
-  texture: Texture
+  texture: Texture;
   /** Per-frame animator for animated GIFs; null for static textures. */
-  animator: PosterAnimator | null
+  animator: PosterAnimator | null;
   /** height / width of the source image. */
-  aspect: number
+  aspect: number;
   /** Set when the GIF could not animate and we fell back to a static frame-0 texture. */
-  fallbackReason?: string
+  fallbackReason?: string;
   /**
    * Bytes of decoded RGBA frame data held in memory by this animator.
    * 0 for static textures and budget-exceeded fallbacks.
    */
-  decodedBytes: number
+  decodedBytes: number;
 }
 
 /**
@@ -55,7 +50,7 @@ export interface PosterTexture {
  * @returns True when the URL should go through the GIF decode path.
  */
 const isGifUrl = (url: string): boolean =>
-  url.startsWith('data:image/gif') || /\.gif($|\?)/i.test(url)
+  url.startsWith('data:image/gif') || /\.gif($|\?)/i.test(url);
 
 /**
  * Shrinks a width/height pair to fit inside `max` on its longest side while
@@ -68,11 +63,11 @@ const isGifUrl = (url: string): boolean =>
  * @returns The (possibly scaled-down) width and height.
  */
 const fitWithin = (w: number, h: number, max: number): { w: number; h: number } => {
-  const longest = Math.max(w, h)
-  if (longest <= max) return { w, h }
-  const s = max / longest
-  return { w: Math.max(1, Math.round(w * s)), h: Math.max(1, Math.round(h * s)) }
-}
+  const longest = Math.max(w, h);
+  if (longest <= max) return { w, h };
+  const s = max / longest;
+  return { w: Math.max(1, Math.round(w * s)), h: Math.max(1, Math.round(h * s)) };
+};
 
 /**
  * Plays a decoded GIF into a three.js CanvasTexture.
@@ -92,26 +87,26 @@ const fitWithin = (w: number, h: number, max: number): { w: number; h: number } 
  *     CanvasTexture (kept small so the GPU upload stays cheap).
  */
 class GifAnimator implements PosterAnimator {
-  private readonly playhead: GifPlayhead
-  private readonly frames: DecodedFrame[]
-  private readonly texture: CanvasTexture
+  private readonly playhead: GifPlayhead;
+  private readonly frames: DecodedFrame[];
+  private readonly texture: CanvasTexture;
   // Full-size compositing surface (logical GIF coordinates).
-  private readonly frameCanvas: HTMLCanvasElement
-  private readonly frameCtx: CanvasRenderingContext2D
+  private readonly frameCanvas: HTMLCanvasElement;
+  private readonly frameCtx: CanvasRenderingContext2D;
   // Scratch canvas for putImageData of a single patch.
-  private readonly patchCanvas: HTMLCanvasElement
-  private readonly patchCtx: CanvasRenderingContext2D
+  private readonly patchCanvas: HTMLCanvasElement;
+  private readonly patchCtx: CanvasRenderingContext2D;
   // Display surface (capped) — the CanvasTexture source.
-  private readonly displayCanvas: HTMLCanvasElement
-  private readonly displayCtx: CanvasRenderingContext2D
-  private readonly gifW: number
-  private readonly gifH: number
+  private readonly displayCanvas: HTMLCanvasElement;
+  private readonly displayCtx: CanvasRenderingContext2D;
+  private readonly gifW: number;
+  private readonly gifH: number;
   /** Index of the frame currently composited onto frameCanvas (-1 = none). */
-  private compositedIndex = -1
+  private compositedIndex = -1;
   /** Disposal method of the previously drawn frame (see applyFrame). */
-  private prevDisposal = 0
+  private prevDisposal = 0;
   /** Patch rectangle of the previously drawn frame (for disposal 2). */
-  private prevRect: DecodedFrame['dims'] | null = null
+  private prevRect: DecodedFrame['dims'] | null = null;
 
   /**
    * Builds the canvases, seeks to frame 0, and creates the CanvasTexture.
@@ -122,35 +117,35 @@ class GifAnimator implements PosterAnimator {
    * @param gifH — Logical GIF height in pixels (from the GIF header).
    */
   constructor(frames: DecodedFrame[], gifW: number, gifH: number) {
-    this.frames = frames
-    this.gifW = gifW
-    this.gifH = gifH
-    this.playhead = new GifPlayhead(frames.map((f) => f.delayMs))
+    this.frames = frames;
+    this.gifW = gifW;
+    this.gifH = gifH;
+    this.playhead = new GifPlayhead(frames.map((f) => f.delayMs));
 
-    this.frameCanvas = document.createElement('canvas')
-    this.frameCanvas.width = gifW
-    this.frameCanvas.height = gifH
-    this.frameCtx = this.frameCanvas.getContext('2d')!
+    this.frameCanvas = document.createElement('canvas');
+    this.frameCanvas.width = gifW;
+    this.frameCanvas.height = gifH;
+    this.frameCtx = this.frameCanvas.getContext('2d')!;
 
-    this.patchCanvas = document.createElement('canvas')
-    this.patchCtx = this.patchCanvas.getContext('2d')!
+    this.patchCanvas = document.createElement('canvas');
+    this.patchCtx = this.patchCanvas.getContext('2d')!;
 
-    const capped = fitWithin(gifW, gifH, MAX_IMAGE_DIMENSION)
-    this.displayCanvas = document.createElement('canvas')
-    this.displayCanvas.width = capped.w
-    this.displayCanvas.height = capped.h
-    this.displayCtx = this.displayCanvas.getContext('2d')!
+    const capped = fitWithin(gifW, gifH, MAX_IMAGE_DIMENSION);
+    this.displayCanvas = document.createElement('canvas');
+    this.displayCanvas.width = capped.w;
+    this.displayCanvas.height = capped.h;
+    this.displayCtx = this.displayCanvas.getContext('2d')!;
 
-    this.texture = new CanvasTexture(this.displayCanvas)
-    this.texture.colorSpace = SRGBColorSpace
-    this.texture.anisotropy = 4
+    this.texture = new CanvasTexture(this.displayCanvas);
+    this.texture.colorSpace = SRGBColorSpace;
+    this.texture.anisotropy = 4;
 
-    this.seekTo(0)
+    this.seekTo(0);
   }
 
   /** The self-updating texture to map onto the poster mesh. */
   get canvasTexture(): CanvasTexture {
-    return this.texture
+    return this.texture;
   }
 
   /**
@@ -160,7 +155,7 @@ class GifAnimator implements PosterAnimator {
    */
   update(deltaMs: number): void {
     if (this.playhead.advance(deltaMs)) {
-      this.seekTo(this.playhead.frameIndex)
+      this.seekTo(this.playhead.frameIndex);
     }
   }
 
@@ -170,10 +165,10 @@ class GifAnimator implements PosterAnimator {
    * pixel buffer immediately instead of waiting for garbage collection.
    */
   dispose(): void {
-    this.texture.dispose()
-    this.frameCanvas.width = this.frameCanvas.height = 0
-    this.displayCanvas.width = this.displayCanvas.height = 0
-    this.patchCanvas.width = this.patchCanvas.height = 0
+    this.texture.dispose();
+    this.frameCanvas.width = this.frameCanvas.height = 0;
+    this.displayCanvas.width = this.displayCanvas.height = 0;
+    this.patchCanvas.width = this.patchCanvas.height = 0;
   }
 
   /**
@@ -186,20 +181,20 @@ class GifAnimator implements PosterAnimator {
    * @param target — Index of the frame that should end up visible.
    */
   private seekTo(target: number): void {
-    if (target === this.compositedIndex) return
+    if (target === this.compositedIndex) return;
     // Walk forward (wrapping past the last frame back to 0) so each frame's
     // delta is applied in order. `guard` caps the loop at one full cycle in
     // case `target` is somehow unreachable.
-    let i = this.compositedIndex
-    let guard = this.frames.length + 1
+    let i = this.compositedIndex;
+    let guard = this.frames.length + 1;
     do {
-      i = (i + 1) % this.frames.length
-      this.applyFrame(i)
-      guard--
-    } while (i !== target && guard > 0)
-    this.compositedIndex = target
-    this.blitToDisplay()
-    this.texture.needsUpdate = true
+      i = (i + 1) % this.frames.length;
+      this.applyFrame(i);
+      guard--;
+    } while (i !== target && guard > 0);
+    this.compositedIndex = target;
+    this.blitToDisplay();
+    this.texture.needsUpdate = true;
   }
 
   /**
@@ -214,37 +209,39 @@ class GifAnimator implements PosterAnimator {
    * @param i — Index of the frame to draw.
    */
   private applyFrame(i: number): void {
-    const frame = this.frames[i]
+    const frame = this.frames[i];
 
     // Disposal handling for the *previous* frame before drawing this one.
     if (i === 0) {
       // Fresh loop — start from a clean surface.
-      this.frameCtx.clearRect(0, 0, this.gifW, this.gifH)
+      this.frameCtx.clearRect(0, 0, this.gifW, this.gifH);
     } else if (this.prevDisposal === 2 && this.prevRect) {
       this.frameCtx.clearRect(
         this.prevRect.left,
         this.prevRect.top,
         this.prevRect.width,
         this.prevRect.height,
-      )
+      );
     }
     // (disposalType 3 "restore to previous" is rare; treated like leave-as-is.)
 
     // Convert the frame's raw RGBA byte patch into pixels: putImageData
     // writes the bytes onto the scratch canvas, then drawImage stamps that
     // scratch canvas onto the compositing canvas at the patch's offset.
-    this.patchCanvas.width = frame.dims.width
-    this.patchCanvas.height = frame.dims.height
+    this.patchCanvas.width = frame.dims.width;
+    this.patchCanvas.height = frame.dims.height;
     // gifuct-js types patch as Uint8ClampedArray<ArrayBufferLike> which includes
     // SharedArrayBuffer — ImageData requires the plain-ArrayBuffer overload.
     // Copying via Uint8ClampedArray constructor guarantees a fresh ArrayBuffer.
-    const patchData = new Uint8ClampedArray(frame.patch) as unknown as Uint8ClampedArray<ArrayBuffer>
-    const imageData = new ImageData(patchData, frame.dims.width, frame.dims.height)
-    this.patchCtx.putImageData(imageData, 0, 0)
-    this.frameCtx.drawImage(this.patchCanvas, frame.dims.left, frame.dims.top)
+    const patchData = new Uint8ClampedArray(
+      frame.patch,
+    ) as unknown as Uint8ClampedArray<ArrayBuffer>;
+    const imageData = new ImageData(patchData, frame.dims.width, frame.dims.height);
+    this.patchCtx.putImageData(imageData, 0, 0);
+    this.frameCtx.drawImage(this.patchCanvas, frame.dims.left, frame.dims.top);
 
-    this.prevDisposal = frame.disposalType
-    this.prevRect = frame.dims
+    this.prevDisposal = frame.disposalType;
+    this.prevRect = frame.dims;
   }
 
   /**
@@ -253,12 +250,18 @@ class GifAnimator implements PosterAnimator {
    * CanvasTexture uploads to the GPU.
    */
   private blitToDisplay(): void {
-    this.displayCtx.clearRect(0, 0, this.displayCanvas.width, this.displayCanvas.height)
+    this.displayCtx.clearRect(0, 0, this.displayCanvas.width, this.displayCanvas.height);
     this.displayCtx.drawImage(
       this.frameCanvas,
-      0, 0, this.gifW, this.gifH,
-      0, 0, this.displayCanvas.width, this.displayCanvas.height,
-    )
+      0,
+      0,
+      this.gifW,
+      this.gifH,
+      0,
+      0,
+      this.displayCanvas.width,
+      this.displayCanvas.height,
+    );
   }
 }
 
@@ -273,21 +276,21 @@ class GifAnimator implements PosterAnimator {
  *   the metadata from the payload.
  */
 export function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
-  const comma = dataUrl.indexOf(',')
-  if (comma === -1) throw new Error('malformed data URL')
-  const meta = dataUrl.slice(0, comma)
-  const payload = dataUrl.slice(comma + 1)
+  const comma = dataUrl.indexOf(',');
+  if (comma === -1) throw new Error('malformed data URL');
+  const meta = dataUrl.slice(0, comma);
+  const payload = dataUrl.slice(comma + 1);
   if (meta.includes(';base64')) {
-    const bin = atob(payload)
-    const bytes = new Uint8Array(bin.length)
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-    return bytes.buffer
+    const bin = atob(payload);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes.buffer;
   }
   // Non-base64 (percent-encoded) data URL — rare for GIFs.
-  const decoded = decodeURIComponent(payload)
-  const bytes = new Uint8Array(decoded.length)
-  for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i)
-  return bytes.buffer
+  const decoded = decodeURIComponent(payload);
+  const bytes = new Uint8Array(decoded.length);
+  for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i);
+  return bytes.buffer;
 }
 
 /**
@@ -299,9 +302,9 @@ export function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
  * @throws Rejects on network failure, or throws on a malformed data URL.
  */
 async function loadGifBuffer(url: string): Promise<ArrayBuffer> {
-  if (url.startsWith('data:')) return dataUrlToArrayBuffer(url)
-  const res = await fetch(url)
-  return res.arrayBuffer()
+  if (url.startsWith('data:')) return dataUrlToArrayBuffer(url);
+  const res = await fetch(url);
+  return res.arrayBuffer();
 }
 
 /**
@@ -316,13 +319,13 @@ const loadStaticTexture = (url: string): Promise<Texture> =>
     new TextureLoader().load(
       url,
       (tex) => {
-        tex.anisotropy = 4
-        resolve(tex)
+        tex.anisotropy = 4;
+        resolve(tex);
       },
       undefined,
       (err) => reject(err instanceof Error ? err : new Error('Texture load failed')),
-    )
-  })
+    );
+  });
 
 /**
  * Diagnostic: prefixes the GIF-pipeline stage that threw onto the error
@@ -334,10 +337,10 @@ const loadStaticTexture = (url: string): Promise<Texture> =>
  * @returns A new Error tagged `[gif:<stage>]`, preserving the original stack.
  */
 function stageError(stage: 'fetch' | 'decode' | 'composite', err: unknown): Error {
-  const base = err instanceof Error ? err.message : String(err)
-  const tagged = new Error(`[gif:${stage}] ${base}`)
-  if (err instanceof Error && err.stack) tagged.stack = err.stack
-  return tagged
+  const base = err instanceof Error ? err.message : String(err);
+  const tagged = new Error(`[gif:${stage}] ${base}`);
+  if (err instanceof Error && err.stack) tagged.stack = err.stack;
+  return tagged;
 }
 
 /**
@@ -349,16 +352,16 @@ function stageError(stage: 'fetch' | 'decode' | 'composite', err: unknown): Erro
  *   or decoding fails.
  */
 function decodeGif(buffer: ArrayBuffer): {
-  width: number
-  height: number
-  frames: DecodedFrame[]
+  width: number;
+  height: number;
+  frames: DecodedFrame[];
 } {
   try {
-    const { width, height } = readGifSize(buffer)
-    const frames = decodeGifFrames(buffer)
-    return { width, height, frames }
+    const { width, height } = readGifSize(buffer);
+    const frames = decodeGifFrames(buffer);
+    return { width, height, frames };
   } catch (err) {
-    throw stageError('decode', err)
+    throw stageError('decode', err);
   }
 }
 
@@ -374,9 +377,9 @@ function decodeGif(buffer: ArrayBuffer): {
  */
 function makeAnimator(frames: DecodedFrame[], width: number, height: number): GifAnimator {
   try {
-    return new GifAnimator(frames, width, height)
+    return new GifAnimator(frames, width, height);
   } catch (err) {
-    throw stageError('composite', err)
+    throw stageError('composite', err);
   }
 }
 
@@ -404,49 +407,76 @@ export async function createPosterTexture(
   if (isGifUrl(url)) {
     try {
       const buffer = await loadGifBuffer(url).catch((err) => {
-        throw stageError('fetch', err)
-      })
-      const { width, height, frames } = decodeGif(buffer)
-      const aspect = height / Math.max(1, width)
+        throw stageError('fetch', err);
+      });
+      const { width, height, frames } = decodeGif(buffer);
+      const aspect = height / Math.max(1, width);
 
       // Single-frame or zero-sized GIF: nothing to animate, so fall back to a
       // plain static texture rather than paying the per-frame GPU upload cost
       // of a CanvasTexture for nothing.
       if (frames.length <= 1 || width < 1 || height < 1) {
-        const texture = await loadStaticTexture(url)
-        return { texture, animator: null, aspect, decodedBytes: 0 }
+        const texture = await loadStaticTexture(url);
+        return { texture, animator: null, aspect, decodedBytes: 0 };
       }
 
       // Compute how many bytes this animation would hold in memory.
-      const bytes = frames.reduce((s, f) => s + f.patch.byteLength, 0)
+      const bytes = frames.reduce((s, f) => s + f.patch.byteLength, 0);
 
       // Budget guard: if remaining budget is specified and this GIF would exceed
       // it, degrade to a static frame-0 to stay within the memory cap.
       if (opts?.animationByteBudget !== undefined && bytes > opts.animationByteBudget) {
-        const texture = await loadStaticTexture(url)
-        const img = texture.image as { width?: number; naturalWidth?: number; height?: number; naturalHeight?: number }
-        const w = img.naturalWidth ?? img.width ?? 1
-        const h = img.naturalHeight ?? img.height ?? 1
-        const fallbackReason = `memory budget — ${(bytes / 1048576).toFixed(0)}MB GIF exceeds remaining cap`
-        return { texture, animator: null, aspect: h / Math.max(1, w), fallbackReason, decodedBytes: 0 }
+        const texture = await loadStaticTexture(url);
+        const img = texture.image as {
+          width?: number;
+          naturalWidth?: number;
+          height?: number;
+          naturalHeight?: number;
+        };
+        const w = img.naturalWidth ?? img.width ?? 1;
+        const h = img.naturalHeight ?? img.height ?? 1;
+        const fallbackReason = `memory budget — ${(bytes / 1048576).toFixed(0)}MB GIF exceeds remaining cap`;
+        return {
+          texture,
+          animator: null,
+          aspect: h / Math.max(1, w),
+          fallbackReason,
+          decodedBytes: 0,
+        };
       }
 
-      const animator = makeAnimator(frames, width, height)
-      return { texture: animator.canvasTexture, animator, aspect, decodedBytes: bytes }
+      const animator = makeAnimator(frames, width, height);
+      return { texture: animator.canvasTexture, animator, aspect, decodedBytes: bytes };
     } catch (err) {
       // No-regret fallback: never do worse than the old static-frame-0 path.
-      const reason = err instanceof Error ? err.message : String(err)
-      const texture = await loadStaticTexture(url)
-      const img = texture.image as { width?: number; naturalWidth?: number; height?: number; naturalHeight?: number }
-      const w = img.naturalWidth ?? img.width ?? 1
-      const h = img.naturalHeight ?? img.height ?? 1
-      return { texture, animator: null, aspect: h / Math.max(1, w), fallbackReason: reason, decodedBytes: 0 }
+      const reason = err instanceof Error ? err.message : String(err);
+      const texture = await loadStaticTexture(url);
+      const img = texture.image as {
+        width?: number;
+        naturalWidth?: number;
+        height?: number;
+        naturalHeight?: number;
+      };
+      const w = img.naturalWidth ?? img.width ?? 1;
+      const h = img.naturalHeight ?? img.height ?? 1;
+      return {
+        texture,
+        animator: null,
+        aspect: h / Math.max(1, w),
+        fallbackReason: reason,
+        decodedBytes: 0,
+      };
     }
   }
 
-  const texture = await loadStaticTexture(url)
-  const img = texture.image as { width?: number; naturalWidth?: number; height?: number; naturalHeight?: number }
-  const w = img.naturalWidth ?? img.width ?? 1
-  const h = img.naturalHeight ?? img.height ?? 1
-  return { texture, animator: null, aspect: h / Math.max(1, w), decodedBytes: 0 }
+  const texture = await loadStaticTexture(url);
+  const img = texture.image as {
+    width?: number;
+    naturalWidth?: number;
+    height?: number;
+    naturalHeight?: number;
+  };
+  const w = img.naturalWidth ?? img.width ?? 1;
+  const h = img.naturalHeight ?? img.height ?? 1;
+  return { texture, animator: null, aspect: h / Math.max(1, w), decodedBytes: 0 };
 }

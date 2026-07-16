@@ -46,12 +46,7 @@ export type SubsystemStatus =
 
 /** Coarse device/browser classification shown in the diagnostic panel. */
 export type PlatformLabel =
-  | 'ios-safari'
-  | 'android-chrome'
-  | 'mobile-web'
-  | 'desktop-mock'
-  | 'unsupported'
-  | 'unknown';
+  'ios-safari' | 'android-chrome' | 'mobile-web' | 'desktop-mock' | 'unsupported' | 'unknown';
 
 export interface SubsystemsSnapshot {
   /** 8th Wall engine (xr.js + SLAM WASM) ready state (xrloaded fired). */
@@ -83,12 +78,7 @@ export interface SubsystemsSnapshot {
  * first AR frame slow?" — the gap between stages localizes the cost.
  */
 export type LoadStage =
-  | 'appMounted'
-  | 'supportDetected'
-  | 'engineReady'
-  | 'pipelineRun'
-  | 'firstFrame'
-  | 'firstTracking';
+  'appMounted' | 'supportDetected' | 'engineReady' | 'pipelineRun' | 'firstFrame' | 'firstTracking';
 
 /** Per-stage timestamps (ms since navigation start), null until reached. */
 export type LoadTiming = Record<LoadStage, number | null>;
@@ -223,8 +213,7 @@ export const debugTelemetry = {
    */
   mark(stage: LoadStage): void {
     if (state.timing[stage] !== null) return;
-    state.timing[stage] =
-      typeof performance !== 'undefined' ? Math.round(performance.now()) : 0;
+    state.timing[stage] = typeof performance !== 'undefined' ? Math.round(performance.now()) : 0;
     notify();
   },
 
@@ -244,10 +233,7 @@ export const debugTelemetry = {
    * @param name — Which subsystem to update (key of SubsystemsSnapshot).
    * @param status — Its new status; a no-op when unchanged.
    */
-  setSubsystem<K extends keyof SubsystemsSnapshot>(
-    name: K,
-    status: SubsystemsSnapshot[K]
-  ): void {
+  setSubsystem<K extends keyof SubsystemsSnapshot>(name: K, status: SubsystemsSnapshot[K]): void {
     if (state.subsystems[name] === status) return;
     state.subsystems[name] = status;
     notify();

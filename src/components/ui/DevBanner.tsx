@@ -32,8 +32,8 @@ export const DevBanner: React.FC<DevBannerProps> = ({ hasEmulator }) => {
           <>Mock AR helper detected — Start AR will open a mocked session.</>
         ) : (
           <>
-            Running the AR path on a development build. On desktop, open the app
-            normally to use the built-in webcam mock mode instead.
+            Running the AR path on a development build. On desktop, open the app normally to use the
+            built-in webcam mock mode instead.
           </>
         )}
       </div>

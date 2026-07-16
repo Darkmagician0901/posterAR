@@ -59,7 +59,9 @@ export interface UsePosterUploadReturn {
   /** Validates and processes a File directly (e.g. from drag-and-drop). */
   handleFileSelect: (file: File) => Promise<UploadResult>;
   /** onChange handler for the hidden file input; null when no file was picked. */
-  handleFileInputChange: (event: React.ChangeEvent<HTMLInputElement>) => Promise<UploadResult | null>;
+  handleFileInputChange: (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => Promise<UploadResult | null>;
   /** Clears progress and error back to the idle state. */
   resetUpload: () => void;
   /** Ref to attach to the hidden <input type="file"> element. */
@@ -93,9 +95,7 @@ const dataUrlToBlob = (dataUrl: string): Blob => {
  * @param processed — Output of validateAndProcessImage.
  * @returns Remote asset URL, or null.
  */
-export const persistProcessedImage = async (
-  processed: ProcessedImage,
-): Promise<string | null> => {
+export const persistProcessedImage = async (processed: ProcessedImage): Promise<string | null> => {
   if (!isPersistenceEnabled()) return null;
   try {
     const blob = dataUrlToBlob(processed.dataUrl);
@@ -128,7 +128,7 @@ export const persistProcessedImage = async (
 export const usePosterUpload = (): UsePosterUploadReturn => {
   const { addToast } = useUIState();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [uploadState, setUploadState] = useState<UploadState>({
     isUploading: false,
     progress: 0,
@@ -223,7 +223,7 @@ export const usePosterUpload = (): UsePosterUploadReturn => {
         };
       }
     },
-    [addToast]
+    [addToast],
   );
 
   /**
@@ -252,7 +252,7 @@ export const usePosterUpload = (): UsePosterUploadReturn => {
 
       return result;
     },
-    [handleFileSelect]
+    [handleFileSelect],
   );
 
   /** Programmatically clicks the hidden file input to open the OS picker. */

@@ -23,12 +23,8 @@ interface PosterGalleryProps {
  * it; clicking a thumbnail selects that poster and closes it.
  */
 export const PosterGallery: React.FC<PosterGalleryProps> = ({ onClose }) => {
-  const {
-    uploadedPosters,
-    currentPosterImage,
-    setCurrentPosterImage,
-    removeUploadedPoster,
-  } = usePosterStore();
+  const { uploadedPosters, currentPosterImage, setCurrentPosterImage, removeUploadedPoster } =
+    usePosterStore();
   const { addToast } = useUIState();
 
   /**
@@ -80,11 +76,7 @@ export const PosterGallery: React.FC<PosterGalleryProps> = ({ onClose }) => {
       <div className="poster-gallery" onClick={(e) => e.stopPropagation()}>
         <div className="poster-gallery-header">
           <h2>Select Poster</h2>
-          <button
-            className="poster-gallery-close"
-            onClick={onClose}
-            aria-label="Close gallery"
-          >
+          <button className="poster-gallery-close" onClick={onClose} aria-label="Close gallery">
             ×
           </button>
         </div>
@@ -119,16 +111,10 @@ export const PosterGallery: React.FC<PosterGalleryProps> = ({ onClose }) => {
               }`}
               onClick={() => handleSelectPoster(poster.imageUrl)}
             >
-              <img
-                src={poster.imageUrl}
-                alt={poster.name}
-                className="poster-gallery-thumbnail"
-              />
+              <img src={poster.imageUrl} alt={poster.name} className="poster-gallery-thumbnail" />
               <div className="poster-gallery-label">
                 <span className="poster-gallery-name" title={poster.name}>
-                  {poster.name.length > 15
-                    ? `${poster.name.substring(0, 12)}...`
-                    : poster.name}
+                  {poster.name.length > 15 ? `${poster.name.substring(0, 12)}...` : poster.name}
                 </span>
                 {currentPosterImage === poster.imageUrl && (
                   <span className="poster-gallery-badge">✓</span>
@@ -149,9 +135,7 @@ export const PosterGallery: React.FC<PosterGalleryProps> = ({ onClose }) => {
           {uploadedPosters.length === 0 && (
             <div className="poster-gallery-empty">
               <p>No uploaded posters yet</p>
-              <p className="poster-gallery-empty-hint">
-                Upload custom posters to see them here
-              </p>
+              <p className="poster-gallery-empty-hint">Upload custom posters to see them here</p>
             </div>
           )}
         </div>

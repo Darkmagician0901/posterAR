@@ -22,15 +22,7 @@
  * no AR pose involved.
  */
 
-import {
-  Color,
-  DoubleSide,
-  Group,
-  Matrix4,
-  Mesh,
-  MeshBasicMaterial,
-  RingGeometry,
-} from 'three';
+import { Color, DoubleSide, Group, Matrix4, Mesh, MeshBasicMaterial, RingGeometry } from 'three';
 
 /**
  * Reticle display state: 'tracking' shows the on-surface ring, 'searching'
@@ -113,7 +105,7 @@ export const createReticle = (): Reticle => {
     side: DoubleSide,
     depthWrite: false,
     depthTest: false, // always render on top so the searching ring stays
-                      // visible regardless of scene depth / camera-feed compositing
+    // visible regardless of scene depth / camera-feed compositing
   });
   const innerRing = new Mesh(innerGeom, innerMat);
   // High renderOrder makes three.js draw these rings after everything else,

@@ -101,8 +101,15 @@
   animation: story-pulse 1.4s ease-in-out infinite;
 }
 @keyframes story-pulse {
-  0%, 100% { transform: scale(0.7); opacity: 0.5; }
-  50% { transform: scale(1); opacity: 1; }
+  0%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* ── Era title (top) ───────────────────────────────────────────────────── */
@@ -117,7 +124,9 @@
 .story-year {
   font-size: 26px;
   color: #fff;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55), 0 0 18px rgba(255, 210, 120, 0.5);
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.55),
+    0 0 18px rgba(255, 210, 120, 0.5);
 }
 .story-era-title {
   margin-top: 8px;
@@ -126,8 +135,14 @@
   color: var(--story-orange);
 }
 @keyframes story-fade-down {
-  from { opacity: 0; transform: translate(-50%, -8px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 /* ── Docent + narration ────────────────────────────────────────────────── */
@@ -178,8 +193,13 @@
   transform: skewY(-26deg);
 }
 @keyframes story-bob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
 }
 
 .story-narration {
@@ -202,7 +222,9 @@
   animation: story-blink 0.8s steps(2) infinite;
 }
 @keyframes story-blink {
-  50% { opacity: 0; }
+  50% {
+    opacity: 0;
+  }
 }
 
 /* ── Bottom bar: timeline + nav ────────────────────────────────────────── */
@@ -243,7 +265,9 @@
   border: 2px solid #2a2620;
   transition: all 0.25s ease;
 }
-.story-stop.done .story-stop-dot { background: var(--story-green); }
+.story-stop.done .story-stop-dot {
+  background: var(--story-green);
+}
 .story-stop.active .story-stop-dot {
   background: var(--story-orange);
   box-shadow: 0 0 10px rgba(240, 138, 30, 0.8);
@@ -253,7 +277,9 @@
   font-size: 6px;
   color: #8a8478;
 }
-.story-stop.active .story-stop-label { color: #fff; }
+.story-stop.active .story-stop-label {
+  color: #fff;
+}
 
 .story-nav {
   display: flex;
@@ -271,10 +297,19 @@
   cursor: pointer;
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.3);
 }
-.story-btn:active { transform: translateY(2px); box-shadow: none; }
-.story-btn:disabled { opacity: 0.4; cursor: default; }
+.story-btn:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+.story-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 .story-btn-ghost {
   background: rgba(255, 255, 255, 0.1);
   border: 2px solid rgba(255, 255, 255, 0.18);
 }
-.story-card .story-btn { margin-top: 8px; width: 100%; }
+.story-card .story-btn {
+  margin-top: 8px;
+  width: 100%;
+}

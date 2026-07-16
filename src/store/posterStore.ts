@@ -214,9 +214,7 @@ export const usePosterStore = create<PosterStore>((set, get) => ({
   updatePoster: (id: string, updates: Partial<Poster>) => {
     set((state) => ({
       posters: state.posters.map((poster) =>
-        poster.id === id
-          ? { ...poster, ...updates, updatedAt: Date.now() }
-          : poster
+        poster.id === id ? { ...poster, ...updates, updatedAt: Date.now() } : poster,
       ),
     }));
   },
@@ -263,9 +261,8 @@ export const usePosterStore = create<PosterStore>((set, get) => ({
       // first remaining upload, or the bundled default when none are left.
       let newCurrentImage = state.currentPosterImage;
       if (posterToRemove && posterToRemove.imageUrl === state.currentPosterImage) {
-        newCurrentImage = newUploadedPosters.length > 0
-          ? newUploadedPosters[0].imageUrl
-          : DEFAULT_POSTER_IMAGE;
+        newCurrentImage =
+          newUploadedPosters.length > 0 ? newUploadedPosters[0].imageUrl : DEFAULT_POSTER_IMAGE;
       }
 
       return {

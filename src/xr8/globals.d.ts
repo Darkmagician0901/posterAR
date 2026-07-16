@@ -9,7 +9,7 @@
  * `XR8.addCameraPipelineModules`). No values are exported; `export {}` only
  * makes this file a module so `declare global` is allowed.
  */
-export {}
+export {};
 
 declare global {
   /**
@@ -22,13 +22,13 @@ declare global {
      * has confirmed) > ESTIMATED_SURFACE (a guess) > FEATURE_POINT (a single
      * tracked point).
      */
-    type: 'FEATURE_POINT' | 'ESTIMATED_SURFACE' | 'DETECTED_SURFACE' | 'UNSPECIFIED'
+    type: 'FEATURE_POINT' | 'ESTIMATED_SURFACE' | 'DETECTED_SURFACE' | 'UNSPECIFIED';
     /** Hit point in world space, in metres. */
-    position: { x: number; y: number; z: number }
+    position: { x: number; y: number; z: number };
     /** Surface orientation as a quaternion (4-number rotation). */
-    rotation: { x: number; y: number; z: number; w: number }
+    rotation: { x: number; y: number; z: number; w: number };
     /** Distance from the camera to the hit point, in metres. */
-    distance: number
+    distance: number;
   }
 
   /**
@@ -38,35 +38,35 @@ declare global {
    */
   interface Xr8PipelineModule {
     /** Unique module name (the engine rejects duplicate names). */
-    name: string
+    name: string;
     /** Called once when the camera session starts; receives the canvas. */
-    onStart?: (args: { canvas: HTMLCanvasElement; GLctx?: WebGLRenderingContext }) => void
+    onStart?: (args: { canvas: HTMLCanvasElement; GLctx?: WebGLRenderingContext }) => void;
     /** Called every frame before rendering — per-frame logic goes here. */
-    onUpdate?: (args: Record<string, unknown>) => void
+    onUpdate?: (args: Record<string, unknown>) => void;
     /** Called every frame at render time. */
-    onRender?: (args: Record<string, unknown>) => void
+    onRender?: (args: Record<string, unknown>) => void;
     /** Called when the engine catches an error in any module. */
-    onException?: (error: unknown) => void
+    onException?: (error: unknown) => void;
     /** Called when the module is removed or the session stops. */
-    onDetach?: (args: Record<string, unknown>) => void
-    [key: string]: unknown
+    onDetach?: (args: Record<string, unknown>) => void;
+    [key: string]: unknown;
   }
 
   // The engine attaches these globals. Typed loosely as `any` on purpose —
   // full engine typings are out of scope and would fight the migration.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const XR8: any
+  const XR8: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const XRExtras: any
+  const XRExtras: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const LandingPage: any
+  const LandingPage: any;
 
   interface Window {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    XR8?: any
+    XR8?: any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    XRExtras?: any
+    XRExtras?: any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    LandingPage?: any
+    LandingPage?: any;
   }
 }

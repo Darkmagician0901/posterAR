@@ -106,14 +106,29 @@
   color: rgba(100, 116, 139, 0.4);
 }
 
-.diagnostic-status-green { color: #4ade80; }
-.diagnostic-status-amber { color: #fbbf24; }
-.diagnostic-status-red   { color: #f87171; }
-.diagnostic-status-gray  { color: #94a3b8; }
+.diagnostic-status-green {
+  color: #4ade80;
+}
+.diagnostic-status-amber {
+  color: #fbbf24;
+}
+.diagnostic-status-red {
+  color: #f87171;
+}
+.diagnostic-status-gray {
+  color: #94a3b8;
+}
 
 @keyframes diagnostic-dot-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%      { opacity: 0.55; transform: scale(0.82); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.82);
+  }
 }
 
 .diagnostic-note {

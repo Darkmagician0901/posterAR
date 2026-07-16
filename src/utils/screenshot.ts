@@ -93,7 +93,7 @@ export const generateFilename = (format: ScreenshotFormat = 'png'): string => {
   const hours = String(now.getHours()).padStart(2, '0');
   const minutes = String(now.getMinutes()).padStart(2, '0');
   const seconds = String(now.getSeconds()).padStart(2, '0');
-  
+
   return `xr-poster-${year}-${month}-${day}-${hours}-${minutes}-${seconds}.${format}`;
 };
 
@@ -111,7 +111,7 @@ const findThreeCanvas = (): HTMLCanvasElement | null => {
   if (canvases.length === 1) {
     return canvases[0];
   }
-  
+
   // Try to find canvas with WebGL context. getContext() returns the
   // ALREADY-CREATED context for a canvas (or null if the canvas was
   // initialized with a different type), so this probe is non-destructive.
@@ -121,7 +121,7 @@ const findThreeCanvas = (): HTMLCanvasElement | null => {
       return canvas;
     }
   }
-  
+
   return null;
 };
 
@@ -138,14 +138,16 @@ const findThreeCanvas = (): HTMLCanvasElement | null => {
 const captureCanvasAsDataUrl = (
   canvas: HTMLCanvasElement,
   format: ScreenshotFormat = 'png',
-  quality: number = 0.92
+  quality: number = 0.92,
 ): string => {
   const mimeType = getMimeType(format);
-  
+
   try {
     return canvas.toDataURL(mimeType, quality);
   } catch (error) {
-    throw new Error(`Failed to capture canvas: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(
+      `Failed to capture canvas: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    );
   }
 };
 
@@ -174,8 +176,7 @@ export const base64ToBlob = (base64: string, mimeType: string): Blob => {
  * @param base64 — Base64 JPEG bytes without the `data:` prefix.
  * @returns A `data:image/jpeg;base64,...` string usable as an <img> src.
  */
-export const base64JpegToDataUrl = (base64: string): string =>
-  `data:image/jpeg;base64,${base64}`;
+export const base64JpegToDataUrl = (base64: string): string => `data:image/jpeg;base64,${base64}`;
 
 /**
  * Wraps the raw base64 JPEG returned by XR8.CanvasScreenshot.takeScreenshot()
@@ -188,7 +189,7 @@ export const base64JpegToDataUrl = (base64: string): string =>
  */
 export const screenshotResultFromBase64Jpeg = (
   base64: string,
-  filename: string = generateFilename('jpeg')
+  filename: string = generateFilename('jpeg'),
 ): ScreenshotResult => ({
   dataUrl: base64JpegToDataUrl(base64),
   blob: base64ToBlob(base64, 'image/jpeg'),
@@ -209,7 +210,7 @@ export const screenshotResultFromDataUrl = (
   dataUrl: string,
   width: number,
   height: number,
-  format: ScreenshotFormat = 'jpeg'
+  format: ScreenshotFormat = 'jpeg',
 ): ScreenshotResult => ({
   dataUrl,
   blob: base64ToBlob(dataUrl.split(',')[1], getMimeType(format)),
@@ -235,7 +236,7 @@ export const computeCoverCrop = (
   srcW: number,
   srcH: number,
   dstW: number,
-  dstH: number
+  dstH: number,
 ): { sx: number; sy: number; sw: number; sh: number } => {
   const srcAspect = srcW / srcH;
   const dstAspect = dstW / dstH;
@@ -276,13 +277,9 @@ const dataUrlToBlob = async (dataUrl: string): Promise<Blob> => {
  *   canvas pixels cannot be read.
  */
 export const captureScreenshot = async (
-  options: ScreenshotOptions = {}
+  options: ScreenshotOptions = {},
 ): Promise<ScreenshotResult> => {
-  const {
-    format = 'png',
-    quality = 0.92,
-    filename = generateFilename(format),
-  } = options;
+  const { format = 'png', quality = 0.92, filename = generateFilename(format) } = options;
 
   // Find canvas
   const canvas = findThreeCanvas();
@@ -328,7 +325,9 @@ export const downloadScreenshot = (result: ScreenshotResult): void => {
     link.click();
     document.body.removeChild(link);
   } catch (error) {
-    throw new Error(`Failed to download screenshot: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(
+      `Failed to download screenshot: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    );
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
@@ -350,7 +349,7 @@ export type ShareOutcome = 'shared' | 'canceled' | 'unsupported' | 'failed';
  */
 export const shareScreenshot = async (
   result: ScreenshotResult,
-  title: string = 'XR Poster Screenshot'
+  title: string = 'XR Poster Screenshot',
 ): Promise<ShareOutcome> => {
   if (!navigator.share || !navigator.canShare) {
     return 'unsupported';

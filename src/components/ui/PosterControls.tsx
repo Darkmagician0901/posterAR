@@ -67,11 +67,7 @@ export const PosterControls: React.FC = () => {
   const handleRotationChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const deg = parseFloat(event.target.value);
     const radians = (deg * Math.PI) / 180;
-    const newRotation: [number, number, number] = [
-      poster.rotation[0],
-      poster.rotation[1],
-      radians,
-    ];
+    const newRotation: [number, number, number] = [poster.rotation[0], poster.rotation[1], radians];
     updatePoster(poster.id, { rotation: newRotation });
   };
 

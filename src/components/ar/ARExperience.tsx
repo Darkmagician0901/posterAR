@@ -10,14 +10,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  AmbientLight,
-  Camera,
-  DirectionalLight,
-  Group,
-  Scene,
-  Vector3,
-} from 'three';
+import { AmbientLight, Camera, DirectionalLight, Group, Scene, Vector3 } from 'three';
 
 import { acquirePosterTexture, releasePosterTexture } from '@/xr8/posterTextureCache';
 import { onXr8Ready, runXr8, stopXr8 } from '@/xr8/pipeline';
@@ -150,8 +143,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
       // TEMPORARY: log image kind + rough size so we can tell "GIF vs static"
       // and "data-URL vs blob: vs http" without needing DevTools.
       const isGif =
-        currentPosterImage.startsWith('data:image/gif') ||
-        /\.gif($|\?)/i.test(currentPosterImage);
+        currentPosterImage.startsWith('data:image/gif') || /\.gif($|\?)/i.test(currentPosterImage);
       const urlKind = currentPosterImage.startsWith('data:')
         ? `data(${currentPosterImage.length} chars)`
         : currentPosterImage.startsWith('blob:')
@@ -160,14 +152,15 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
             ? 'http'
             : 'other';
       debugTelemetry.logEvent(
-        `createPosterTexture: start — ${isGif ? 'GIF' : 'static'} ${urlKind}`
+        `createPosterTexture: start — ${isGif ? 'GIF' : 'static'} ${urlKind}`,
       );
 
-      const { texture, animator, aspect, fallbackReason } = await acquirePosterTexture(currentPosterImage);
+      const { texture, animator, aspect, fallbackReason } =
+        await acquirePosterTexture(currentPosterImage);
 
       // TEMPORARY: log successful texture creation.
       debugTelemetry.logEvent(
-        `createPosterTexture: ok — aspect=${aspect.toFixed(3)} animated=${animator !== null}`
+        `createPosterTexture: ok — aspect=${aspect.toFixed(3)} animated=${animator !== null}`,
       );
       if (fallbackReason) {
         debugTelemetry.logEvent(`gif: fell back to static frame-0 — ${fallbackReason}`);
@@ -196,7 +189,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
       if (!placement || !matrix) {
         // TEMPORARY: log loss of placement ref / matrix between async await.
         debugTelemetry.logEvent(
-          `placement.place: skipped — placement=${placement !== null} matrix=${matrix !== null}`
+          `placement.place: skipped — placement=${placement !== null} matrix=${matrix !== null}`,
         );
         usePosterStore.getState().removePoster(posterId);
         releasePosterTexture(currentPosterImage);
@@ -209,8 +202,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
       let cameraPos: Vector3 | null = null;
       try {
         const xrScene = XR8?.Threejs?.xrScene?.() as
-          | { camera?: { position?: Vector3 } }
-          | undefined;
+          { camera?: { position?: Vector3 } } | undefined;
         cameraPos = xrScene?.camera?.position ?? null;
       } catch {
         cameraPos = null;
@@ -224,7 +216,6 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
       // TEMPORARY: log success with updated poster count.
       const posterCount = placement.size();
       debugTelemetry.logEvent(`placement.place: ok — total posters=${posterCount}`);
-
     } catch (error) {
       console.error('Poster placement failed:', error);
       // The texture cache (src/xr8/posterTextureCache.ts) counts how many
@@ -333,10 +324,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
             for (const [id, poster] of nextById) {
               const before = prevById.get(id);
               if (!before) continue;
-              if (
-                before.scale[0] !== poster.scale[0] ||
-                before.scale[1] !== poster.scale[1]
-              ) {
+              if (before.scale[0] !== poster.scale[0] || before.scale[1] !== poster.scale[1]) {
                 placement.setScale(id, poster.scale[0], poster.scale[1]);
               }
               if (before.rotation[2] !== poster.rotation[2]) {
@@ -356,7 +344,7 @@ export const ARExperience: React.FC<ARExperienceProps> = ({
             // TEMPORARY: log every tap so we know the event reached JS even
             // when placePoster silently early-returns.
             debugTelemetry.logEvent(
-              `tap: received — reticle=${lastReticleMatrixRef.current !== null ? 'locked' : 'not-locked'}`
+              `tap: received — reticle=${lastReticleMatrixRef.current !== null ? 'locked' : 'not-locked'}`,
             );
             void placePoster();
           };

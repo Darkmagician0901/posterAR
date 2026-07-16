@@ -23,11 +23,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ isARActive, onExitAR }) => {
   if (!isARActive || !onExitAR) return null;
   return (
-    <button
-      className="exit-ar-button"
-      onClick={onExitAR}
-      aria-label="Exit AR mode"
-    >
+    <button className="exit-ar-button" onClick={onExitAR} aria-label="Exit AR mode">
       <span className="exit-icon">✕</span>
       <span className="exit-label">Exit AR</span>
     </button>

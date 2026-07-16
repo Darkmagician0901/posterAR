@@ -113,40 +113,28 @@ export class ErrorBoundary extends Component<Props, State> {
                 the placement crash is fixed. */}
             {error && (
               <details className="error-details" open>
-                <summary className="error-details-summary">
-                  Technical Details
-                </summary>
+                <summary className="error-details-summary">Technical Details</summary>
                 <div className="error-details-content">
                   <p className="error-name">{error.toString()}</p>
-                  {errorInfo && (
-                    <pre className="error-stack">
-                      {errorInfo.componentStack}
-                    </pre>
-                  )}
+                  {errorInfo && <pre className="error-stack">{errorInfo.componentStack}</pre>}
                 </div>
               </details>
             )}
 
             {/* Action buttons */}
             <div className="error-actions">
-              <button
-                className="error-button error-button-primary"
-                onClick={this.handleRetry}
-              >
+              <button className="error-button error-button-primary" onClick={this.handleRetry}>
                 Try Again
               </button>
-              <button
-                className="error-button error-button-secondary"
-                onClick={this.handleReload}
-              >
+              <button className="error-button error-button-secondary" onClick={this.handleReload}>
                 Reload Page
               </button>
             </div>
 
             {/* Help text */}
             <p className="error-help">
-              If the problem persists, please try refreshing your browser or
-              checking your internet connection.
+              If the problem persists, please try refreshing your browser or checking your internet
+              connection.
             </p>
           </div>
         </div>

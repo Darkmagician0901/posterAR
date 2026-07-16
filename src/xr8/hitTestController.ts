@@ -13,7 +13,7 @@
  * anchor lifecycle, no reference-space management.
  */
 
-import { Matrix4, Quaternion, Vector3 } from 'three'
+import { Matrix4, Quaternion, Vector3 } from 'three';
 
 export interface ReticlePose {
   /**
@@ -21,17 +21,17 @@ export interface ReticlePose {
    * order (the matrix is listed column by column — the memory layout three.js
    * and WebGL use). Feed it to Matrix4.fromArray or copy into mesh.matrix.
    */
-  matrix: Float32Array
+  matrix: Float32Array;
   /** True when the surface is a wall (its normal is roughly horizontal). */
-  vertical: boolean
+  vertical: boolean;
 }
 
 // ── module-scoped temporaries — reused every frame to avoid GC pressure ──────
-const _m4 = new Matrix4()
-const _pos = new Vector3()
-const _quat = new Quaternion()
-const _scale = new Vector3(1, 1, 1)
-const _normal = new Vector3()
+const _m4 = new Matrix4();
+const _pos = new Vector3();
+const _quat = new Quaternion();
+const _scale = new Vector3(1, 1, 1);
+const _normal = new Vector3();
 
 /**
  * Runs a centre-screen hit-test via XR8.XrController.hitTest and returns the
@@ -46,10 +46,10 @@ const _normal = new Vector3()
 export function readReticlePose(): ReticlePose | null {
   // Guard: engine not yet loaded or XrController unavailable.
   if (typeof XR8 === 'undefined' || !XR8?.XrController?.hitTest) {
-    return null
+    return null;
   }
 
-  let results: Xr8HitResult[]
+  let results: Xr8HitResult[];
   try {
     // (0.5, 0.5) is the screen centre — hitTest takes normalized screen
     // coordinates where (0, 0) is top-left and (1, 1) is bottom-right.
@@ -57,13 +57,13 @@ export function readReticlePose(): ReticlePose | null {
       'DETECTED_SURFACE',
       'ESTIMATED_SURFACE',
       'FEATURE_POINT',
-    ]) as Xr8HitResult[]
+    ]) as Xr8HitResult[];
   } catch {
-    return null
+    return null;
   }
 
   if (!results || results.length === 0) {
-    return null
+    return null;
   }
 
   // Pick the best result according to priority order.
@@ -71,25 +71,25 @@ export function readReticlePose(): ReticlePose | null {
     results.find((r) => r.type === 'DETECTED_SURFACE') ??
     results.find((r) => r.type === 'ESTIMATED_SURFACE') ??
     results.find((r) => r.type === 'FEATURE_POINT') ??
-    results[0]
+    results[0];
 
-  const { position: p, rotation: r } = best
+  const { position: p, rotation: r } = best;
 
   // Build the world-space 4x4 transform from the hit's position and rotation
   // quaternion (three.js's 4-number rotation representation) at unit scale.
-  _pos.set(p.x, p.y, p.z)
-  _quat.set(r.x, r.y, r.z, r.w)
-  _scale.set(1, 1, 1)
-  _m4.compose(_pos, _quat, _scale)
+  _pos.set(p.x, p.y, p.z);
+  _quat.set(r.x, r.y, r.z, r.w);
+  _scale.set(1, 1, 1);
+  _m4.compose(_pos, _quat, _scale);
 
   // Determine verticality: rotate world-up (0,1,0) by the hit quaternion to get
   // the surface normal. A wall's normal is roughly horizontal, so |normal.y| is
   // small — treat that as a vertical surface.
-  _normal.set(0, 1, 0).applyQuaternion(_quat)
-  const vertical = Math.abs(_normal.y) < 0.5
+  _normal.set(0, 1, 0).applyQuaternion(_quat);
+  const vertical = Math.abs(_normal.y) < 0.5;
 
   return {
     matrix: new Float32Array(_m4.elements),
     vertical,
-  }
+  };
 }

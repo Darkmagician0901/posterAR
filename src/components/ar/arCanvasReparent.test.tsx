@@ -11,7 +11,7 @@
  * with a reference node that is no longer a child throws NotFoundError, which the
  * app's ErrorBoundary catches → the "Oops! Something went wrong" screen.
  *
- * The fix wraps the canvas in a stable holder <div> (see ARExperience.tsx) so
+ * The fix wraps the canvas in a stable holder <div> (see StoryARExperience.tsx) so
  * React always anchors on the holder, never on the canvas itself.
  *
  * Test 1 models the failing operation directly at the DOM level (deterministic;

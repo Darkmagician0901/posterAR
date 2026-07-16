@@ -52,7 +52,7 @@ import {
 // Texture loader helper
 // ---------------------------------------------------------------------------
 // Note: this is a deliberately simple static-image loader for the desktop
-// sandbox. The live AR path (ARExperience.tsx) instead uses the shared,
+// sandbox. The live AR path (StoryARExperience.tsx) instead uses the shared,
 // refcounted cache in src/xr8/posterTextureCache.ts, which also handles
 // animated GIFs.
 

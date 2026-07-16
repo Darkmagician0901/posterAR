@@ -1,6 +1,16 @@
 /**
  * Poster Upload Hook
  *
+ * PARKED — the `usePosterUpload` hook has no production caller today (its only
+ * importer was ControlPanel, which is itself parked), and that is deliberate:
+ * the app ships a story-only user panel (StoryARExperience) with no upload UI.
+ * This module is retained as the basis for the planned admin panel's asset
+ * upload, which docs/admin-panel-plan.md builds directly on this same
+ * presigned-upload path (posterApi.ts → the Fastify API in server/). Do NOT
+ * delete it as dead code — zero importers here means "not wired up yet", not
+ * "unused". Note `persistProcessedImage` is still exercised by
+ * usePosterUpload.persist.test.ts.
+ *
  * React hook that drives the poster image upload flow: takes a File (from a
  * hidden <input type="file"> or drag-and-drop), validates and compresses it
  * via @/utils/imageUpload, tracks progress/error state for the UI, and shows

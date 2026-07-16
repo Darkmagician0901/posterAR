@@ -1,6 +1,13 @@
 /**
  * ControlPanel — floating toolbar shown while an AR session is active.
  *
+ * PARKED — nothing imports this today. That is intentional, not an oversight:
+ * the app ships a story-only user panel (StoryARExperience), which has no poster
+ * toolbar. What becomes of this component is UNDECIDED — docs/admin-panel-plan.md
+ * specifies new /admin/* routes and does not name it, so whether the admin panel
+ * imports it, ports from it, or replaces it is an open question. Do NOT delete it
+ * as dead code — zero importers here means "not wired up yet", not "unused".
+ *
  * Buttons: clear all posters, screenshot, upload an image (hidden <input
  * type="file">), open the poster gallery, show instructions, and toggle the
  * debug HUD. Owns the gallery's open/closed state locally; everything else is

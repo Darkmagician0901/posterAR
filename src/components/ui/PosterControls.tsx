@@ -1,6 +1,14 @@
 /**
  * PosterControls — collapsible panel for the currently selected poster.
  *
+ * PARKED — nothing imports this today. That is intentional, not an oversight:
+ * the app ships a story-only user panel (StoryARExperience), which places one
+ * diorama tile and exposes no per-poster controls. What becomes of this component
+ * is UNDECIDED — docs/admin-panel-plan.md specifies new /admin/* routes and does
+ * not name it, so whether the admin panel imports it, ports from it, or replaces
+ * it is an open question. Do NOT delete it as dead code — zero importers here
+ * means "not wired up yet", not "unused".
+ *
  * Renders only while posterStore has a selectedPosterId. Offers a scale
  * slider (bounded by MIN/MAX_POSTER_SCALE), an in-plane rotation slider
  * (bounded by MIN/MAX_POSTER_ROTATION_DEG), and a delete button. There are no

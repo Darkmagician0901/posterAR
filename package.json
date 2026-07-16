@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite --host",
     "build": "tsc && vite build",
-    "build:prod": "NODE_ENV=production npm run build",
+    "build:prod": "cross-env NODE_ENV=production npm run build",
     "preview": "vite preview --host",
     "preview:prod": "npm run build:prod && npm run preview",
     "type-check": "tsc --noEmit",
@@ -42,6 +42,7 @@
     "@types/three": "^0.160.0",
     "@vitejs/plugin-basic-ssl": "^1.0.1",
     "@vitejs/plugin-react": "^4.2.1",
+    "cross-env": "^10.1.0",
     "eslint": "^10.7.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",

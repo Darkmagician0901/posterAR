@@ -1,10 +1,10 @@
-import pg from 'pg'
+import pg from 'pg';
 
-let pool: pg.Pool | null = null
+let pool: pg.Pool | null = null;
 
 export function getPool(databaseUrl: string): pg.Pool {
   if (!pool) {
-    pool = new pg.Pool({ connectionString: databaseUrl, max: 10 })
+    pool = new pg.Pool({ connectionString: databaseUrl, max: 10 });
   }
-  return pool
+  return pool;
 }

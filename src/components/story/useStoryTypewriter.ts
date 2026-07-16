@@ -20,7 +20,7 @@ const CHAR_INTERVAL_MS = 22;
  */
 export function useStoryTypewriter(
   text: string,
-  enabled: boolean
+  enabled: boolean,
 ): { shown: string; done: boolean; skip: () => void } {
   const [shown, setShown] = useState('');
   const [done, setDone] = useState(false);

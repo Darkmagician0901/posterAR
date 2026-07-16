@@ -13,10 +13,7 @@
  * Exports: isXr8ScreenshotAvailable, takeXr8Photo.
  */
 
-import {
-  screenshotResultFromBase64Jpeg,
-  ScreenshotResult,
-} from '@/utils/screenshot'
+import { screenshotResultFromBase64Jpeg, ScreenshotResult } from '@/utils/screenshot';
 
 /**
  * Reports whether the running engine binary exposes the CanvasScreenshot
@@ -30,7 +27,7 @@ export function isXr8ScreenshotAvailable(): boolean {
   return (
     typeof window !== 'undefined' &&
     typeof window.XR8?.CanvasScreenshot?.takeScreenshot === 'function'
-  )
+  );
 }
 
 /**
@@ -44,8 +41,8 @@ export function isXr8ScreenshotAvailable(): boolean {
  */
 export async function takeXr8Photo(): Promise<ScreenshotResult> {
   if (!isXr8ScreenshotAvailable()) {
-    throw new Error('8th Wall screenshot module unavailable')
+    throw new Error('8th Wall screenshot module unavailable');
   }
-  const base64: string = await window.XR8.CanvasScreenshot.takeScreenshot()
-  return screenshotResultFromBase64Jpeg(base64)
+  const base64: string = await window.XR8.CanvasScreenshot.takeScreenshot();
+  return screenshotResultFromBase64Jpeg(base64);
 }

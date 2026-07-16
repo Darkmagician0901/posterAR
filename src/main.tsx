@@ -14,5 +14,5 @@ import '@fontsource/press-start-2p/400.css';
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />
-  </React.StrictMode>
+  </React.StrictMode>,
 );

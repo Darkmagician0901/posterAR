@@ -61,11 +61,7 @@ export const PhotoPreview: React.FC<PhotoPreviewProps> = ({
           </button>
         </div>
 
-        <img
-          className="photo-preview-image"
-          src={photo.dataUrl}
-          alt="Captured AR scene"
-        />
+        <img className="photo-preview-image" src={photo.dataUrl} alt="Captured AR scene" />
 
         <div className="photo-preview-actions">
           <button

@@ -13,15 +13,7 @@
  * by composePosterMatrix(); this class just decomposes and applies it.
  */
 
-import {
-  DoubleSide,
-  Group,
-  Matrix4,
-  Mesh,
-  MeshBasicMaterial,
-  PlaneGeometry,
-  Texture,
-} from 'three';
+import { DoubleSide, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Texture } from 'three';
 
 /** Width of the diorama in metres (height follows the art aspect). */
 const TILE_WIDTH_M = 0.9;

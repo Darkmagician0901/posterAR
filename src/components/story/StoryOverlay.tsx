@@ -33,10 +33,7 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
   const era = STORY_ERAS[eraIndex];
 
   // Type the narration only while an era is on screen.
-  const { shown, done, skip } = useStoryTypewriter(
-    era.line,
-    phase === 'placed'
-  );
+  const { shown, done, skip } = useStoryTypewriter(era.line, phase === 'placed');
 
   const isLast = eraIndex === STORY_ERAS.length - 1;
 
@@ -130,11 +127,7 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
           </div>
 
           <div className="story-nav">
-            <button
-              className="story-btn story-btn-ghost"
-              onClick={prev}
-              disabled={eraIndex === 0}
-            >
+            <button className="story-btn story-btn-ghost" onClick={prev} disabled={eraIndex === 0}>
               ‹ BACK
             </button>
             <button className="story-btn" onClick={next}>

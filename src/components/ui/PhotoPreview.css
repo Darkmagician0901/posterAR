@@ -92,7 +92,9 @@
   cursor: pointer;
   color: white;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
 }
 
 .photo-preview-button:hover {

@@ -39,9 +39,7 @@ const TIMING_ROWS: { key: LoadStage; label: string }[] = [
 
 /** Telemetry overlay toggled by the 🐞 chip; samples debugTelemetry at 5 Hz. */
 export const DebugHUD: React.FC = () => {
-  const [snapshot, setSnapshot] = useState<TelemetrySnapshot>(() =>
-    debugTelemetry.read()
-  );
+  const [snapshot, setSnapshot] = useState<TelemetrySnapshot>(() => debugTelemetry.read());
   const [, forceVisibility] = useState(0);
 
   useEffect(() => {
@@ -97,9 +95,7 @@ export const DebugHUD: React.FC = () => {
                   Copy
                 </button>
               </div>
-              <pre className="debug-hud-note-body debug-hud-crumbs-body">
-                {breadcrumbText}
-              </pre>
+              <pre className="debug-hud-note-body debug-hud-crumbs-body">{breadcrumbText}</pre>
             </div>
           )}
 

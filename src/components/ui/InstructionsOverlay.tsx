@@ -42,7 +42,8 @@ const INSTRUCTION_STEPS: InstructionStep[] = [
   {
     id: 4,
     title: 'Capture & Manage',
-    description: 'Take a photo of your scene, upload your own poster, or clear all posters from the control panel',
+    description:
+      'Take a photo of your scene, upload your own poster, or clear all posters from the control panel',
     icon: '📷',
   },
 ];
@@ -118,7 +119,7 @@ export const InstructionsOverlay: React.FC = () => {
       aria-modal="true"
     >
       <div className="instructions-backdrop" onClick={handleClose} />
-      
+
       <div className="instructions-content">
         {/* Close button */}
         <button
@@ -131,10 +132,7 @@ export const InstructionsOverlay: React.FC = () => {
 
         {/* Progress bar */}
         <div className="instructions-progress">
-          <div
-            className="instructions-progress-bar"
-            style={{ width: `${progress}%` }}
-          />
+          <div className="instructions-progress-bar" style={{ width: `${progress}%` }} />
         </div>
 
         {/* Step indicator */}
@@ -148,9 +146,7 @@ export const InstructionsOverlay: React.FC = () => {
           <h2 id="instructions-title" className="instructions-title">
             {currentInstruction.title}
           </h2>
-          <p className="instructions-description">
-            {currentInstruction.description}
-          </p>
+          <p className="instructions-description">{currentInstruction.description}</p>
         </div>
 
         {/* Step dots */}
@@ -177,18 +173,12 @@ export const InstructionsOverlay: React.FC = () => {
               Previous
             </button>
           )}
-          
-          <button
-            className="instructions-button instructions-button-text"
-            onClick={handleSkip}
-          >
+
+          <button className="instructions-button instructions-button-text" onClick={handleSkip}>
             Skip
           </button>
-          
-          <button
-            className="instructions-button instructions-button-primary"
-            onClick={handleNext}
-          >
+
+          <button className="instructions-button instructions-button-primary" onClick={handleNext}>
             {currentStep === INSTRUCTION_STEPS.length - 1 ? 'Get Started' : 'Next'}
           </button>
         </div>

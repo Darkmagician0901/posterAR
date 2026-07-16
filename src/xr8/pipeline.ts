@@ -22,9 +22,9 @@
  * `reality.trackingstatus` events.
  */
 
-import * as THREE from 'three'
-import { debugTelemetry, SubsystemStatus } from '@/xr/debugTelemetry'
-import { createAmbientProbeModules } from '@/xr8/ambientProbe'
+import * as THREE from 'three';
+import { debugTelemetry, SubsystemStatus } from '@/xr/debugTelemetry';
+import { createAmbientProbeModules } from '@/xr8/ambientProbe';
 
 // ---------------------------------------------------------------------------
 // onXr8Ready
@@ -46,20 +46,20 @@ import { createAmbientProbeModules } from '@/xr8/ambientProbe'
  */
 export function onXr8Ready(callback: () => void): void {
   if (typeof window === 'undefined') {
-    return
+    return;
   }
 
   const ready = () => {
-    debugTelemetry.mark('engineReady')
-    debugTelemetry.setSubsystem('engine', 'ready')
-    callback()
-  }
+    debugTelemetry.mark('engineReady');
+    debugTelemetry.setSubsystem('engine', 'ready');
+    callback();
+  };
 
   if (window.XR8) {
-    ready()
+    ready();
   } else {
-    window.addEventListener('xrloaded', ready, { once: true })
-    startEngineWatchdog()
+    window.addEventListener('xrloaded', ready, { once: true });
+    startEngineWatchdog();
   }
 }
 
@@ -69,10 +69,10 @@ export function onXr8Ready(callback: () => void): void {
 
 /** Shape of `window.__xr8diag`, written by inline <script> hooks in index.html. */
 interface Xr8Diag {
-  engine?: 'pending' | 'loaded' | 'error'
-  xrextras?: 'pending' | 'loaded' | 'error'
-  landingPage?: 'pending' | 'loaded' | 'error'
-  error?: string | null
+  engine?: 'pending' | 'loaded' | 'error';
+  xrextras?: 'pending' | 'loaded' | 'error';
+  landingPage?: 'pending' | 'loaded' | 'error';
+  error?: string | null;
 }
 
 /**
@@ -83,7 +83,7 @@ interface Xr8Diag {
  * @returns The matching SubsystemStatus ('ready', 'error', or 'loading').
  */
 const scriptStatus = (s: Xr8Diag['engine']): SubsystemStatus =>
-  s === 'loaded' ? 'ready' : s === 'error' ? 'error' : 'loading'
+  s === 'loaded' ? 'ready' : s === 'error' ? 'error' : 'loading';
 
 /**
  * Polls the index.html load-diagnostics once per second while we wait for the
@@ -95,46 +95,46 @@ const scriptStatus = (s: Xr8Diag['engine']): SubsystemStatus =>
  * "pre-engine cap"), with no explanation — the symptom seen on older iOS.
  */
 function startEngineWatchdog(): void {
-  const STEP_MS = 1000
-  const LIMIT_MS = 15000
-  let waited = 0
+  const STEP_MS = 1000;
+  const LIMIT_MS = 15000;
+  let waited = 0;
 
   const id = setInterval(() => {
-    const diag: Xr8Diag = (window as unknown as { __xr8diag?: Xr8Diag }).__xr8diag ?? {}
+    const diag: Xr8Diag = (window as unknown as { __xr8diag?: Xr8Diag }).__xr8diag ?? {};
 
-    debugTelemetry.setSubsystem('engineScript', scriptStatus(diag.engine))
+    debugTelemetry.setSubsystem('engineScript', scriptStatus(diag.engine));
     const helpers =
       diag.xrextras === 'error' || diag.landingPage === 'error'
         ? 'error'
         : diag.xrextras === 'loaded' && diag.landingPage === 'loaded'
           ? 'ready'
-          : 'loading'
-    debugTelemetry.setSubsystem('helpers', helpers as SubsystemStatus)
+          : 'loading';
+    debugTelemetry.setSubsystem('helpers', helpers as SubsystemStatus);
 
     // Engine became ready in the meantime — the 'xrloaded' handler took over.
     if (window.XR8) {
-      clearInterval(id)
-      return
+      clearInterval(id);
+      return;
     }
 
-    waited += STEP_MS
+    waited += STEP_MS;
     if (waited >= LIMIT_MS) {
-      clearInterval(id)
+      clearInterval(id);
       // Note reflects the ENGINE state only — optional helpers (xrextras /
       // landing-page) failing is reported separately and is non-fatal.
-      let note: string
+      let note: string;
       if (diag.engine === 'error') {
-        note = 'Engine script failed to load (network, CORS, or blocked) — AR cannot start.'
+        note = 'Engine script failed to load (network, CORS, or blocked) — AR cannot start.';
       } else if (diag.engine !== 'loaded') {
-        note = 'Engine script still downloading after 15s — slow or blocked network.'
+        note = 'Engine script still downloading after 15s — slow or blocked network.';
       } else {
         note =
-          'Engine loaded but never initialized (no xrloaded). Likely unsupported: needs iOS 16.4+ / WebAssembly SIMD.'
+          'Engine loaded but never initialized (no xrloaded). Likely unsupported: needs iOS 16.4+ / WebAssembly SIMD.';
       }
-      debugTelemetry.setSubsystem('engine', 'error')
-      debugTelemetry.setNote(note)
+      debugTelemetry.setSubsystem('engine', 'error');
+      debugTelemetry.setNote(note);
     }
-  }, STEP_MS)
+  }, STEP_MS);
 }
 
 // ---------------------------------------------------------------------------
@@ -155,16 +155,16 @@ function trackingStatusToSubsystem(detail: unknown): SubsystemStatus {
   const raw =
     (detail as { status?: string; reason?: string } | undefined)?.status ??
     (detail as { status?: string; reason?: string } | undefined)?.reason ??
-    ''
+    '';
   switch (String(raw).toUpperCase()) {
     case 'NORMAL':
-      return 'normal'
+      return 'normal';
     case 'NOT_AVAILABLE':
     case 'UNAVAILABLE':
-      return 'notavailable'
+      return 'notavailable';
     case 'LIMITED':
     default:
-      return 'limited'
+      return 'limited';
   }
 }
 
@@ -185,13 +185,13 @@ function trackingTelemetryModule(): Xr8PipelineModule {
       {
         event: 'reality.trackingstatus',
         process: ({ detail }: { detail: unknown }) => {
-          const status = trackingStatusToSubsystem(detail)
-          debugTelemetry.setSubsystem('worldTracking', status)
-          if (status === 'normal') debugTelemetry.mark('firstTracking')
+          const status = trackingStatusToSubsystem(detail);
+          debugTelemetry.setSubsystem('worldTracking', status);
+          if (status === 'normal') debugTelemetry.mark('firstTracking');
         },
       },
     ],
-  } as unknown as Xr8PipelineModule
+  } as unknown as Xr8PipelineModule;
 }
 
 // ---------------------------------------------------------------------------
@@ -201,11 +201,11 @@ function trackingTelemetryModule(): Xr8PipelineModule {
 /** Options for {@link runXr8}. The canvas is handed to (and owned by) XR8. */
 export interface Xr8RunOptions {
   /** Canvas the engine renders camera + scene into. XR8 takes ownership. */
-  canvas: HTMLCanvasElement
+  canvas: HTMLCanvasElement;
   /** Custom camera pipeline modules to append after the standard ones. */
-  customModules?: Xr8PipelineModule[]
+  customModules?: Xr8PipelineModule[];
   /** Desktop/dev: disable SLAM world tracking (no rear camera / no motion). */
-  disableWorldTracking?: boolean
+  disableWorldTracking?: boolean;
 }
 
 /**
@@ -227,66 +227,66 @@ export interface Xr8RunOptions {
  *   {@link Xr8RunOptions}.
  */
 export function runXr8(options: Xr8RunOptions): void {
-  const { canvas, customModules = [], disableWorldTracking = false } = options
+  const { canvas, customModules = [], disableWorldTracking = false } = options;
 
   // XR8.Threejs.pipelineModule() reads the three.js library from the global
   // window.THREE and throws "THREE does not exist but is required" if it is
   // unset. Our app imports three as an ES module, so expose it here before the
   // Threejs module is registered.
   if (typeof window !== 'undefined') {
-    ;(window as unknown as { THREE?: typeof THREE }).THREE = THREE
+    (window as unknown as { THREE?: typeof THREE }).THREE = THREE;
   }
 
-  const modules: Xr8PipelineModule[] = []
+  const modules: Xr8PipelineModule[] = [];
 
   // Core engine modules — these come from the XR8 binary itself.
   if (typeof XR8?.GlTextureRenderer?.pipelineModule === 'function') {
-    modules.push(XR8.GlTextureRenderer.pipelineModule())
+    modules.push(XR8.GlTextureRenderer.pipelineModule());
   }
   if (typeof XR8?.Threejs?.pipelineModule === 'function') {
-    modules.push(XR8.Threejs.pipelineModule())
+    modules.push(XR8.Threejs.pipelineModule());
   }
   if (typeof XR8?.XrController?.pipelineModule === 'function') {
-    modules.push(XR8.XrController.pipelineModule())
+    modules.push(XR8.XrController.pipelineModule());
   }
   // Frame capture for the photo feature — see @/xr8/canvasScreenshot.
   if (typeof XR8?.CanvasScreenshot?.pipelineModule === 'function') {
-    modules.push(XR8.CanvasScreenshot.pipelineModule())
+    modules.push(XR8.CanvasScreenshot.pipelineModule());
   }
 
   // Ambient light probe — samples the camera feed to tint posters. Returns
   // [] when XR8.CameraPixelArray is unavailable, so this is a safe spread.
-  modules.push(...createAmbientProbeModules())
+  modules.push(...createAmbientProbeModules());
 
   // Optional UX / helper modules from XRExtras / LandingPage bundles.
   if (typeof LandingPage?.pipelineModule === 'function') {
-    modules.push(LandingPage.pipelineModule())
+    modules.push(LandingPage.pipelineModule());
   }
   if (typeof XRExtras?.FullWindowCanvas?.pipelineModule === 'function') {
-    modules.push(XRExtras.FullWindowCanvas.pipelineModule())
+    modules.push(XRExtras.FullWindowCanvas.pipelineModule());
   }
   if (typeof XRExtras?.Loading?.pipelineModule === 'function') {
-    modules.push(XRExtras.Loading.pipelineModule())
+    modules.push(XRExtras.Loading.pipelineModule());
   }
   if (typeof XRExtras?.RuntimeError?.pipelineModule === 'function') {
-    modules.push(XRExtras.RuntimeError.pipelineModule())
+    modules.push(XRExtras.RuntimeError.pipelineModule());
   }
 
   // World-tracking → telemetry bridge (listener-only).
-  modules.push(trackingTelemetryModule())
+  modules.push(trackingTelemetryModule());
 
   // Caller-supplied custom modules go last so they can override / extend.
-  modules.push(...customModules)
+  modules.push(...customModules);
 
-  XR8.addCameraPipelineModules(modules)
+  XR8.addCameraPipelineModules(modules);
 
   // Configure world tracking before starting the pipeline.
   if (typeof XR8?.XrController?.configure === 'function') {
-    XR8.XrController.configure({ disableWorldTracking: !!disableWorldTracking })
+    XR8.XrController.configure({ disableWorldTracking: !!disableWorldTracking });
   }
 
-  debugTelemetry.mark('pipelineRun')
-  XR8.run({ canvas })
+  debugTelemetry.mark('pipelineRun');
+  XR8.run({ canvas });
 }
 
 // ---------------------------------------------------------------------------
@@ -299,5 +299,5 @@ export function runXr8(options: Xr8RunOptions): void {
  * engine was never started or the global is absent.
  */
 export function stopXr8(): void {
-  XR8?.stop?.()
+  XR8?.stop?.();
 }

@@ -79,7 +79,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
    */
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const result = await handleFileInputChange(event);
-    
+
     if (result?.success && result.processedImage) {
       // Add to uploaded posters store. The `!` is safe: usePosterUpload always
       // sets imageUrl when success && processedImage are both present.
@@ -89,7 +89,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
         width: result.processedImage.width,
         height: result.processedImage.height,
       });
-      
+
       // Show gallery after successful upload
       setShowGallery(true);
     }
@@ -136,9 +136,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
           aria-label="Take photo"
           title="Photo"
         >
-          <span className="control-icon">
-            {isCapturing ? '⏳' : '📷'}
-          </span>
+          <span className="control-icon">{isCapturing ? '⏳' : '📷'}</span>
           <span className="control-label">Photo</span>
         </button>
 
@@ -149,9 +147,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ isARActive }) => {
           aria-label="Upload poster"
           title="Upload"
         >
-          <span className="control-icon">
-            {uploadState.isUploading ? '⏳' : '📤'}
-          </span>
+          <span className="control-icon">{uploadState.isUploading ? '⏳' : '📤'}</span>
           <span className="control-label">Upload</span>
         </button>
 

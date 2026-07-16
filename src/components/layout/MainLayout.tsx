@@ -18,9 +18,5 @@ interface MainLayoutProps {
  * Wraps every app branch in the shared full-viewport layout container.
  */
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
-  return (
-    <div className="main-layout">
-      {children}
-    </div>
-  );
+  return <div className="main-layout">{children}</div>;
 };

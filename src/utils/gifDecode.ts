@@ -5,24 +5,24 @@
  * (and its tests) depend on our shapes, not gifuct-js internals.
  */
 
-import { parseGIF, decompressFrames, type ParsedFrame } from 'gifuct-js'
+import { parseGIF, decompressFrames, type ParsedFrame } from 'gifuct-js';
 
 export interface GifFrameRect {
-  top: number
-  left: number
-  width: number
-  height: number
+  top: number;
+  left: number;
+  width: number;
+  height: number;
 }
 
 export interface DecodedFrame {
   /** RGBA pixels for this frame's sub-rectangle (dims.width * dims.height * 4). */
-  patch: Uint8ClampedArray
+  patch: Uint8ClampedArray;
   /** Where the patch sits within the logical screen. */
-  dims: GifFrameRect
+  dims: GifFrameRect;
   /** Per-frame delay in milliseconds (gifuct already converts to ms). */
-  delayMs: number
+  delayMs: number;
   /** GIF disposal method (0/1 = leave, 2 = restore to background, 3 = restore previous). */
-  disposalType: number
+  disposalType: number;
 }
 
 /**
@@ -36,8 +36,8 @@ export interface DecodedFrame {
  * @throws Error (from gifuct-js) when the buffer is not a parseable GIF.
  */
 export function readGifSize(buffer: ArrayBuffer): { width: number; height: number } {
-  const gif = parseGIF(buffer)
-  return { width: gif.lsd.width, height: gif.lsd.height }
+  const gif = parseGIF(buffer);
+  return { width: gif.lsd.width, height: gif.lsd.height };
 }
 
 /**
@@ -48,7 +48,7 @@ export function readGifSize(buffer: ArrayBuffer): { width: number; height: numbe
  * ANIMATION_BYTE_BUDGET (64 MB), so a rejected GIF could never have animated
  * anyway — callers fall back to a static frame-0 texture.
  */
-export const MAX_ESTIMATED_DECODE_BYTES = 1024 * 1024 * 1024 // 1 GiB
+export const MAX_ESTIMATED_DECODE_BYTES = 1024 * 1024 * 1024; // 1 GiB
 
 /**
  * Decodes all frames (with built RGBA image patches) into our DecodedFrame
@@ -61,24 +61,24 @@ export const MAX_ESTIMATED_DECODE_BYTES = 1024 * 1024 * 1024 // 1 GiB
  *   and propagates gifuct-js parse errors for malformed input.
  */
 export function decodeGifFrames(buffer: ArrayBuffer): DecodedFrame[] {
-  const gif = parseGIF(buffer)
+  const gif = parseGIF(buffer);
 
   // gif.frames mixes real image frames with "extension blocks" (non-image
   // metadata such as loop count and comments) — count only the images.
-  const frameCount = gif.frames.filter((f) => 'image' in f).length
-  const estimatedBytes = gif.lsd.width * gif.lsd.height * 4 * frameCount
+  const frameCount = gif.frames.filter((f) => 'image' in f).length;
+  const estimatedBytes = gif.lsd.width * gif.lsd.height * 4 * frameCount;
   if (estimatedBytes > MAX_ESTIMATED_DECODE_BYTES) {
     throw new Error(
       `GIF too large to decode safely — ${gif.lsd.width}×${gif.lsd.height} × ` +
-      `${frameCount} frames ≈ ${(estimatedBytes / 1048576).toFixed(0)} MB decoded`,
-    )
+        `${frameCount} frames ≈ ${(estimatedBytes / 1048576).toFixed(0)} MB decoded`,
+    );
   }
 
-  const frames = decompressFrames(gif, true)
+  const frames = decompressFrames(gif, true);
   return frames.map((f: ParsedFrame) => ({
     patch: f.patch,
     dims: f.dims,
     delayMs: f.delay,
     disposalType: f.disposalType,
-  }))
+  }));
 }

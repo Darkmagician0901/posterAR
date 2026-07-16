@@ -55,23 +55,14 @@ function App() {
         // a WebAssembly download) start downloading as soon as the page
         // loads. src/xr8/pipeline.ts flips the status to 'ready' once the
         // engine fires its 'xrloaded' event.
-        debugTelemetry.setSubsystem(
-          'engine',
-          support.hasAR8 ? 'loading' : 'unsupported'
-        );
-        debugTelemetry.setSubsystem(
-          'camera',
-          support.hasCamera ? 'ok' : 'unavailable'
-        );
-        debugTelemetry.setSubsystem(
-          'motion',
-          support.hasGyroscope ? 'ok' : 'unavailable'
-        );
+        debugTelemetry.setSubsystem('engine', support.hasAR8 ? 'loading' : 'unsupported');
+        debugTelemetry.setSubsystem('camera', support.hasCamera ? 'ok' : 'unavailable');
+        debugTelemetry.setSubsystem('motion', support.hasGyroscope ? 'ok' : 'unavailable');
 
         if (support.hasAR8) {
           debugTelemetry.setSubsystem(
             'platform',
-            support.isIOS ? 'ios-safari' : support.isAndroid ? 'android-chrome' : 'mobile-web'
+            support.isIOS ? 'ios-safari' : support.isAndroid ? 'android-chrome' : 'mobile-web',
           );
         } else if (support.isDesktop) {
           debugTelemetry.setSubsystem('platform', 'desktop-mock');
@@ -98,14 +89,16 @@ function App() {
     let ticks = 0;
     const id = setInterval(() => {
       const d =
-        (window as unknown as {
-          __xr8diag?: {
-            engine?: string;
-            xrextras?: string;
-            landingPage?: string;
-            error?: string | null;
-          };
-        }).__xr8diag ?? {};
+        (
+          window as unknown as {
+            __xr8diag?: {
+              engine?: string;
+              xrextras?: string;
+              landingPage?: string;
+              error?: string | null;
+            };
+          }
+        ).__xr8diag ?? {};
       debugTelemetry.setSubsystem('engineScript', mapScript(d.engine));
       debugTelemetry.setSubsystem(
         'helpers',
@@ -113,7 +106,7 @@ function App() {
           ? 'error'
           : d.xrextras === 'loaded' && d.landingPage === 'loaded'
             ? 'ready'
-            : 'loading'
+            : 'loading',
       );
       // Distinguish a fatal engine failure from a non-fatal helper failure.
       // The xrextras and landing-page scripts are optional add-ons: runXr8
@@ -121,9 +114,13 @@ function App() {
       // still works when they fail to load. Their failure must therefore not
       // be reported as "engine failed".
       if (d.engine === 'error') {
-        debugTelemetry.setNote('Engine script failed to load — AR cannot start. Check network/CDN reachability.');
+        debugTelemetry.setNote(
+          'Engine script failed to load — AR cannot start. Check network/CDN reachability.',
+        );
       } else if (d.xrextras === 'error' || d.landingPage === 'error') {
-        debugTelemetry.setNote('Optional helper failed to load (xrextras/landing-page) — AR still works.');
+        debugTelemetry.setNote(
+          'Optional helper failed to load (xrextras/landing-page) — AR still works.',
+        );
       }
       ticks += 1;
       if (d.engine === 'loaded' || d.engine === 'error' || ticks > MAX_POLL_TICKS) {
@@ -137,9 +134,13 @@ function App() {
     if (!isPersistenceEnabled()) return;
     let cancelled = false;
     listAssets()
-      .then((assets) => { if (!cancelled) usePosterStore.getState().hydrateUploads(assets); })
+      .then((assets) => {
+        if (!cancelled) usePosterStore.getState().hydrateUploads(assets);
+      })
       .catch((err) => console.warn('Asset hydration failed:', err));
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (isLoading) {
@@ -247,10 +248,7 @@ const DeviceInfoTable: React.FC<{ support: XRSupport }> = ({ support }) => (
       <li>Camera Access: {support.hasCamera ? 'yes' : 'no'}</li>
       <li>Gyroscope: {support.hasGyroscope ? 'yes' : 'no'}</li>
       <li>Mobile Device: {support.isMobile ? 'yes' : 'no'}</li>
-      <li>
-        Platform:{' '}
-        {support.isIOS ? 'iOS' : support.isAndroid ? 'Android' : 'Desktop'}
-      </li>
+      <li>Platform: {support.isIOS ? 'iOS' : support.isAndroid ? 'Android' : 'Desktop'}</li>
       <li>
         Browser: {support.browserName} {support.browserVersion}
       </li>
@@ -310,10 +308,7 @@ const DeviceInfoButton: React.FC<{
           <li>AR (8th Wall): {support.hasAR8 ? 'yes' : 'no'}</li>
           <li>Camera: {support.hasCamera ? 'yes' : 'no'}</li>
           <li>Gyroscope: {support.hasGyroscope ? 'yes' : 'no'}</li>
-          <li>
-            Platform:{' '}
-            {support.isIOS ? 'iOS' : support.isAndroid ? 'Android' : 'Desktop'}
-          </li>
+          <li>Platform: {support.isIOS ? 'iOS' : support.isAndroid ? 'Android' : 'Desktop'}</li>
           <li>Browser: {support.browserName}</li>
         </ul>
       </div>

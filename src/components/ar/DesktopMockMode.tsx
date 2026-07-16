@@ -38,10 +38,7 @@ import { Header } from '@/components/layout/Header';
 import { PhotoPreview } from '@/components/ui/PhotoPreview';
 import { useScreenshot } from '@/hooks/useScreenshot';
 import { debugTelemetry } from '@/xr/debugTelemetry';
-import {
-  installDesktopMockDriver,
-  DesktopMockHandle,
-} from '@/xr/desktopMockDriver';
+import { installDesktopMockDriver, DesktopMockHandle } from '@/xr/desktopMockDriver';
 import { createReticle } from '@/xr/reticle';
 import { PosterPlacement } from '@/xr8/posterPlacement';
 import { usePosterStore } from '@/store/posterStore';
@@ -73,7 +70,10 @@ const textureCache = new Map<string, Texture>();
 const loadTexture = (url: string): Promise<Texture> =>
   new Promise((resolve, reject) => {
     const cached = textureCache.get(url);
-    if (cached) { resolve(cached); return; }
+    if (cached) {
+      resolve(cached);
+      return;
+    }
     new TextureLoader().load(
       url,
       (tex) => {
@@ -165,7 +165,7 @@ export const DesktopMockMode: React.FC = () => {
     const reticle = createReticle();
     scene.add(reticle.mesh);
     camera.add(reticle.scanner); // follows the view — see note above
-    scene.add(camera);           // camera must be in scene for its children to render
+    scene.add(camera); // camera must be in scene for its children to render
 
     // PosterPlacement
     const placement = new PosterPlacement(sceneRoot);
@@ -203,10 +203,7 @@ export const DesktopMockMode: React.FC = () => {
 
       // Fake hit-test: place reticle 1.5 m in front of camera, 0.3 m below
       tmpForward.set(0, 0, -1).applyQuaternion(camera.quaternion);
-      tmpPos
-        .copy(camera.position)
-        .addScaledVector(tmpForward, 1.5)
-        .y -= 0.3;
+      tmpPos.copy(camera.position).addScaledVector(tmpForward, 1.5).y -= 0.3;
 
       // Build a flat (floor-lying) matrix: position + rotateX(-PI/2)
       tmpMatrix.identity();
@@ -301,7 +298,7 @@ export const DesktopMockMode: React.FC = () => {
     } catch (err) {
       console.error('Webcam permission denied:', err);
       setPermissionError(
-        'Webcam permission was denied. Allow camera access in your browser, then reload.'
+        'Webcam permission was denied. Allow camera access in your browser, then reload.',
       );
       debugTelemetry.setSubsystem('camera', 'denied');
       return;
@@ -364,8 +361,7 @@ export const DesktopMockMode: React.FC = () => {
       const texture = await loadTexture(currentPosterImage);
       const aspect =
         texture.image && (texture.image as HTMLImageElement).height
-          ? (texture.image as HTMLImageElement).height /
-            (texture.image as HTMLImageElement).width
+          ? (texture.image as HTMLImageElement).height / (texture.image as HTMLImageElement).width
           : 1;
 
       const posterId = addPoster({
@@ -422,7 +418,7 @@ export const DesktopMockMode: React.FC = () => {
     renderer.render(scene, camera);
 
     const out = document.createElement('canvas');
-    out.width = glCanvas.width;   // device-pixel size (renderer.setPixelRatio)
+    out.width = glCanvas.width; // device-pixel size (renderer.setPixelRatio)
     out.height = glCanvas.height;
     const ctx = out.getContext('2d');
     if (!ctx) {
@@ -436,7 +432,7 @@ export const DesktopMockMode: React.FC = () => {
         video.videoWidth,
         video.videoHeight,
         out.width,
-        out.height
+        out.height,
       );
       ctx.drawImage(video, sx, sy, sw, sh, 0, 0, out.width, out.height);
     } else {
@@ -538,9 +534,7 @@ export const DesktopMockMode: React.FC = () => {
           </div>
 
           {permissionError && (
-            <p
-              style={{ color: '#fca5a5', marginBottom: '16px', maxWidth: '420px' }}
-            >
+            <p style={{ color: '#fca5a5', marginBottom: '16px', maxWidth: '420px' }}>
               {permissionError}
             </p>
           )}

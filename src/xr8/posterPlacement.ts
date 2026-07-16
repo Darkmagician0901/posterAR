@@ -9,34 +9,27 @@
  * each frame and disposed with the poster.
  */
 
-import {
-  Group,
-  Matrix4,
-  Mesh,
-  MeshBasicMaterial,
-  PlaneGeometry,
-  Texture,
-} from 'three'
+import { Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Texture } from 'three';
 
-import type { PosterAnimator } from '@/xr8/gifAnimator'
-import { releasePosterTexture } from '@/xr8/posterTextureCache'
+import type { PosterAnimator } from '@/xr8/gifAnimator';
+import { releasePosterTexture } from '@/xr8/posterTextureCache';
 
 /** Everything tracked for one poster currently in the scene. */
 export interface PlacedPoster {
   /** Stable identifier, generated at place() time unless supplied. */
-  id: string
+  id: string;
   /** Source URL the texture was acquired from (cache key for release). */
-  url: string
+  url: string;
   /** Scene node holding the world transform; the mesh is its child. */
-  group: Group
+  group: Group;
   /** The textured plane that displays the poster image. */
-  mesh: Mesh
+  mesh: Mesh;
   /** The poster image texture (static, or animator-driven for GIFs). */
-  texture: Texture
+  texture: Texture;
   /** Per-frame GIF animator, or null for static images. */
-  animator: PosterAnimator | null
+  animator: PosterAnimator | null;
   /** Base plane dimensions in metres, before any setScale() override. */
-  size: { width: number; height: number }
+  size: { width: number; height: number };
 }
 
 /**
@@ -46,16 +39,16 @@ export interface PlacedPoster {
  * texture to posterTextureCache).
  */
 export class PosterPlacement {
-  private readonly _sceneRoot: Group
-  private readonly _posters: Map<string, PlacedPoster> = new Map()
-  private readonly _tmpMatrix = new Matrix4()
+  private readonly _sceneRoot: Group;
+  private readonly _posters: Map<string, PlacedPoster> = new Map();
+  private readonly _tmpMatrix = new Matrix4();
 
   /**
    * @param sceneRoot — Scene group all poster groups are added under
    *   (typically the three.js scene from XR8.Threejs.xrScene()).
    */
   constructor(sceneRoot: Group) {
-    this._sceneRoot = sceneRoot
+    this._sceneRoot = sceneRoot;
   }
 
   /**
@@ -81,10 +74,10 @@ export class PosterPlacement {
     url: string = '',
     animator: PosterAnimator | null = null,
   ): string {
-    const width = 0.5
-    const height = width * (heightOverWidth || 1)
+    const width = 0.5;
+    const height = width * (heightOverWidth || 1);
 
-    const geometry = new PlaneGeometry(width, height)
+    const geometry = new PlaneGeometry(width, height);
     // transparent + a tiny alphaTest makes the texture's alpha channel show
     // the real world through (cut-out PNGs and transparent-background GIFs)
     // instead of rendering transparent regions as an opaque black box. The
@@ -94,23 +87,22 @@ export class PosterPlacement {
       map: texture,
       transparent: true,
       alphaTest: 0.01,
-    })
-    const mesh = new Mesh(geometry, material)
+    });
+    const mesh = new Mesh(geometry, material);
 
-    const group = new Group()
+    const group = new Group();
     // We write the world transform directly into group.matrix below. Setting
     // matrixAutoUpdate = false stops three.js from recomputing (and thereby
     // overwriting) that matrix from the group's position/rotation/scale
     // properties on every render.
-    group.matrixAutoUpdate = false
-    this._tmpMatrix.fromArray(matrix)
-    group.matrix.copy(this._tmpMatrix)
+    group.matrixAutoUpdate = false;
+    this._tmpMatrix.fromArray(matrix);
+    group.matrix.copy(this._tmpMatrix);
 
-    group.add(mesh)
-    this._sceneRoot.add(group)
+    group.add(mesh);
+    this._sceneRoot.add(group);
 
-    const posterId =
-      id ?? `poster-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const posterId = id ?? `poster-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     this._posters.set(posterId, {
       id: posterId,
@@ -120,9 +112,9 @@ export class PosterPlacement {
       texture,
       animator,
       size: { width, height },
-    })
+    });
 
-    return posterId
+    return posterId;
   }
 
   /**
@@ -133,11 +125,11 @@ export class PosterPlacement {
    * @param deltaMs — Milliseconds elapsed since the previous frame.
    */
   tick(deltaMs: number): void {
-    const seen = new Set<PosterAnimator>()
+    const seen = new Set<PosterAnimator>();
     for (const { animator } of this._posters.values()) {
       if (animator && !seen.has(animator)) {
-        seen.add(animator)
-        animator.update(deltaMs)
+        seen.add(animator);
+        animator.update(deltaMs);
       }
     }
   }
@@ -153,7 +145,7 @@ export class PosterPlacement {
    */
   applyAmbient(color: { r: number; g: number; b: number }): void {
     for (const { mesh } of this._posters.values()) {
-      ;(mesh.material as MeshBasicMaterial).color.setRGB(color.r, color.g, color.b)
+      (mesh.material as MeshBasicMaterial).color.setRGB(color.r, color.g, color.b);
     }
   }
 
@@ -167,10 +159,10 @@ export class PosterPlacement {
    * @param scaleY — Desired displayed height in metres.
    */
   setScale(id: string, scaleX: number, scaleY: number): void {
-    const record = this._posters.get(id)
-    if (!record) return
-    const { mesh, size } = record
-    mesh.scale.set(scaleX / size.width, scaleY / size.height, 1)
+    const record = this._posters.get(id);
+    if (!record) return;
+    const { mesh, size } = record;
+    mesh.scale.set(scaleX / size.width, scaleY / size.height, 1);
   }
 
   /**
@@ -185,9 +177,9 @@ export class PosterPlacement {
    * @param radians — In-plane spin about the surface normal, in radians.
    */
   setRotation(id: string, radians: number): void {
-    const record = this._posters.get(id)
-    if (!record) return
-    record.mesh.rotation.z = radians
+    const record = this._posters.get(id);
+    if (!record) return;
+    record.mesh.rotation.z = radians;
   }
 
   /**
@@ -203,30 +195,30 @@ export class PosterPlacement {
    * @param id — Id of the poster to remove; unknown ids are ignored.
    */
   remove(id: string): void {
-    const record = this._posters.get(id)
-    if (!record) return
-    const { group, mesh, url } = record
-    group.removeFromParent()
-    mesh.geometry.dispose()
-    ;(mesh.material as MeshBasicMaterial).dispose()
-    releasePosterTexture(url)
-    this._posters.delete(id)
+    const record = this._posters.get(id);
+    if (!record) return;
+    const { group, mesh, url } = record;
+    group.removeFromParent();
+    mesh.geometry.dispose();
+    (mesh.material as MeshBasicMaterial).dispose();
+    releasePosterTexture(url);
+    this._posters.delete(id);
   }
 
   /** Remove every poster and free all GPU resources. */
   clear(): void {
     for (const id of this._posters.keys()) {
-      this.remove(id)
+      this.remove(id);
     }
   }
 
   /** Number of currently placed posters. */
   size(): number {
-    return this._posters.size
+    return this._posters.size;
   }
 
   /** Snapshot of all currently placed posters. */
   list(): PlacedPoster[] {
-    return Array.from(this._posters.values())
+    return Array.from(this._posters.values());
   }
 }

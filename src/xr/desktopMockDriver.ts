@@ -52,9 +52,7 @@ export interface DesktopMockHandle {
  * @returns A handle whose `dispose()` removes the listeners and resets the
  *   telemetry subsystem to 'idle'.
  */
-export const installDesktopMockDriver = (
-  opts: DesktopMockOptions
-): DesktopMockHandle => {
+export const installDesktopMockDriver = (opts: DesktopMockOptions): DesktopMockHandle => {
   const { target, out, sensitivity = 0.3, onChange } = opts;
 
   // Orientation is tracked as two angles (in radians): yaw = turning left/

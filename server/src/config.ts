@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod';
 
 const schema = z.object({
   DATABASE_URL: z.string().min(1),
@@ -9,28 +9,28 @@ const schema = z.object({
   S3_BUCKET: z.string().min(1),
   S3_PUBLIC_BASE_URL: z.string().url(),
   PORT: z.coerce.number().int().positive().default(8787),
-})
+});
 
 export interface AppConfig {
-  databaseUrl: string
+  databaseUrl: string;
   s3: {
-    endpoint: string
-    region: string
-    accessKeyId: string
-    secretAccessKey: string
-    bucket: string
-    publicBaseUrl: string
-  }
-  port: number
+    endpoint: string;
+    region: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    bucket: string;
+    publicBaseUrl: string;
+  };
+  port: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
-  const parsed = schema.safeParse(env)
+  const parsed = schema.safeParse(env);
   if (!parsed.success) {
-    const missing = parsed.error.issues.map((i) => i.path.join('.')).join(', ')
-    throw new Error(`Invalid server config: ${missing}`)
+    const missing = parsed.error.issues.map((i) => i.path.join('.')).join(', ');
+    throw new Error(`Invalid server config: ${missing}`);
   }
-  const e = parsed.data
+  const e = parsed.data;
   return {
     databaseUrl: e.DATABASE_URL,
     s3: {
@@ -42,5 +42,5 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
       publicBaseUrl: e.S3_PUBLIC_BASE_URL,
     },
     port: e.PORT,
-  }
+  };
 }

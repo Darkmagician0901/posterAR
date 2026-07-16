@@ -23,40 +23,40 @@
  * remaining budget are silently demoted to a static frame-0 texture.
  */
 
-import type { Texture } from 'three'
-import { createPosterTexture, type PosterAnimator, type PosterTexture } from '@/xr8/gifAnimator'
+import type { Texture } from 'three';
+import { createPosterTexture, type PosterAnimator, type PosterTexture } from '@/xr8/gifAnimator';
 
 /** What an acquirer receives: a shared texture plus animation metadata. */
 export interface AcquiredPoster {
   /** The shared texture. Do NOT dispose directly — call releasePosterTexture. */
-  texture: Texture
+  texture: Texture;
   /** Shared per-frame GIF animator; null for static images. */
-  animator: PosterAnimator | null
+  animator: PosterAnimator | null;
   /** Aspect ratio (height / width) of the source image. */
-  aspect: number
+  aspect: number;
   /** Present when the GIF was placed as a static frame-0 (decode failed OR over the animation memory budget). */
-  fallbackReason?: string
+  fallbackReason?: string;
 }
 
 /** Cumulative decoded-frame bytes allowed across ALL distinct animated GIFs.
  *  Tunable; sized to leave headroom for the 8th Wall engine + SLAM + camera. */
-export const ANIMATION_BYTE_BUDGET = 64 * 1024 * 1024
+export const ANIMATION_BYTE_BUDGET = 64 * 1024 * 1024;
 
 interface CacheEntry {
   /** Outstanding acquire() calls not yet balanced by release(). */
-  refs: number
+  refs: number;
   /** Shared decode; every acquirer of this URL awaits the same promise. */
-  load: Promise<PosterTexture>
+  load: Promise<PosterTexture>;
   /**
    * Set once `load` resolves. Needed for disposal — while it is undefined the
    * entry is still decoding and cannot be disposed yet (see releasePosterTexture).
    */
-  loaded?: PosterTexture
+  loaded?: PosterTexture;
 }
 
 // Module-singleton state.
-const _cache = new Map<string, CacheEntry>()
-let _totalBytes = 0
+const _cache = new Map<string, CacheEntry>();
+let _totalBytes = 0;
 
 /**
  * Disposes an entry's GPU/CPU resources, refunds its bytes to the animation
@@ -69,13 +69,13 @@ let _totalBytes = 0
  *   up) so a stale entry never disposes a newer one stored at the same URL.
  */
 function disposeEntry(url: string, entry: CacheEntry): void {
-  const loaded = entry.loaded
-  if (!loaded) return
-  loaded.texture.dispose()
-  loaded.animator?.dispose()
-  _totalBytes -= loaded.decodedBytes
+  const loaded = entry.loaded;
+  if (!loaded) return;
+  loaded.texture.dispose();
+  loaded.animator?.dispose();
+  _totalBytes -= loaded.decodedBytes;
   // Guard against the slot having been re-populated by a newer entry.
-  if (_cache.get(url) === entry) _cache.delete(url)
+  if (_cache.get(url) === entry) _cache.delete(url);
 }
 
 /**
@@ -95,13 +95,13 @@ function disposeEntry(url: string, entry: CacheEntry): void {
  *   failed entry is evicted so the next acquire retries from scratch.
  */
 export async function acquirePosterTexture(url: string): Promise<AcquiredPoster> {
-  let entry = _cache.get(url)
+  let entry = _cache.get(url);
 
   if (!entry) {
     // First use: decode the image, passing the remaining byte budget for
     // animations. The entry is inserted *before* awaiting so concurrent
     // acquires find it and share the same decode.
-    const remaining = ANIMATION_BYTE_BUDGET - _totalBytes
+    const remaining = ANIMATION_BYTE_BUDGET - _totalBytes;
     const newEntry: CacheEntry = {
       refs: 0,
       // The success handler below is "the load continuation": the .then()
@@ -111,32 +111,32 @@ export async function acquirePosterTexture(url: string): Promise<AcquiredPoster>
       // while the decode was still in flight, it disposes the result here.
       load: createPosterTexture(url, { animationByteBudget: remaining }).then(
         (result) => {
-          newEntry.loaded = result
-          _totalBytes += result.decodedBytes
+          newEntry.loaded = result;
+          _totalBytes += result.decodedBytes;
           // Every reference was released while we were still decoding —
           // nobody owns the result, so free it immediately.
-          if (newEntry.refs <= 0) disposeEntry(url, newEntry)
-          return result
+          if (newEntry.refs <= 0) disposeEntry(url, newEntry);
+          return result;
         },
         (err: unknown) => {
           // Failed decode: evict so a future acquire can retry.
-          if (_cache.get(url) === newEntry) _cache.delete(url)
-          throw err
+          if (_cache.get(url) === newEntry) _cache.delete(url);
+          throw err;
         },
       ),
-    }
-    _cache.set(url, newEntry)
-    entry = newEntry
+    };
+    _cache.set(url, newEntry);
+    entry = newEntry;
   }
 
-  entry.refs++
-  const result = await entry.load
+  entry.refs++;
+  const result = await entry.load;
   return {
     texture: result.texture,
     animator: result.animator,
     aspect: result.aspect,
     fallbackReason: result.fallbackReason,
-  }
+  };
 }
 
 /**
@@ -148,22 +148,22 @@ export async function acquirePosterTexture(url: string): Promise<AcquiredPoster>
  *   Unknown URLs are ignored.
  */
 export function releasePosterTexture(url: string): void {
-  const entry = _cache.get(url)
-  if (!entry) return
+  const entry = _cache.get(url);
+  if (!entry) return;
 
-  entry.refs--
+  entry.refs--;
   // If the decode is still in flight (`loaded` unset), disposeEntry is a
   // no-op here. Disposal then happens in the load continuation — the .then()
   // callback attached to the decode promise in acquirePosterTexture — which
   // re-checks the reference count after the decode resolves and disposes the
   // result there if it is still <= 0.
   if (entry.refs <= 0) {
-    disposeEntry(url, entry)
+    disposeEntry(url, entry);
   }
 }
 
 /** TEST-ONLY: reset cache state between tests. */
 export function __resetPosterTextureCache(): void {
-  _cache.clear()
-  _totalBytes = 0
+  _cache.clear();
+  _totalBytes = 0;
 }

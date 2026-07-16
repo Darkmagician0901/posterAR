@@ -74,12 +74,18 @@ const statusColor = (s: SubsystemStatus): DotColor => {
  */
 const platformLabel = (p: PlatformLabel): string => {
   switch (p) {
-    case 'ios-safari':     return 'iOS · Safari';
-    case 'android-chrome': return 'Android · Chrome';
-    case 'mobile-web':     return 'Mobile · Web';
-    case 'desktop-mock':   return 'Desktop · Mock';
-    case 'unsupported':    return 'Unsupported device';
-    default:               return 'Detecting…';
+    case 'ios-safari':
+      return 'iOS · Safari';
+    case 'android-chrome':
+      return 'Android · Chrome';
+    case 'mobile-web':
+      return 'Mobile · Web';
+    case 'desktop-mock':
+      return 'Desktop · Mock';
+    case 'unsupported':
+      return 'Unsupported device';
+    default:
+      return 'Detecting…';
   }
 };
 
@@ -119,16 +125,16 @@ const slowestStage = (t: LoadTiming): number | null => {
  * at 'idle' / 'unavailable' so the user sees the full inventory.
  */
 const ROWS: { key: keyof Omit<SubsystemsSnapshot, 'platform'>; label: string }[] = [
-  { key: 'engine',        label: 'Engine (XR8)' },
-  { key: 'engineScript',  label: 'Engine script' },
-  { key: 'helpers',       label: 'Helpers (xrextras)' },
-  { key: 'session',       label: 'Session' },
-  { key: 'camera',        label: 'Camera' },
-  { key: 'motion',        label: 'Motion' },
+  { key: 'engine', label: 'Engine (XR8)' },
+  { key: 'engineScript', label: 'Engine script' },
+  { key: 'helpers', label: 'Helpers (xrextras)' },
+  { key: 'session', label: 'Session' },
+  { key: 'camera', label: 'Camera' },
+  { key: 'motion', label: 'Motion' },
   { key: 'worldTracking', label: 'World tracking' },
-  { key: 'hitTest',       label: 'Hit-test' },
-  { key: 'surface',       label: 'Surface' },
-  { key: 'desktopMock',   label: 'Desktop mock' },
+  { key: 'hitTest', label: 'Hit-test' },
+  { key: 'surface', label: 'Surface' },
+  { key: 'desktopMock', label: 'Desktop mock' },
 ];
 
 /**
@@ -253,7 +259,9 @@ export const DiagnosticPanel: React.FC = () => {
       >
         <span className={`diagnostic-dot diagnostic-dot-${dot}`} aria-hidden="true" />
         <span className="diagnostic-platform">{platform}</span>
-        <span className="diagnostic-caret" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+        <span className="diagnostic-caret" aria-hidden="true">
+          {expanded ? '▾' : '▸'}
+        </span>
       </button>
 
       {expanded && (
@@ -266,9 +274,7 @@ export const DiagnosticPanel: React.FC = () => {
               <div className="diagnostic-row" key={key}>
                 <span className={`diagnostic-dot diagnostic-dot-${color}`} aria-hidden="true" />
                 <span className="diagnostic-label">{label}</span>
-                <span className={`diagnostic-status diagnostic-status-${color}`}>
-                  {status}
-                </span>
+                <span className={`diagnostic-status diagnostic-status-${color}`}>{status}</span>
               </div>
             );
           })}
@@ -284,9 +290,7 @@ export const DiagnosticPanel: React.FC = () => {
             </div>
           ))}
 
-          {message && (
-            <div className="diagnostic-hint">{message}</div>
-          )}
+          {message && <div className="diagnostic-hint">{message}</div>}
 
           <button
             className="diagnostic-dismiss"

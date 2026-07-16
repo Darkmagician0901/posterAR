@@ -74,8 +74,7 @@ export const useStoryStore = create<StoryState>((set, get) => ({
       return { eraIndex: s.eraIndex + 1, phase: 'placed' };
     }),
 
-  prev: () =>
-    set((s) => ({ eraIndex: Math.max(0, s.eraIndex - 1), phase: 'placed' })),
+  prev: () => set((s) => ({ eraIndex: Math.max(0, s.eraIndex - 1), phase: 'placed' })),
 
   jumpTo: (index) =>
     set(() => ({

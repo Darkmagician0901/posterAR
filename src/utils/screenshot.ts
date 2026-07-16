@@ -145,9 +145,13 @@ const captureCanvasAsDataUrl = (
   try {
     return canvas.toDataURL(mimeType, quality);
   } catch (error) {
-    throw new Error(
+    const failure = new Error(
       `Failed to capture canvas: ${error instanceof Error ? error.message : 'Unknown error'}`,
     );
+    // Assigned post-construction rather than via `new Error(msg, { cause })`:
+    // the constructor's options argument is ES2022 and tsconfig's lib is ES2020.
+    (failure as Error & { cause?: unknown }).cause = error;
+    throw failure;
   }
 };
 
@@ -325,9 +329,13 @@ export const downloadScreenshot = (result: ScreenshotResult): void => {
     link.click();
     document.body.removeChild(link);
   } catch (error) {
-    throw new Error(
+    const failure = new Error(
       `Failed to download screenshot: ${error instanceof Error ? error.message : 'Unknown error'}`,
     );
+    // Assigned post-construction rather than via `new Error(msg, { cause })`:
+    // the constructor's options argument is ES2022 and tsconfig's lib is ES2020.
+    (failure as Error & { cause?: unknown }).cause = error;
+    throw failure;
   } finally {
     URL.revokeObjectURL(objectUrl);
   }

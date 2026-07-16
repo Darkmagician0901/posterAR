@@ -24,7 +24,7 @@ describe('loadConfig', () => {
   });
 
   it('throws when a required var is missing', () => {
-    const { DATABASE_URL, ...rest } = base;
+    const { DATABASE_URL: _DATABASE_URL, ...rest } = base;
     expect(() => loadConfig(rest as NodeJS.ProcessEnv)).toThrow(/DATABASE_URL/);
   });
 });

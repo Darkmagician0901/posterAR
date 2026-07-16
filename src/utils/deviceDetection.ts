@@ -52,10 +52,13 @@ export function checkGyroscope(): boolean {
  *   see the MSStream note below).
  */
 export function isIOS(): boolean {
-  // `any` justified: MSStream is a non-standard IE/old-Edge property absent
-  // from lib.dom typings; its presence means the UA is IE faking an iOS-like
-  // string, not a real iOS device.
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  // MSStream is a non-standard IE/old-Edge property absent from lib.dom
+  // typings; its presence means the UA is IE faking an iOS-like string, not a
+  // real iOS device. Typed `unknown` because only its truthiness is read — the
+  // property's actual shape is not known or relied on.
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as { MSStream?: unknown }).MSStream
+  );
 }
 
 /**

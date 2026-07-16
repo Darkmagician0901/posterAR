@@ -1,6 +1,15 @@
 /**
  * PosterGallery Component
  *
+ * PARKED — the only thing that imports this is ControlPanel, which is itself
+ * parked, so nothing reaches it from the running app. That is intentional, not an
+ * oversight: the app ships a story-only user panel (StoryARExperience), which has
+ * no gallery. What becomes of this component is UNDECIDED —
+ * docs/admin-panel-plan.md specifies new /admin/* routes and does not name it, so
+ * whether the admin panel imports it, ports from it, or replaces it is an open
+ * question. Do NOT delete it as dead code — zero importers here means "not wired
+ * up yet", not "unused".
+ *
  * Modal grid of selectable posters: the built-in default poster plus every
  * user-uploaded poster from posterStore. Selecting an item makes it the
  * "current" poster used for the next placement; uploaded items can also be

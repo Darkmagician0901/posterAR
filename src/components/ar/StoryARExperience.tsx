@@ -1,11 +1,11 @@
 /**
  * StoryARExperience — "THE GROUND REMEMBERS" on top of 8th Wall.
  *
- * A focused sibling of ARExperience. Instead of placing many user posters, it
- * plants ONE diorama tile on the detected ground (tap-to-place via the same
- * hit-test reticle) and swaps that tile's texture as the user walks the five
- * eras. The 2D chrome (title card, docent narration, timeline, controls) is
- * the StoryOverlay HUD; the diorama itself is the engine-drawn tile.
+ * Instead of placing many user posters, it plants ONE diorama tile on the
+ * detected ground (tap-to-place via the hit-test reticle) and swaps that tile's
+ * texture as the user walks the five eras. The 2D chrome (title card, docent
+ * narration, timeline, controls) is the StoryOverlay HUD; the diorama itself is
+ * the engine-drawn tile.
  *
  * Reuses the project's existing engine plumbing verbatim: onXr8Ready / runXr8
  * (pipeline.ts), readReticlePose (hitTestController), composeFlatPosterMatrix

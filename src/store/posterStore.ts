@@ -4,9 +4,8 @@
  * Single source of truth for:
  *   - `posters`: the posters currently placed in the scene (capped at
  *     `maxPosters`, from VITE_MAX_POSTERS). The AR layer mirrors mutations
- *     here into the three.js scene via a store subscription (see
- *     ARExperience.tsx) — removing or rescaling a poster in the store updates
- *     the rendered mesh.
+ *     here into the three.js scene via a store subscription — removing or
+ *     rescaling a poster in the store updates the rendered mesh.
  *   - `uploadedPosters`: user-uploaded images available in the gallery.
  *   - `currentPosterImage`: the image the next placement will use.
  *

@@ -13,7 +13,7 @@ import { DecodedFrame, decodeGifFrames, readGifSize } from '@/utils/gifDecode';
 import { GifPlayhead } from '@/xr8/gifPlayhead';
 import { MAX_IMAGE_DIMENSION } from '@/utils/imageUpload';
 
-/** Minimal interface PosterPlacement / ARExperience depend on. */
+/** Minimal interface PosterPlacement depends on. */
 export interface PosterAnimator {
   /**
    * Advances playback. If the visible frame changed, redraws the canvas and

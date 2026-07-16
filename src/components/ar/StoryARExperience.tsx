@@ -89,7 +89,7 @@ export const StoryARExperience: React.FC = () => {
       return;
     }
 
-    let cameraPos: Vector3 | null = null;
+    let cameraPos: Vector3 | null;
     try {
       const xrScene = XR8?.Threejs?.xrScene?.() as { camera?: { position?: Vector3 } } | undefined;
       cameraPos = xrScene?.camera?.position ?? null;

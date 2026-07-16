@@ -328,10 +328,15 @@ export const DesktopMockMode: React.FC = () => {
   // -------------------------------------------------------------------------
 
   useEffect(() => {
+    // Captured on mount: React detaches the ref before this cleanup runs on
+    // unmount, so reading videoRef.current here would miss the stream and
+    // leave the webcam running. The <video> is rendered unconditionally, so
+    // this element's identity is stable for the component's lifetime.
+    const video = videoRef.current;
     return () => {
       stopThreeJS();
-      if (videoRef.current?.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
+      if (video?.srcObject) {
+        const stream = video.srcObject as MediaStream;
         stream.getTracks().forEach((t) => t.stop());
       }
     };

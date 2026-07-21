@@ -44,7 +44,11 @@ coverage
 # Misc
 .vercel
 .netlify
-.claude/
+# .claude/ is local-only, EXCEPT the committed 8th Wall engine-docs skill below.
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/8thwall-engine/
 
 # Smoke-test artifacts (Playwright MCP)
 .playwright-mcp/

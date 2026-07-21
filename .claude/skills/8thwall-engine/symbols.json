@@ -1,0 +1,807 @@
+[
+  {
+    "symbol": "XR8.CameraPixelArray.pipelineModule",
+    "module": "XR8.CameraPixelArray",
+    "signature": "pipelineModule(options?): CameraPipelineModule",
+    "file": "reference/camerapixelarray.md",
+    "lineStart": 16,
+    "lineEnd": 46,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/camerapixelarray",
+    "localUsage": [
+      {
+        "file": "src/xr8/ambientProbe.ts",
+        "line": 142
+      },
+      {
+        "file": "src/xr8/ambientProbe.ts",
+        "line": 144
+      }
+    ]
+  },
+  {
+    "symbol": "XR8.CanvasScreenshot.pipelineModule",
+    "module": "XR8.CanvasScreenshot",
+    "signature": "pipelineModule(): CameraPipelineModule",
+    "file": "reference/canvasscreenshot.md",
+    "lineStart": 16,
+    "lineEnd": 25,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/canvasscreenshot",
+    "localUsage": [
+      {
+        "file": "src/xr8/pipeline.ts",
+        "line": 253
+      },
+      {
+        "file": "src/xr8/pipeline.ts",
+        "line": 254
+      }
+    ]
+  },
+  {
+    "symbol": "XR8.CanvasScreenshot.takeScreenshot",
+    "module": "XR8.CanvasScreenshot",
+    "signature": "takeScreenshot(): Promise<string>",
+    "file": "reference/canvasscreenshot.md",
+    "lineStart": 26,
+    "lineEnd": 38,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/canvasscreenshot",
+    "localUsage": [
+      {
+        "file": "src/xr8/canvasScreenshot.ts",
+        "line": 29
+      },
+      {
+        "file": "src/xr8/canvasScreenshot.ts",
+        "line": 46
+      }
+    ]
+  },
+  {
+    "symbol": "XR8.FaceController.configure",
+    "module": "XR8.FaceController",
+    "signature": "configure({ meshGeometry?, coordinates? }): void",
+    "file": "reference/facecontroller.md",
+    "lineStart": 15,
+    "lineEnd": 29,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/facecontroller",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.FaceController.pipelineModule",
+    "module": "XR8.FaceController",
+    "signature": "XR8.FaceController.pipelineModule()",
+    "file": "reference/facecontroller.md",
+    "lineStart": 30,
+    "lineEnd": 32,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/facecontroller",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.FaceController.AttachmentPoints",
+    "module": "XR8.FaceController",
+    "signature": "XR8.FaceController.AttachmentPoints",
+    "file": "reference/facecontroller.md",
+    "lineStart": 33,
+    "lineEnd": 36,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/facecontroller",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.FaceController.MeshGeometry",
+    "module": "XR8.FaceController",
+    "signature": "XR8.FaceController.MeshGeometry",
+    "file": "reference/facecontroller.md",
+    "lineStart": 37,
+    "lineEnd": 39,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/facecontroller",
+    "localUsage": []
+  },
+  {
+    "symbol": "facescanning",
+    "module": "XR8.FaceController",
+    "signature": "facescanning",
+    "file": "reference/facecontroller.md",
+    "lineStart": 44,
+    "lineEnd": 47,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/facecontroller",
+    "localUsage": []
+  },
+  {
+    "symbol": "facefound",
+    "module": "XR8.FaceController",
+    "signature": "facefound / faceupdated",
+    "file": "reference/facecontroller.md",
+    "lineStart": 48,
+    "lineEnd": 56,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/facecontroller",
+    "localUsage": []
+  },
+  {
+    "symbol": "facelost",
+    "module": "XR8.FaceController",
+    "signature": "facelost",
+    "file": "reference/facecontroller.md",
+    "lineStart": 57,
+    "lineEnd": 65,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/facecontroller",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.GlTextureRenderer.pipelineModule",
+    "module": "XR8.GlTextureRenderer",
+    "signature": "pipelineModule(params?): CameraPipelineModule",
+    "file": "reference/gltexturerenderer.md",
+    "lineStart": 15,
+    "lineEnd": 29,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/gltexturerenderer",
+    "localUsage": [
+      {
+        "file": "src/xr8/pipeline.ts",
+        "line": 243
+      },
+      {
+        "file": "src/xr8/pipeline.ts",
+        "line": 244
+      }
+    ]
+  },
+  {
+    "symbol": "XR8.GlTextureRenderer.configure",
+    "module": "XR8.GlTextureRenderer",
+    "signature": "configure({ vertexSource?, fragmentSource?, toTexture?, flipY?, mirroredDisplay? }): void",
+    "file": "reference/gltexturerenderer.md",
+    "lineStart": 30,
+    "lineEnd": 35,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/gltexturerenderer",
+    "localUsage": []
+  },
+  {
+    "symbol": "reality.imagefound",
+    "module": "ImageTargets",
+    "signature": "reality.imagefound",
+    "file": "reference/imagetargets.md",
+    "lineStart": 27,
+    "lineEnd": 29,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xrcontroller/configure",
+    "localUsage": []
+  },
+  {
+    "symbol": "reality.imageupdated",
+    "module": "ImageTargets",
+    "signature": "reality.imageupdated",
+    "file": "reference/imagetargets.md",
+    "lineStart": 30,
+    "lineEnd": 32,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xrcontroller/configure",
+    "localUsage": []
+  },
+  {
+    "symbol": "reality.imagelost",
+    "module": "ImageTargets",
+    "signature": "reality.imagelost",
+    "file": "reference/imagetargets.md",
+    "lineStart": 33,
+    "lineEnd": 52,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xrcontroller/configure",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.LayersController.configure",
+    "module": "XR8.LayersController",
+    "signature": "configure({ layers }): void",
+    "file": "reference/layerscontroller.md",
+    "lineStart": 15,
+    "lineEnd": 29,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/layerscontroller",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.MediaRecorder.pipelineModule",
+    "module": "XR8.MediaRecorder",
+    "signature": "XR8.MediaRecorder.pipelineModule()",
+    "file": "reference/mediarecorder.md",
+    "lineStart": 15,
+    "lineEnd": 17,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/mediarecorder",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.MediaRecorder.recordVideo",
+    "module": "XR8.MediaRecorder",
+    "signature": "recordVideo({ onStart?, onStop?, onError?, onProcessFrame?, onPreviewReady?, onFinalizeProgress?, onVideoReady? }): void",
+    "file": "reference/mediarecorder.md",
+    "lineStart": 18,
+    "lineEnd": 43,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/mediarecorder",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.MediaRecorder.stopRecording",
+    "module": "XR8.MediaRecorder",
+    "signature": "XR8.MediaRecorder.stopRecording()",
+    "file": "reference/mediarecorder.md",
+    "lineStart": 44,
+    "lineEnd": 46,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/mediarecorder",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.MediaRecorder.configure",
+    "module": "XR8.MediaRecorder",
+    "signature": "XR8.MediaRecorder.configure(options)",
+    "file": "reference/mediarecorder.md",
+    "lineStart": 47,
+    "lineEnd": 49,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/mediarecorder",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.MediaRecorder.requestMicrophone",
+    "module": "XR8.MediaRecorder",
+    "signature": "XR8.MediaRecorder.requestMicrophone()",
+    "file": "reference/mediarecorder.md",
+    "lineStart": 50,
+    "lineEnd": 53,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/mediarecorder",
+    "localUsage": []
+  },
+  {
+    "symbol": "name",
+    "module": "CameraPipelineModule",
+    "signature": "name (required string)",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 31,
+    "lineEnd": 33,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onBeforeRun",
+    "module": "CameraPipelineModule",
+    "signature": "onBeforeRun({})",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 34,
+    "lineEnd": 37,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onCameraStatusChange",
+    "module": "CameraPipelineModule",
+    "signature": "onCameraStatusChange({ status })",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 38,
+    "lineEnd": 41,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onStart",
+    "module": "CameraPipelineModule",
+    "signature": "onStart({ canvas, GLctx, computeCtx, ... })",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 42,
+    "lineEnd": 45,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onAttach",
+    "module": "CameraPipelineModule",
+    "signature": "onAttach({ framework, canvas, GLctx, computeCtx, isWebgl2, orientation, videoWidth, videoHeight, canvasWidth, canvasHeight, status, stream, video, version, imageTargets, config })",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 46,
+    "lineEnd": 53,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onProcessGpu",
+    "module": "CameraPipelineModule",
+    "signature": "onProcessGpu({ frameStartResult })",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 54,
+    "lineEnd": 57,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onProcessCpu",
+    "module": "CameraPipelineModule",
+    "signature": "onProcessCpu({ frameStartResult, processGpuResult })",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 58,
+    "lineEnd": 72,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onUpdate",
+    "module": "CameraPipelineModule",
+    "signature": "onUpdate({ processGpuResult, processCpuResult })",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 73,
+    "lineEnd": 76,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onRender",
+    "module": "CameraPipelineModule",
+    "signature": "onRender({})",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 77,
+    "lineEnd": 81,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onCanvasSizeChange",
+    "module": "CameraPipelineModule",
+    "signature": "onCanvasSizeChange({})",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 82,
+    "lineEnd": 84,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onVideoSizeChange",
+    "module": "CameraPipelineModule",
+    "signature": "onVideoSizeChange({})",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 85,
+    "lineEnd": 87,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onDeviceOrientationChange",
+    "module": "CameraPipelineModule",
+    "signature": "onDeviceOrientationChange({})",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 88,
+    "lineEnd": 90,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onException",
+    "module": "CameraPipelineModule",
+    "signature": "onException(error)",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 91,
+    "lineEnd": 93,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onPaused",
+    "module": "CameraPipelineModule",
+    "signature": "onPaused({})",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 94,
+    "lineEnd": 96,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onResume",
+    "module": "CameraPipelineModule",
+    "signature": "onResume({})",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 97,
+    "lineEnd": 99,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onDetach",
+    "module": "CameraPipelineModule",
+    "signature": "onDetach({})",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 100,
+    "lineEnd": 103,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onRemove",
+    "module": "CameraPipelineModule",
+    "signature": "onRemove({})",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 104,
+    "lineEnd": 106,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "onAppResourcesLoaded",
+    "module": "CameraPipelineModule",
+    "signature": "onAppResourcesLoaded({})",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 107,
+    "lineEnd": 109,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "requiredPermissions",
+    "module": "CameraPipelineModule",
+    "signature": "requiredPermissions()",
+    "file": "reference/pipeline-lifecycle.md",
+    "lineStart": 110,
+    "lineEnd": 113,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipelinemodule",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.Threejs.pipelineModule",
+    "module": "XR8.Threejs",
+    "signature": "pipelineModule(): CameraPipelineModule",
+    "file": "reference/threejs.md",
+    "lineStart": 16,
+    "lineEnd": 38,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/threejs",
+    "localUsage": [
+      {
+        "file": "src/xr8/pipeline.ts",
+        "line": 246
+      },
+      {
+        "file": "src/xr8/pipeline.ts",
+        "line": 247
+      }
+    ]
+  },
+  {
+    "symbol": "XR8.Threejs.xrScene",
+    "module": "XR8.Threejs",
+    "signature": "xrScene(): { scene, camera, renderer, cameraTexture?, layerScenes? }",
+    "file": "reference/threejs.md",
+    "lineStart": 39,
+    "lineEnd": 47,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/threejs",
+    "localUsage": [
+      {
+        "file": "src/components/ar/StoryARExperience.tsx",
+        "line": 94
+      },
+      {
+        "file": "src/components/ar/StoryARExperience.tsx",
+        "line": 121
+      }
+    ]
+  },
+  {
+    "symbol": "XR8.Threejs.configure",
+    "module": "XR8.Threejs",
+    "signature": "configure({ renderCameraTexture?: boolean, layerScenes?: string[] }): void",
+    "file": "reference/threejs.md",
+    "lineStart": 48,
+    "lineEnd": 59,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/threejs",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.run",
+    "module": "XR8",
+    "signature": "run(config: { canvas: HTMLCanvasElement, ... }): void",
+    "file": "reference/xr8-core.md",
+    "lineStart": 16,
+    "lineEnd": 29,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8",
+    "localUsage": [
+      {
+        "file": "src/xr8/pipeline.ts",
+        "line": 289
+      }
+    ]
+  },
+  {
+    "symbol": "XR8.stop",
+    "module": "XR8",
+    "signature": "XR8.stop()",
+    "file": "reference/xr8-core.md",
+    "lineStart": 30,
+    "lineEnd": 32,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8",
+    "localUsage": [
+      {
+        "file": "src/xr8/pipeline.ts",
+        "line": 302
+      }
+    ]
+  },
+  {
+    "symbol": "XR8.pause",
+    "module": "XR8",
+    "signature": "XR8.pause()",
+    "file": "reference/xr8-core.md",
+    "lineStart": 33,
+    "lineEnd": 36,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.resume",
+    "module": "XR8",
+    "signature": "XR8.resume()",
+    "file": "reference/xr8-core.md",
+    "lineStart": 37,
+    "lineEnd": 39,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.isPaused",
+    "module": "XR8",
+    "signature": "XR8.isPaused()",
+    "file": "reference/xr8-core.md",
+    "lineStart": 40,
+    "lineEnd": 46,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.addCameraPipelineModule",
+    "module": "XR8",
+    "signature": "XR8.addCameraPipelineModule(module)",
+    "file": "reference/xr8-core.md",
+    "lineStart": 47,
+    "lineEnd": 50,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.addCameraPipelineModules",
+    "module": "XR8",
+    "signature": "XR8.addCameraPipelineModules(modules)",
+    "file": "reference/xr8-core.md",
+    "lineStart": 51,
+    "lineEnd": 54,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8",
+    "localUsage": [
+      {
+        "file": "src/xr8/pipeline.ts",
+        "line": 281
+      }
+    ]
+  },
+  {
+    "symbol": "XR8.removeCameraPipelineModule",
+    "module": "XR8",
+    "signature": "XR8.removeCameraPipelineModule(module)",
+    "file": "reference/xr8-core.md",
+    "lineStart": 55,
+    "lineEnd": 57,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.removeCameraPipelineModules",
+    "module": "XR8",
+    "signature": "XR8.removeCameraPipelineModules(modules)",
+    "file": "reference/xr8-core.md",
+    "lineStart": 58,
+    "lineEnd": 64,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.clearCameraPipelineModules",
+    "module": "XR8",
+    "signature": "XR8.clearCameraPipelineModules()",
+    "file": "reference/xr8-core.md",
+    "lineStart": 65,
+    "lineEnd": 67,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.initialize",
+    "module": "XR8",
+    "signature": "XR8.initialize()",
+    "file": "reference/xr8-core.md",
+    "lineStart": 68,
+    "lineEnd": 70,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.isInitialized",
+    "module": "XR8",
+    "signature": "XR8.isInitialized()",
+    "file": "reference/xr8-core.md",
+    "lineStart": 71,
+    "lineEnd": 73,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.requiredPermissions",
+    "module": "XR8",
+    "signature": "XR8.requiredPermissions()",
+    "file": "reference/xr8-core.md",
+    "lineStart": 74,
+    "lineEnd": 76,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.runPreRender",
+    "module": "XR8",
+    "signature": "XR8.runPreRender()",
+    "file": "reference/xr8-core.md",
+    "lineStart": 77,
+    "lineEnd": 80,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.runPostRender",
+    "module": "XR8",
+    "signature": "XR8.runPostRender()",
+    "file": "reference/xr8-core.md",
+    "lineStart": 81,
+    "lineEnd": 83,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.version",
+    "module": "XR8",
+    "signature": "XR8.version()",
+    "file": "reference/xr8-core.md",
+    "lineStart": 84,
+    "lineEnd": 86,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xr8",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.XrController.configure",
+    "module": "XR8.XrController",
+    "signature": "configure(options): void",
+    "file": "reference/xrcontroller.md",
+    "lineStart": 15,
+    "lineEnd": 43,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xrcontroller",
+    "localUsage": [
+      {
+        "file": "src/xr8/pipeline.ts",
+        "line": 284
+      },
+      {
+        "file": "src/xr8/pipeline.ts",
+        "line": 285
+      }
+    ]
+  },
+  {
+    "symbol": "XR8.XrController.hitTest",
+    "module": "XR8.XrController",
+    "signature": "hitTest(x: number, y: number, includedTypes: string[]): Xr8HitResult[]",
+    "file": "reference/xrcontroller.md",
+    "lineStart": 44,
+    "lineEnd": 58,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xrcontroller",
+    "localUsage": [
+      {
+        "file": "src/xr8/hitTestController.ts",
+        "line": 48
+      },
+      {
+        "file": "src/xr8/hitTestController.ts",
+        "line": 56
+      }
+    ]
+  },
+  {
+    "symbol": "XR8.XrController.updateCameraProjectionMatrix",
+    "module": "XR8.XrController",
+    "signature": "updateCameraProjectionMatrix({ origin, facing, cam }): void",
+    "file": "reference/xrcontroller.md",
+    "lineStart": 59,
+    "lineEnd": 66,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xrcontroller",
+    "localUsage": [
+      {
+        "file": "src/components/ar/StoryARExperience.tsx",
+        "line": 141
+      },
+      {
+        "file": "src/components/ar/StoryARExperience.tsx",
+        "line": 142
+      }
+    ]
+  },
+  {
+    "symbol": "XR8.XrController.recenter",
+    "module": "XR8.XrController",
+    "signature": "recenter(): void",
+    "file": "reference/xrcontroller.md",
+    "lineStart": 67,
+    "lineEnd": 72,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xrcontroller",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.XrController.pipelineModule",
+    "module": "XR8.XrController",
+    "signature": "pipelineModule(): CameraPipelineModule",
+    "file": "reference/xrcontroller.md",
+    "lineStart": 73,
+    "lineEnd": 79,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xrcontroller",
+    "localUsage": [
+      {
+        "file": "src/xr8/pipeline.ts",
+        "line": 249
+      },
+      {
+        "file": "src/xr8/pipeline.ts",
+        "line": 250
+      }
+    ]
+  },
+  {
+    "symbol": "XR8.XrDevice.isDeviceBrowserCompatible",
+    "module": "XR8.XrDevice",
+    "signature": "isDeviceBrowserCompatible({ allowedDevices? }): boolean",
+    "file": "reference/xrdevice.md",
+    "lineStart": 16,
+    "lineEnd": 28,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xrdevice",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.XrDevice.incompatibleReasons",
+    "module": "XR8.XrDevice",
+    "signature": "incompatibleReasons({ allowedDevices? }): IncompatibilityReasons[]",
+    "file": "reference/xrdevice.md",
+    "lineStart": 29,
+    "lineEnd": 34,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xrdevice",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.XrDevice.incompatibleReasonDetails",
+    "module": "XR8.XrDevice",
+    "signature": "incompatibleReasonDetails({ allowedDevices? }): { inAppBrowser, inAppBrowserType }",
+    "file": "reference/xrdevice.md",
+    "lineStart": 35,
+    "lineEnd": 40,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xrdevice",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.XrDevice.deviceEstimate",
+    "module": "XR8.XrDevice",
+    "signature": "deviceEstimate(): object",
+    "file": "reference/xrdevice.md",
+    "lineStart": 41,
+    "lineEnd": 46,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xrdevice",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.XrDevice.IncompatibilityReasons",
+    "module": "XR8.XrDevice",
+    "signature": "XR8.XrDevice.IncompatibilityReasons",
+    "file": "reference/xrdevice.md",
+    "lineStart": 47,
+    "lineEnd": 49,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xrdevice",
+    "localUsage": []
+  },
+  {
+    "symbol": "XR8.XrPermissions.permissions",
+    "module": "XR8.XrPermissions",
+    "signature": "permissions(): { CAMERA, DEVICE_MOTION, DEVICE_ORIENTATION, DEVICE_GPS, MICROPHONE }",
+    "file": "reference/xrpermissions.md",
+    "lineStart": 14,
+    "lineEnd": 31,
+    "source": "https://www.8thwall.com/docs/api/engine/api/engine/xrpermissions",
+    "localUsage": []
+  }
+]

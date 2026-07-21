@@ -73,7 +73,6 @@
     }
   ],
   "trailingSlash": false,
-  "cleanUrls": true,
   "github": {
     "silent": true
   }

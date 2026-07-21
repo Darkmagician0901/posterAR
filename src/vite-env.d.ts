@@ -5,6 +5,10 @@
  */
 interface ImportMetaEnv {
   readonly VITE_API_URL?: string;
+  /** Poster-asset API origin. Empty disables persistence (see constants.ts). */
+  readonly VITE_API_BASE_URL?: string;
+  /** Origin published story documents are served from. Empty disables remote loading. */
+  readonly VITE_STORY_BASE_URL?: string;
   readonly VITE_GA_TRACKING_ID?: string;
   readonly VITE_SENTRY_DSN?: string;
   readonly VITE_ENABLE_DEBUG_MODE?: string;

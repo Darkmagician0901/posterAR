@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { composeFrame, COMPOSE_DEFAULTS } from './compose';
+import { composeFrame, backdropImage, COMPOSE_DEFAULTS } from './compose';
 import { PROP_LIBRARY } from './library';
 import { StoryProp } from '../storyDoc';
 import { svgFrame } from '../svgTexture';
@@ -81,13 +81,59 @@ describe('composeFrame', () => {
     expect(composeFrame([prop()])).not.toContain('id="mesh"');
   });
 
-  it('skips unknown prop keys and uploaded images rather than emitting broken refs', () => {
-    const svg = composeFrame([
-      prop({ k: 'no-such-prop' }),
-      prop({ t: 'img', k: 'asset-1' }),
-    ]);
+  it('skips unknown library keys rather than emitting broken refs', () => {
+    const svg = composeFrame([prop({ k: 'no-such-prop' })]);
     expect(svg).not.toContain('<ellipse');
+  });
+
+  it('skips uploaded props whose asset was not supplied', () => {
+    const svg = composeFrame([prop({ t: 'img', k: 'asset-1' })]);
+    expect(svg).not.toContain('<image');
     expect(svg).not.toContain('asset-1');
+  });
+
+  it('draws uploaded props from the supplied asset map', () => {
+    const svg = composeFrame([prop({ t: 'img', k: 'asset-1', h: 2 })], {
+      images: { 'asset-1': { href: 'data:image/webp;base64,AAAA', aspect: 1.5 } },
+    });
+    expect(svg).toContain('<image href="data:image/webp;base64,AAAA"');
+    // 2 m at the default 30 ppm, aspect 1.5 -> 90 x 60 box
+    expect(svg).toContain('width="90"');
+    expect(svg).toContain('height="60"');
+  });
+
+  it('anchors uploaded props at bottom centre and mirrors when flipped', () => {
+    const images = { a: { href: 'data:image/png;base64,AA', aspect: 1 } };
+    const plain = composeFrame([prop({ t: 'img', k: 'a', h: 1 })], { images });
+    const flipped = composeFrame([prop({ t: 'img', k: 'a', h: 1, f: true })], { images });
+    // 1 m at 30 ppm, aspect 1 -> 30x30, anchored so the box sits above the point
+    expect(plain).toContain('x="-15" y="-30"');
+    expect(plain).toContain('scale(1,1)');
+    expect(flipped).toContain('scale(-1,1)');
+  });
+
+  it('escapes asset hrefs so they cannot break out of the attribute', () => {
+    const svg = composeFrame([prop({ t: 'img', k: 'a' })], {
+      images: { a: { href: 'data:image/png;base64,AA"><script>x()</script>', aspect: 1 } },
+    });
+    expect(svg).not.toContain('<script>');
+    expect(svg).toContain('&quot;');
+  });
+
+  it('mixes library and uploaded props in one depth-sorted scene', () => {
+    const svg = composeFrame(
+      [prop({ k: 'tree', z: 5, h: 4.5 }), prop({ t: 'img', k: 'a', z: 0, h: 1 })],
+      { images: { a: { href: 'data:image/png;base64,AA', aspect: 1 } } },
+    );
+    // The uploaded prop is nearer, so it is painted last.
+    expect(svg.indexOf('data:image/png')).toBeGreaterThan(svg.indexOf('#3C6B1F'));
+  });
+
+  it('builds a full-bleed backdrop from an uploaded image', () => {
+    const svg = composeFrame([], { backdrop: backdropImage('data:image/webp;base64,BB') });
+    expect(svg).toContain('<image href="data:image/webp;base64,BB"');
+    expect(svg).toContain('preserveAspectRatio="xMidYMid slice"');
+    expect(svg).toContain(`width="${COMPOSE_DEFAULTS.width}"`);
   });
 
   it('places a backdrop behind every prop', () => {

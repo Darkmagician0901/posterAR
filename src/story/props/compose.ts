@@ -33,17 +33,58 @@ export const COMPOSE_DEFAULTS = {
   ppm: 30,
 } as const;
 
+/** An uploaded image available to composition. */
+export interface ImageAsset {
+  /**
+   * Image source. MUST be a `data:` URL for anything that will be rasterized
+   * by svgTexture: an SVG loaded through `<img>` runs in restricted mode and
+   * will not fetch external references, so an https URL renders blank. Publish
+   * inlines assets; the studio's live preview may use blob: URLs because it
+   * renders the fragment as live DOM rather than through an Image.
+   */
+  href: string;
+  /** Natural width / height, used to size the placement box. */
+  aspect: number;
+}
+
 export interface ComposeOptions {
   width?: number;
   height?: number;
   groundY?: number;
   ppm?: number;
   /**
-   * Raw SVG fragment painted behind every prop — gradient washes, pools, sky.
-   * The shipped scenes lean heavily on this; props alone do not reach their
-   * density. Any <defs> it needs must be included in the fragment.
+   * Raw SVG fragment painted behind every prop — gradient washes, pools, sky,
+   * or a full-bleed uploaded image (see backdropImage). The shipped scenes lean
+   * heavily on this; props alone do not reach their density. Any <defs> it
+   * needs must be included in the fragment.
    */
   backdrop?: string;
+  /**
+   * Uploaded assets keyed by the `k` of any `t: 'img'` prop. Props whose key is
+   * missing here are skipped rather than emitted as a broken reference.
+   */
+  images?: Record<string, ImageAsset>;
+}
+
+/**
+ * Builds a full-bleed backdrop fragment from an uploaded image.
+ *
+ * @param href — Image source, subject to the same data:-URL rule as ImageAsset.
+ * @param width — Document width.
+ * @param height — Document height.
+ * @returns An SVG fragment suitable for ComposeOptions.backdrop.
+ */
+export function backdropImage(
+  href: string,
+  width: number = COMPOSE_DEFAULTS.width,
+  height: number = COMPOSE_DEFAULTS.height,
+): string {
+  return `<image href="${escapeAttr(href)}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>`;
+}
+
+/** Escapes the characters that would break out of a double-quoted attribute. */
+function escapeAttr(v: string): string {
+  return v.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
 /** Depth foreshortening: how much a prop shrinks per metre of depth. */
@@ -71,23 +112,27 @@ export function composeFrame(props: StoryProp[], options: ComposeOptions = {}): 
 
   const cx = width / 2;
   const depthRise = ppm * 0.3;
+  const images = options.images ?? {};
 
-  // Only library props render today; uploaded images arrive with the studio's
-  // upload path and are skipped rather than drawn as a broken reference.
-  const placeable = props.filter((p) => p.t === 'lib' && PROP_LIBRARY[p.k]);
+  // Drop anything that cannot be drawn: unknown library keys, and uploaded
+  // props whose asset is missing. Emitting a broken reference would render as
+  // a blank gap with no indication why.
+  const placeable = props.filter((p) =>
+    p.t === 'img' ? images[p.k] !== undefined : PROP_LIBRARY[p.k] !== undefined,
+  );
 
   // Far to near, so nearer props overlap further ones.
   const ordered = [...placeable].sort((a, b) => b.z - a.z);
 
-  const needsMesh = ordered.some((p) => PROP_LIBRARY[p.k].needsMesh);
+  const needsMesh = ordered.some((p) => p.t === 'lib' && PROP_LIBRARY[p.k].needsMesh);
 
   const parts: string[] = [];
   for (const p of ordered) {
-    const def = PROP_LIBRARY[p.k];
-    const { bbox } = def;
+    const aspect =
+      p.t === 'img' ? images[p.k].aspect : PROP_LIBRARY[p.k].bbox.w / PROP_LIBRARY[p.k].bbox.h;
     const s = depthScale(p.z);
     const hpx = p.h * ppm * s;
-    const wpx = hpx * (bbox.w / bbox.h);
+    const wpx = hpx * aspect;
     const lift = p.e * ppm * s;
     const bx = cx + p.x * ppm * s;
     const byGround = groundY - p.z * depthRise * s;
@@ -100,15 +145,27 @@ export function composeFrame(props: StoryProp[], options: ComposeOptions = {}): 
       `<ellipse cx="${n(bx)}" cy="${n(byGround)}" rx="${n(wpx * 0.34)}" ry="${n(wpx * 0.075)}" fill="#101408" opacity="${n(shadowOpacity)}"/>`,
     );
 
-    // Map the builder's natural bbox onto the target rect, anchored at its
-    // bottom centre. A negative x-scale mirrors about that same anchor.
-    const sx = (wpx / bbox.w) * (p.f ? -1 : 1);
-    const sy = hpx / bbox.h;
-    const ax = bbox.x + bbox.w / 2;
-    const ay = bbox.y + bbox.h;
-    parts.push(
-      `<g transform="translate(${n(bx)},${n(by)}) scale(${n(sx)},${n(sy)}) translate(${n(-ax)},${n(-ay)})">${def.make()}</g>`,
-    );
+    const mirror = p.f ? -1 : 1;
+    if (p.t === 'img') {
+      // Uploaded art is placed directly into the target box, bottom-centre
+      // anchored, so it needs no bbox mapping.
+      parts.push(
+        `<g transform="translate(${n(bx)},${n(by)}) scale(${mirror},1)">` +
+          `<image href="${escapeAttr(images[p.k].href)}" x="${n(-wpx / 2)}" y="${n(-hpx)}" width="${n(wpx)}" height="${n(hpx)}"/>` +
+          `</g>`,
+      );
+    } else {
+      // Map the builder's natural bbox onto the target rect, anchored at its
+      // bottom centre. A negative x-scale mirrors about that same anchor.
+      const { bbox, make } = PROP_LIBRARY[p.k];
+      const sx = (wpx / bbox.w) * mirror;
+      const sy = hpx / bbox.h;
+      const ax = bbox.x + bbox.w / 2;
+      const ay = bbox.y + bbox.h;
+      parts.push(
+        `<g transform="translate(${n(bx)},${n(by)}) scale(${n(sx)},${n(sy)}) translate(${n(-ax)},${n(-ay)})">${make()}</g>`,
+      );
+    }
   }
 
   const defs = needsMesh ? MESH_DEF : '';

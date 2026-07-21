@@ -33,7 +33,7 @@ export type StoryPhase =
 interface StoryState {
   /** Current phase. */
   phase: StoryPhase;
-  /** Index into STORY_ERAS (0..4); meaningful once `phase === 'placed'`. */
+  /** Index into the content store's frames; meaningful once `phase === 'placed'`. */
   eraIndex: number;
   /** True once the diorama has been planted on the ground. */
   placed: boolean;

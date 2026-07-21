@@ -6,13 +6,12 @@ Quick reference for Claude Code sessions. See README.md / ARCHITECTURE.md / TEST
 
 ```bash
 npm run dev           # Vite dev server — HTTPS, --host (required for camera + 8th Wall)
-npm run test          # vitest run — 86 tests, < 2 s
+npm run test          # vitest run — 113 tests, < 2 s
 npm run test:watch    # vitest interactive watch
 npm run type-check    # tsc --noEmit
+npm run lint          # eslint src server/src
 npm run build         # tsc && vite build → dist/
 ```
-
-There is **no lint script**.
 
 ## Architecture
 
@@ -31,7 +30,13 @@ On the live path **8th Wall (XR8) owns** the canvas, camera feed, three.js rende
 - `src/xr/` — engine-AGNOSTIC 3D helpers (reticle, debugTelemetry, desktopMockDriver, posterOrientation)
 - `src/xr8/` — 8th Wall (XR8)-SPECIFIC integration (pipeline, hitTestController, posterPlacement, ambientProbe, canvasScreenshot, gifAnimator, gifPlayhead, posterTextureCache, storyTile)
 
-State: **Zustand 4** — `posterStore` (placed + uploaded posters), `useUIState` (overlays, toasts).
+State: **Zustand 4** — `contentStore` (*what* the story is: the active `StoryDoc`), `storyStore` (*where in it* the visitor stands: phase + frame index), `posterStore` (placed + uploaded posters), `useUIState` (overlays, toasts).
+
+## Story content
+
+The story is data, not constants. `src/story/storyDoc.ts` defines `StoryDoc` (frames, copy, per-frame `art` SVG + optional authored `props`) and a validator that falls back **per field**. `src/story/defaultStory.ts` derives the shipped story from `storyData.ts` + the committed `era/*.svg`, carried **verbatim** — that is what guarantees the visitor experience is unchanged. `storyData.ts` and `era/*.svg` stay permanently as the typed default and offline fallback.
+
+The era SVGs are hand-composed, **not** regenerable from prop builders, and their animation classes have no keyframes so the art is static in AR. See `docs/arcade-studio-plan.md`.
 
 ## GIF Pipeline
 
@@ -62,7 +67,7 @@ GIFs are decoded from data: URLs without fetch. `posterTextureCache` releases ac
 
 Stack: **vitest ^4.1.8** + **happy-dom ^20.9.0** (configured in `vitest.config.ts`).
 
-**17 test files, 86 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation, story state, SVG-texture generation, asset persistence & upload hydration, device-token). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
+**20 test files, 113 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation, story state, StoryDoc validation, default-story provenance, content store, SVG-texture generation, asset persistence & upload hydration, device-token). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
 
 ## Conventions
 

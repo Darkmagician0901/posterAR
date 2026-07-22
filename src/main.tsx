@@ -15,10 +15,7 @@ import React, { Suspense, lazy } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
-// Display face (years, era titles, buttons) and the narration text face.
-// See the note on .story-narration in StoryOverlay.css for why they differ.
 import '@fontsource/press-start-2p/400.css';
-import '@fontsource/vt323/400.css';
 
 const StudioApp = lazy(() => import('./studio/StudioApp'));
 

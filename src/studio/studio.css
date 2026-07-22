@@ -457,24 +457,24 @@
   transform: scale(1.05);
   filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.4));
 }
+/* Matches .story-narration in the viewer — keep the two in step. */
 .st-bubble {
   flex: 1;
   text-align: left;
-  background: rgba(20, 18, 14, 0.86);
-  border: 2px solid rgba(255, 255, 255, 0.14);
+  background: rgba(20, 18, 14, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 12px;
-  padding: 12px 13px;
-  /* Matches .story-narration in the viewer — keep the two in step. */
-  font-family: 'VT323', ui-monospace, monospace;
-  font-size: 15px;
-  line-height: 1.42;
-  letter-spacing: 0.02em;
-  color: #f4efe4;
+  padding: 11px 12px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7.5px;
+  line-height: 1.85;
+  color: #ffffff;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.85);
   min-height: 58px;
-  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(3px);
 }
 .st-bubble .st-empty {
-  color: rgba(244, 239, 228, 0.5);
+  color: rgba(255, 255, 255, 0.55);
   font-style: italic;
 }
 .st-mini-tl {

@@ -459,17 +459,22 @@
 }
 .st-bubble {
   flex: 1;
-  background: #fff;
-  border: 3px solid var(--ink);
+  text-align: left;
+  background: rgba(20, 18, 14, 0.86);
+  border: 2px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
-  padding: 10px 11px;
-  font-size: 11.5px;
-  line-height: 1.6;
+  padding: 12px 13px;
+  /* Matches .story-narration in the viewer — keep the two in step. */
+  font-family: 'VT323', ui-monospace, monospace;
+  font-size: 15px;
+  line-height: 1.42;
+  letter-spacing: 0.02em;
+  color: #f4efe4;
   min-height: 58px;
   box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.25);
 }
 .st-bubble .st-empty {
-  color: #a89a78;
+  color: rgba(244, 239, 228, 0.5);
   font-style: italic;
 }
 .st-mini-tl {
@@ -1008,7 +1013,8 @@
     opacity: 0;
   }
 }
-.st-bubble {
-  font: inherit;
-  color: inherit;
-}
+/*
+ * No `font: inherit` reset here: .st-bubble is a <button>, but its typography
+ * is set explicitly above to match the viewer's .story-narration. A reset at
+ * this point in the file would silently override it.
+ */

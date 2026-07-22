@@ -202,12 +202,23 @@
   }
 }
 
+/*
+ * Narration is the one place the overlay leaves Press Start 2P.
+ *
+ * Press Start 2P is an arcade title-screen face: every glyph in the same wide
+ * box, no kerning nuance. It carries years and era titles beautifully and sets
+ * paragraphs badly — the old 1.95 line-height existed only to stop 9px lines
+ * merging. VT323 is a DEC VT320 terminal face: narrow, real lowercase, legible
+ * small, and thematically the instrument readout to the diorama's arcade
+ * cabinet. It fits more words per line and needs no exaggerated leading.
+ */
 .story-narration {
   flex: 1 1 auto;
   text-align: left;
-  font-family: inherit;
-  font-size: 9px;
-  line-height: 1.95;
+  font-family: 'VT323', ui-monospace, monospace;
+  font-size: 15px;
+  line-height: 1.42;
+  letter-spacing: 0.02em;
   color: #f4efe4;
   background: rgba(20, 18, 14, 0.82);
   border: 2px solid rgba(255, 255, 255, 0.14);

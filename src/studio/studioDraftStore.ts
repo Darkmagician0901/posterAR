@@ -15,7 +15,7 @@
  */
 
 import { create } from 'zustand';
-import { StoryDoc, StoryFrame, StoryProp, validateStoryDoc } from '@/story/storyDoc';
+import { StoryAsset, StoryDoc, StoryFrame, StoryProp, validateStoryDoc } from '@/story/storyDoc';
 import { DEFAULT_STORY } from '@/story/defaultStory';
 import { LOCAL_DRAFT_KEY } from '@/services/storyApi';
 
@@ -56,6 +56,8 @@ interface StudioState {
   patchFrame: (index: number, patch: Partial<StoryFrame>) => void;
   /** Replaces one frame's staged props. */
   setProps: (index: number, props: StoryProp[]) => void;
+  /** Stores an uploaded image and returns the id props should reference. */
+  addAsset: (asset: StoryAsset) => string;
   /** Appends a blank frame and selects it. */
   addFrame: () => void;
   /** Removes a frame. Refuses to remove the last one. */
@@ -133,6 +135,13 @@ export const useStudioDraft = create<StudioState>((set, get) => {
     },
 
     setProps: (index, props) => get().patchFrame(index, { props }),
+
+    addAsset: (asset) => {
+      const { doc } = get();
+      const id = `a${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      commit({ ...doc, assets: { ...(doc.assets ?? {}), [id]: asset } });
+      return id;
+    },
 
     addFrame: () => {
       const { doc } = get();

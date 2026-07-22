@@ -92,9 +92,16 @@ function depthScale(z: number): number {
   return 1 / (1 + 0.16 * Math.max(0, z));
 }
 
-/** Rounds to 2dp and strips a trailing zero, keeping the markup compact. */
+/**
+ * Rounds for output, keeping the markup compact without being lossy.
+ *
+ * 4dp rather than 2: scale factors for small props at depth can fall below
+ * 0.01, where 2dp rounding is a large relative error (0.005 -> 0.01 doubles
+ * the prop). Positions never need this precision, but sharing one formatter
+ * is worth more than the handful of bytes.
+ */
 function n(v: number): string {
-  return Number(v.toFixed(2)).toString();
+  return Number(v.toFixed(4)).toString();
 }
 
 /**

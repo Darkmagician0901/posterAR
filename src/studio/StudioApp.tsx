@@ -12,10 +12,11 @@
  * viewer's ?draft=1 path reads it back.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { FramesRail } from './FramesRail';
 import { PhonePreview } from './PhonePreview';
 import { Inspector } from './Inspector';
+import { StageEditor } from './StageEditor';
 import { useStudioDraft } from './studioDraftStore';
 import { isStoryHostConfigured } from '@/services/storyApi';
 import './studio.css';
@@ -23,7 +24,9 @@ import './studio.css';
 export const StudioApp: React.FC = () => {
   const title = useStudioDraft((s) => s.doc.title);
   const canUndo = useStudioDraft((s) => s.canUndo);
+  const selected = useStudioDraft((s) => s.selected);
   const { patchDoc, undo, reset } = useStudioDraft.getState();
+  const [stageOpen, setStageOpen] = useState(false);
 
   const publishable = isStoryHostConfigured();
 
@@ -98,8 +101,12 @@ export const StudioApp: React.FC = () => {
       <div className="st-wrap">
         <FramesRail />
         <PhonePreview />
-        <Inspector />
+        <Inspector onOpenStage={() => setStageOpen(true)} />
       </div>
+
+      {stageOpen && (
+        <StageEditor frameIndex={selected} onClose={() => setStageOpen(false)} />
+      )}
     </div>
   );
 };

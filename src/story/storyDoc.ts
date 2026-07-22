@@ -49,6 +49,20 @@ export interface StoryFrame {
   props?: StoryProp[];
 }
 
+/** An author-uploaded image available to any frame. */
+export interface StoryAsset {
+  /**
+   * Image source. Must be a `data:` URL: composed art is rasterized through an
+   * `<img>`, which runs SVG in restricted mode and will not fetch external
+   * references — an http(s) source renders blank rather than erroring.
+   */
+  href: string;
+  /** Natural width / height, used to size placements. */
+  aspect: number;
+  /** Original filename, shown in the studio. */
+  name?: string;
+}
+
 /** A complete authored experience. */
 export interface StoryDoc {
   schemaVersion: 3;
@@ -60,6 +74,8 @@ export interface StoryDoc {
   intro: { title: string; subtitle: string };
   outro: { title: string; subtitle: string };
   frames: StoryFrame[];
+  /** Uploaded images keyed by the id that `t: 'img'` props reference. */
+  assets?: Record<string, StoryAsset>;
 }
 
 /** Current schema version. Bump only on a breaking shape change. */
@@ -123,6 +139,30 @@ function sanitizeFrame(raw: unknown): StoryFrame | null {
 }
 
 /**
+ * Sanitizes the asset map.
+ *
+ * Only `data:image/...` sources are kept. A published document is untrusted
+ * input, and an `<image href>` is a place a hostile author could try to point
+ * at something else; restricting to inline image data means a composed frame
+ * can never reach off-origin, and matches the only form that actually renders
+ * once rasterized.
+ */
+function sanitizeAssets(raw: unknown): Record<string, StoryAsset> | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const out: Record<string, StoryAsset> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const v = bag(value);
+    const href = str(v.href, '');
+    if (!/^data:image\//i.test(href)) continue;
+    const aspect = num(v.aspect, 1);
+    if (aspect <= 0) continue;
+    const name = str(v.name, '');
+    out[key] = name === '' ? { href, aspect } : { href, aspect, name };
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
  * Validates an untrusted document against a known-good fallback.
  *
  * Falls back **per field** rather than all-or-nothing, so one bad value cannot
@@ -144,8 +184,9 @@ export function validateStoryDoc(raw: unknown, fallback: StoryDoc): StoryDoc {
 
   const intro = bag(r.intro);
   const outro = bag(r.outro);
+  const assets = sanitizeAssets(r.assets);
 
-  return {
+  const doc: StoryDoc = {
     schemaVersion: STORY_SCHEMA_VERSION,
     id: str(r.id, fallback.id),
     title: str(r.title, fallback.title),
@@ -160,4 +201,6 @@ export function validateStoryDoc(raw: unknown, fallback: StoryDoc): StoryDoc {
     },
     frames: frames.length > 0 ? frames : fallback.frames,
   };
+  if (assets !== undefined) doc.assets = assets;
+  return doc;
 }

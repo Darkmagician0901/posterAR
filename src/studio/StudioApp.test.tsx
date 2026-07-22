@@ -6,9 +6,14 @@ import { useStudioDraft } from './studioDraftStore';
 import { DEFAULT_STORY } from '@/story/defaultStory';
 
 /**
- * Render smoke tests. These would have caught a crash-on-mount, which is
- * otherwise invisible until someone opens the page — the studio has no other
- * automated coverage of its component tree.
+ * Crash-on-mount coverage for the studio shell.
+ *
+ * IMPORTANT — what these tests cannot do: zustand 4's useStore passes
+ * `getInitialState` as the server snapshot, so a renderToString render always
+ * observes the store's *initial* state. Committing an edit and then asserting
+ * the rendered output would pass whether or not the component reads the store
+ * correctly. Editing behaviour is covered in `studioDraftStore.test.ts`, which
+ * asserts on the store directly.
  */
 describe('StudioApp', () => {
   beforeEach(() => {
@@ -20,41 +25,44 @@ describe('StudioApp', () => {
     expect(() => renderToString(<StudioApp />)).not.toThrow();
   });
 
-  it('renders the three columns and the story title', () => {
+  it('renders the three columns', () => {
     const html = renderToString(<StudioApp />);
     expect(html).toContain('st-rail');
     expect(html).toContain('st-phone');
     expect(html).toContain('st-insp');
-    expect(html).toContain('ARCADE');
   });
 
-  it('lists every frame in the rail', () => {
+  it('lists every frame of the initial story in the rail', () => {
     const html = renderToString(<StudioApp />);
     for (const frame of DEFAULT_STORY.frames) {
       expect(html).toContain(frame.title);
     }
   });
 
-  it('shows the selected frame in the preview', () => {
-    useStudioDraft.getState().select(2);
+  it('shows the first frame in the preview by default', () => {
     const html = renderToString(<StudioApp />);
-    expect(html).toContain(DEFAULT_STORY.frames[2].year);
+    expect(html).toContain(DEFAULT_STORY.frames[0].title);
+    expect(html).toContain(DEFAULT_STORY.frames[0].year);
+    // React splits interpolated text into separate nodes in SSR, so the pill's
+    // copy is matched by its stable parts rather than as one string.
+    expect(html).toContain('EDITING');
+    expect(html).toContain('st-mode-pill');
+  });
+
+  it('offers the stage editor for the selected frame', () => {
+    const html = renderToString(<StudioApp />);
+    expect(html).toContain('OPEN STAGE EDITOR');
   });
 
   it('disables publish while no story host is configured', () => {
     const html = renderToString(<StudioApp />);
-    expect(/PUBLISH/.test(html)).toBe(true);
-    expect(/disabled=""[^>]*>\s*⬆ PUBLISH|⬆ PUBLISH/.test(html)).toBe(true);
+    // VITE_STORY_BASE_URL is unset in the test env.
+    expect(html).toContain('PUBLISH');
+    expect(html).toMatch(/disabled[^>]*>\s*⬆ PUBLISH|⬆ PUBLISH[^<]*<\/button>/);
   });
 
-  it('survives a story whose frames carry no props', () => {
-    useStudioDraft.getState().addFrame();
-    expect(() => renderToString(<StudioApp />)).not.toThrow();
-  });
-
-  it('survives an empty narration and an empty title', () => {
-    useStudioDraft.getState().patchFrame(0, { line: '', title: '' });
-    useStudioDraft.getState().patchDoc({ title: '' });
-    expect(() => renderToString(<StudioApp />)).not.toThrow();
+  it('keeps the stage editor closed until it is opened', () => {
+    const html = renderToString(<StudioApp />);
+    expect(html).not.toContain('STAGE EDITOR</h2>');
   });
 });

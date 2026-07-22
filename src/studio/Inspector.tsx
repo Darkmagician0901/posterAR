@@ -32,7 +32,12 @@ function readingSeconds(line: string): number {
 
 const NARRATION_MAX = 300;
 
-export const Inspector: React.FC = () => {
+interface InspectorProps {
+  /** Opens the stage editor for the selected frame. */
+  onOpenStage: () => void;
+}
+
+export const Inspector: React.FC<InspectorProps> = ({ onOpenStage }) => {
   const doc = useStudioDraft((s) => s.doc);
   const selected = useStudioDraft((s) => s.selected);
   const persistError = useStudioDraft((s) => s.persistError);
@@ -136,11 +141,17 @@ export const Inspector: React.FC = () => {
 
       <div className="st-sec">
         <h3>
-          STAGE <em>{propCount} prop{propCount === 1 ? '' : 's'}</em>
+          STAGE <em>
+            {propCount} prop{propCount === 1 ? '' : 's'}
+          </em>
         </h3>
+        <button className="st-abtn orange" onClick={onOpenStage}>
+          ⬡ OPEN STAGE EDITOR
+        </button>
         <div className="st-hintline">
-          This frame&apos;s art is {propCount > 0 ? 'composed from staged props' : 'a fixed image'}.
-          The stage editor is next — for now, frames keep the art they were created with.
+          {propCount > 0
+            ? 'This frame is composed from staged props — reopen the editor to rearrange them.'
+            : 'This frame uses fixed art. Staging props replaces it with a composed scene.'}
         </div>
       </div>
 

@@ -27,6 +27,7 @@ export const StudioApp: React.FC = () => {
   const selected = useStudioDraft((s) => s.selected);
   const { patchDoc, undo, reset } = useStudioDraft.getState();
   const [stageOpen, setStageOpen] = useState(false);
+  const [playing, setPlaying] = useState(false);
 
   const publishable = isStoryHostConfigured();
 
@@ -75,14 +76,21 @@ export const StudioApp: React.FC = () => {
           >
             ⟲ RESET
           </button>
-          <a
+          <button
             className="st-btn green"
+            onClick={() => setPlaying((p) => !p)}
+            title="Walk the story as a visitor would"
+          >
+            {playing ? '✎ EDIT' : '▶ PREVIEW'}
+          </button>
+          <a
+            className="st-btn paper"
             href="/?draft=1"
             target="_blank"
             rel="noreferrer"
-            title="Open this draft in the real viewer"
+            title="Open this draft in the real app — use this to test on a phone"
           >
-            ▶ PREVIEW
+            ⧉ ON DEVICE
           </a>
           <button
             className="st-btn orange"
@@ -100,7 +108,7 @@ export const StudioApp: React.FC = () => {
 
       <div className="st-wrap">
         <FramesRail />
-        <PhonePreview />
+        <PhonePreview playing={playing} onExitPlay={() => setPlaying(false)} />
         <Inspector onOpenStage={() => setStageOpen(true)} />
       </div>
 

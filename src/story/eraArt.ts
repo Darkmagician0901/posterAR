@@ -1,14 +1,26 @@
 /**
- * eraArt.ts — pixel-art scene SVGs for each era.
+ * eraArt.ts — pixel-art scene SVGs for each era of the bundled story.
  *
- * The SVG strings are the exact output of the design prototype's scene
- * builders (sunflowerSVG, carSVG, fenceSVG, deadTreeSVG, …), extracted once
- * to static files under story/era/. They are imported with Vite's `?raw`
- * suffix so the build inlines them as strings — no fetch at runtime.
+ * These are hand-composed scenes. Some elements came from the design
+ * prototype's builders (sunflowers in heal.svg, car bodies in wreck.svg, the
+ * fence mesh in toxic.svg); the rest — backgrounds, gradients, oil pools, the
+ * leaking pipe — were authored by hand, and oil.svg is entirely hand-drawn.
+ * The viewBoxes disagree too (330x168 vs 330x175), so these did not come off
+ * one pipeline. They are therefore NOT regenerable from prop builders, which
+ * is why the bundled StoryDoc carries them verbatim rather than composing
+ * them. See docs/arcade-studio-plan.md.
+ *
+ * They are imported with Vite's `?raw` suffix so the build inlines them as
+ * strings — no fetch at runtime.
  *
  * Each SVG is transparent (no opaque background): when rasterized and laid on
  * the detected ground (see svgTexture.ts + storyTile.ts), the real ground
  * shows through the gaps, so the diorama appears to grow out of the dirt.
+ *
+ * KNOWN DEFECT: these files reference animation classes (a-sway, a-ripple,
+ * a-drip, …) whose keyframes are defined nowhere, and svgTexture rasterizes
+ * once via drawImage — so the art is static in AR despite being authored for
+ * motion. Tracked in docs/arcade-studio-plan.md.
  */
 
 import wreck from './era/wreck.svg?raw';

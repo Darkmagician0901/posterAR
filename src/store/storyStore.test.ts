@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useStoryStore } from './storyStore';
-import { STORY_ERAS } from '@/story/storyData';
+import { useContentStore } from './contentStore';
+import { DEFAULT_STORY } from '@/story/defaultStory';
 
 beforeEach(() => {
   useStoryStore.getState().reset();
+  useContentStore.getState().reset();
 });
 
 describe('storyStore', () => {
@@ -24,14 +26,14 @@ describe('storyStore', () => {
 
   it('next() advances eras then enters outro past the last', () => {
     useStoryStore.getState().place();
-    for (let i = 1; i < STORY_ERAS.length; i++) {
+    for (let i = 1; i < DEFAULT_STORY.frames.length; i++) {
       useStoryStore.getState().next();
       expect(useStoryStore.getState().eraIndex).toBe(i);
       expect(useStoryStore.getState().phase).toBe('placed');
     }
     useStoryStore.getState().next();
     expect(useStoryStore.getState().phase).toBe('outro');
-    expect(useStoryStore.getState().eraIndex).toBe(STORY_ERAS.length - 1);
+    expect(useStoryStore.getState().eraIndex).toBe(DEFAULT_STORY.frames.length - 1);
   });
 
   it('prev() steps back and clamps at era 0', () => {
@@ -47,7 +49,7 @@ describe('storyStore', () => {
   it('jumpTo() clamps within range and sets the placed phase', () => {
     useStoryStore.getState().place();
     useStoryStore.getState().jumpTo(99);
-    expect(useStoryStore.getState().eraIndex).toBe(STORY_ERAS.length - 1);
+    expect(useStoryStore.getState().eraIndex).toBe(DEFAULT_STORY.frames.length - 1);
     useStoryStore.getState().jumpTo(-5);
     expect(useStoryStore.getState().eraIndex).toBe(0);
     expect(useStoryStore.getState().phase).toBe('placed');
@@ -71,9 +73,29 @@ describe('storyStore', () => {
     expect(s.eraIndex).toBe(0);
   });
 
-  it('currentEra() reflects the current index', () => {
+  it('currentFrame() reflects the current index', () => {
     useStoryStore.getState().place();
     useStoryStore.getState().jumpTo(2);
-    expect(useStoryStore.getState().currentEra().key).toBe(STORY_ERAS[2].key);
+    expect(useStoryStore.getState().currentFrame().key).toBe(DEFAULT_STORY.frames[2].key);
+  });
+
+  it('clamps to the loaded document, not the bundled era count', () => {
+    useContentStore.getState().load({
+      frames: [
+        {
+          key: 'only',
+          year: '1',
+          label: 'O',
+          title: 'T',
+          line: 'l',
+          washColor: '#000',
+          art: '<svg viewBox="0 0 1 1"/>',
+        },
+      ],
+    });
+    useStoryStore.getState().place();
+    useStoryStore.getState().jumpTo(4);
+    expect(useStoryStore.getState().eraIndex).toBe(0);
+    expect(useStoryStore.getState().currentFrame().key).toBe('only');
   });
 });

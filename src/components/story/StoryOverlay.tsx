@@ -14,7 +14,7 @@
 
 import React from 'react';
 import { useStoryStore } from '@/store/storyStore';
-import { STORY_ERAS, STORY_INTRO, STORY_OUTRO } from '@/story/storyData';
+import { useContentStore } from '@/store/contentStore';
 import { useStoryTypewriter } from './useStoryTypewriter';
 import './StoryOverlay.css';
 
@@ -30,12 +30,15 @@ interface StoryOverlayProps {
 
 export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
   const { phase, eraIndex, placed, next, prev, jumpTo, reset } = useStoryStore();
-  const era = STORY_ERAS[eraIndex];
+  const doc = useContentStore((s) => s.doc);
+  // eraIndex can briefly exceed the frame list when a shorter doc loads
+  // mid-walk; fall back to the first frame rather than rendering undefined.
+  const era = doc.frames[eraIndex] ?? doc.frames[0];
 
   // Type the narration only while an era is on screen.
   const { shown, done, skip } = useStoryTypewriter(era.line, phase === 'placed');
 
-  const isLast = eraIndex === STORY_ERAS.length - 1;
+  const isLast = eraIndex === doc.frames.length - 1;
 
   return (
     <div className="story-overlay" aria-live="polite">
@@ -54,8 +57,8 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
       {!placed && phase !== 'outro' && (
         <div className="story-card story-card-intro">
           <div className="story-kicker">DEMO EXPERIENCE</div>
-          <h1 className="story-title">{STORY_INTRO.title}</h1>
-          <p className="story-sub">{STORY_INTRO.subtitle}</p>
+          <h1 className="story-title">{doc.intro.title}</h1>
+          <p className="story-sub">{doc.intro.subtitle}</p>
           <div className={`story-scan ${surfaceReady ? 'ready' : ''}`}>
             <span className="story-scan-ring" />
             {surfaceReady ? 'TAP THE GROUND TO PLACE' : 'MOVE PHONE TO FIND THE GROUND'}
@@ -94,8 +97,8 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
       {/* ── Outro card ────────────────────────────────────────────────── */}
       {phase === 'outro' && (
         <div className="story-card story-card-outro">
-          <h1 className="story-title">{STORY_OUTRO.title}</h1>
-          <p className="story-sub">{STORY_OUTRO.subtitle}</p>
+          <h1 className="story-title">{doc.outro.title}</h1>
+          <p className="story-sub">{doc.outro.subtitle}</p>
           <button className="story-btn" onClick={() => jumpTo(0)}>
             WALK IT AGAIN
           </button>
@@ -109,7 +112,7 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
       {phase === 'placed' && (
         <div className="story-bottom">
           <div className="story-timeline" role="tablist" aria-label="Eras">
-            {STORY_ERAS.map((e, i) => (
+            {doc.frames.map((e, i) => (
               <button
                 key={e.key}
                 role="tab"

@@ -25,9 +25,8 @@ import { debugTelemetry } from '@/xr/debugTelemetry';
 import { useUIState } from '@/hooks/useUIState';
 import { useArLoadProgress } from '@/hooks/useArLoadProgress';
 import { useStoryStore } from '@/store/storyStore';
-import { eraSvg } from '@/story/eraArt';
 import { svgToTexture } from '@/story/svgTexture';
-import { STORY_ERAS } from '@/story/storyData';
+import { useContentStore } from '@/store/contentStore';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { DebugHUD } from '@/components/ui/DebugHUD';
 import { Header } from '@/components/layout/Header';
@@ -62,18 +61,23 @@ export const StoryARExperience: React.FC = () => {
   useEffect(() => {
     if (!placed) return;
     let cancelled = false;
-    const era = STORY_ERAS[eraIndex];
-    void svgToTexture(eraSvg(era.key)).then(({ texture, aspect }) => {
+    const frames = useContentStore.getState().doc.frames;
+    const frame = frames[eraIndex] ?? frames[0];
+    if (!frame) return;
+    void svgToTexture(frame.art).then(({ texture, aspect }) => {
       if (cancelled) {
         texture.dispose();
         return;
       }
       tileRef.current?.setTexture(texture, aspect);
-      debugTelemetry.logEvent(`story: era → ${era.key}`);
+      debugTelemetry.logEvent(`story: era → ${frame.key}`);
     });
     return () => {
       cancelled = true;
     };
+    // The doc is fixed for the lifetime of the session in this phase, so it is
+    // deliberately not a dependency. When a doc can be swapped at runtime the
+    // active doc must be added here or the tile will keep the old art.
   }, [placed, eraIndex]);
 
   /**

@@ -1,18 +1,23 @@
 /**
  * storyStore — Zustand store for the "THE GROUND REMEMBERS" walkthrough.
  *
- * Separate from posterStore (which is generic poster placement). This holds
- * only the narrative state: whether the story has been planted on the ground
- * yet, and which of the five eras is currently showing. The AR layer
- * (StoryARExperience) subscribes to `eraIndex` to swap the diorama tile's
- * texture, and the 2D HUD (StoryOverlay) reads `phase` / `currentEra` to drive
- * the title card, narration, and timeline.
+ * Separate from posterStore (which is generic poster placement) and from
+ * contentStore (which owns *what* the story is). This holds only the narrative
+ * position: whether the story has been planted on the ground yet, and which
+ * frame is currently showing. The AR layer (StoryARExperience) subscribes to
+ * `eraIndex` to swap the diorama tile's texture, and the 2D HUD (StoryOverlay)
+ * reads `phase` / `currentFrame` to drive the title card, narration, and
+ * timeline.
+ *
+ * The frame list comes from contentStore, so bounds follow the loaded document
+ * rather than a fixed era count.
  *
  * Despite the `use*` name it is a store, not a hook — call it anywhere.
  */
 
 import { create } from 'zustand';
-import { STORY_ERAS, StoryEra } from '@/story/storyData';
+import { currentFrames } from './contentStore';
+import { StoryFrame } from '@/story/storyDoc';
 
 /** High-level phase of the experience. */
 export type StoryPhase =
@@ -28,7 +33,7 @@ export type StoryPhase =
 interface StoryState {
   /** Current phase. */
   phase: StoryPhase;
-  /** Index into STORY_ERAS (0..4); meaningful once `phase === 'placed'`. */
+  /** Index into the content store's frames; meaningful once `phase === 'placed'`. */
   eraIndex: number;
   /** True once the diorama has been planted on the ground. */
   placed: boolean;
@@ -49,8 +54,8 @@ interface StoryState {
   jumpTo: (index: number) => void;
   /** Returns to the intro so the user can re-place the story. */
   reset: () => void;
-  /** The era object for the current index. */
-  currentEra: () => StoryEra;
+  /** The frame object for the current index. */
+  currentFrame: () => StoryFrame;
 }
 
 export const useStoryStore = create<StoryState>((set, get) => ({
@@ -70,7 +75,7 @@ export const useStoryStore = create<StoryState>((set, get) => ({
 
   next: () =>
     set((s) => {
-      if (s.eraIndex >= STORY_ERAS.length - 1) return { phase: 'outro' };
+      if (s.eraIndex >= currentFrames().length - 1) return { phase: 'outro' };
       return { eraIndex: s.eraIndex + 1, phase: 'placed' };
     }),
 
@@ -78,11 +83,11 @@ export const useStoryStore = create<StoryState>((set, get) => ({
 
   jumpTo: (index) =>
     set(() => ({
-      eraIndex: Math.min(STORY_ERAS.length - 1, Math.max(0, index)),
+      eraIndex: Math.min(currentFrames().length - 1, Math.max(0, index)),
       phase: 'placed',
     })),
 
   reset: () => set({ phase: 'scanning', eraIndex: 0, placed: false }),
 
-  currentEra: () => STORY_ERAS[get().eraIndex],
+  currentFrame: () => currentFrames()[get().eraIndex],
 }));

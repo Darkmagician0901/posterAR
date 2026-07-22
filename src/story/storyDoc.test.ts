@@ -1,0 +1,124 @@
+import { describe, it, expect } from 'vitest';
+import { validateStoryDoc, StoryDoc } from './storyDoc';
+
+const FB: StoryDoc = {
+  schemaVersion: 3,
+  id: 'fallback',
+  title: 'FALLBACK TITLE',
+  loc: 'fallback loc',
+  intro: { title: 'FB INTRO', subtitle: 'fb intro sub' },
+  outro: { title: 'FB OUTRO', subtitle: 'fb outro sub' },
+  frames: [
+    {
+      key: 'a',
+      year: '1900',
+      label: 'A',
+      title: 'FRAME A',
+      line: 'line a',
+      washColor: 'rgba(1,2,3,0.5)',
+      art: '<svg viewBox="0 0 10 10"></svg>',
+    },
+  ],
+};
+
+describe('validateStoryDoc', () => {
+  it('returns the fallback for non-object input', () => {
+    expect(validateStoryDoc(null, FB)).toEqual(FB);
+    expect(validateStoryDoc('nope', FB)).toEqual(FB);
+    expect(validateStoryDoc(42, FB)).toEqual(FB);
+  });
+
+  it('falls back per field, not all-or-nothing', () => {
+    const out = validateStoryDoc({ title: 'REAL TITLE' }, FB);
+    expect(out.title).toBe('REAL TITLE');
+    expect(out.loc).toBe('fallback loc');
+    expect(out.intro.title).toBe('FB INTRO');
+    expect(out.frames).toEqual(FB.frames);
+  });
+
+  it('treats blank and wrong-typed strings as missing', () => {
+    const out = validateStoryDoc({ title: '   ', loc: 99 }, FB);
+    expect(out.title).toBe('FALLBACK TITLE');
+    expect(out.loc).toBe('fallback loc');
+  });
+
+  it('accepts a valid frame array and keeps its order', () => {
+    const out = validateStoryDoc(
+      {
+        frames: [
+          {
+            key: 'x',
+            year: '1',
+            label: 'X',
+            title: 'TX',
+            line: 'lx',
+            washColor: '#fff',
+            art: '<svg viewBox="0 0 1 1"/>',
+          },
+          {
+            key: 'y',
+            year: '2',
+            label: 'Y',
+            title: 'TY',
+            line: 'ly',
+            washColor: '#000',
+            art: '<svg viewBox="0 0 1 1"/>',
+          },
+        ],
+      },
+      FB,
+    );
+    expect(out.frames.map((f) => f.key)).toEqual(['x', 'y']);
+  });
+
+  it('drops frames whose art is missing or not SVG, and falls back when none survive', () => {
+    const out = validateStoryDoc({ frames: [{ key: 'x', art: 'not markup' }, { key: 'y' }] }, FB);
+    expect(out.frames).toEqual(FB.frames);
+  });
+
+  it('keeps surviving frames when only some are unusable', () => {
+    const out = validateStoryDoc(
+      { frames: [{ key: 'bad' }, { key: 'good', art: '<svg viewBox="0 0 1 1"/>' }] },
+      FB,
+    );
+    expect(out.frames.map((f) => f.key)).toEqual(['good']);
+  });
+
+  it('preserves authored props rather than silently dropping them', () => {
+    const out = validateStoryDoc(
+      {
+        frames: [
+          {
+            key: 'x',
+            art: '<svg viewBox="0 0 1 1"/>',
+            props: [{ t: 'lib', k: 'sunflower', x: 1.5, z: 2, h: 1.6, f: true, e: 0 }],
+          },
+        ],
+      },
+      FB,
+    );
+    expect(out.frames[0].props).toEqual([
+      { t: 'lib', k: 'sunflower', x: 1.5, z: 2, h: 1.6, f: true, e: 0 },
+    ]);
+  });
+
+  it('coerces malformed prop fields to safe numbers and drops keyless props', () => {
+    const out = validateStoryDoc(
+      {
+        frames: [
+          {
+            key: 'x',
+            art: '<svg viewBox="0 0 1 1"/>',
+            props: [{ t: 'img', k: 'a', x: 'NaN', z: Infinity }, { t: 'lib' }],
+          },
+        ],
+      },
+      FB,
+    );
+    expect(out.frames[0].props).toEqual([{ t: 'img', k: 'a', x: 0, z: 0, h: 1, f: false, e: 0 }]);
+  });
+
+  it('always stamps the current schema version', () => {
+    expect(validateStoryDoc({ schemaVersion: 99 }, FB).schemaVersion).toBe(3);
+  });
+});

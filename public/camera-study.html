@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<style>html,body{margin:0;padding:0}</style>
+<title>Spatial phone preview — camera study</title>
+
+<style>
+  .cs {
+    --ink: #120e0e;
+    --green: #5e9e33;
+    --green-deep: #3c6b1f;
+    --green-light: #86c24e;
+    --orange: #f08a1e;
+    --orange-deep: #c25e0c;
+    --orange-light: #fbb04c;
+    --paper: #f4efe2;
+    --paper2: #eae2ce;
+    --line: #d9cba0;
+
+    --mono: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    min-height: 100vh;
+    padding: 0 0 48px;
+  }
+  .cs *,
+  .cs *::before,
+  .cs *::after { box-sizing: border-box; }
+
+  .cs-bar {
+    background: var(--ink);
+    border-bottom: 4px solid var(--green);
+    padding: 14px 20px;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+  .cs-word {
+    color: #fff;
+    font-weight: 700;
+    letter-spacing: 2.4px;
+    text-transform: uppercase;
+    font-size: 14px;
+  }
+  .cs-word b { color: var(--orange); font-weight: 700; }
+  .cs-sub {
+    color: var(--line);
+    font-size: 11px;
+    letter-spacing: 0.6px;
+  }
+
+  .cs-wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 22px 20px 0;
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 26px;
+    align-items: start;
+  }
+  @media (max-width: 800px) {
+    .cs-wrap { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  /* ---- phone ---- */
+  .cs-phone {
+    background: var(--ink);
+    border: 4px solid var(--ink);
+    border-radius: 22px;
+    padding: 9px;
+    box-shadow: 0 8px 0 rgba(18, 14, 14, 0.16);
+  }
+  .cs-screen {
+    position: relative;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #7e9a6b;
+    touch-action: none;
+  }
+  .cs-screen canvas { display: block; width: 100%; height: auto; }
+  .cs-screen:focus-visible { outline: 3px solid var(--orange); outline-offset: 3px; }
+
+  .cs-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    background: rgba(18, 14, 14, 0.72);
+    color: #fff;
+    font-size: 10px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    padding: 7px 12px;
+    border-radius: 2px;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+    white-space: nowrap;
+  }
+  .cs-hint.gone { opacity: 0; }
+
+  .cs-cap {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--green-deep);
+    letter-spacing: 0.4px;
+    text-align: center;
+  }
+
+  /* ---- panel ---- */
+  .cs-panel { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+
+  .cs-card {
+    background: #fff;
+    border: 3px solid var(--ink);
+    box-shadow: 4px 4px 0 var(--line);
+    padding: 16px 18px;
+  }
+  .cs-h {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--green-deep);
+    margin: 0 0 12px;
+    font-weight: 700;
+  }
+  .cs-p { margin: 0 0 10px; font-size: 14px; line-height: 1.6; max-width: 62ch; }
+  .cs-p:last-child { margin-bottom: 0; }
+  .cs-p code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: var(--paper2);
+    padding: 1px 5px;
+  }
+
+  .cs-ctl { display: flex; flex-direction: column; gap: 14px; }
+  .cs-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .cs-lab {
+    font-size: 10px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    min-width: 118px;
+    font-weight: 700;
+  }
+  .cs-ctl input[type="range"] { flex: 1 1 150px; min-width: 130px; accent-color: var(--orange-deep); }
+  .cs-val {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 12.5px;
+    min-width: 62px;
+    text-align: right;
+  }
+
+  .cs-toggles { display: flex; gap: 8px; flex-wrap: wrap; }
+  .cs-tg {
+    font: inherit;
+    font-size: 11px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    font-weight: 700;
+    padding: 9px 13px;
+    background: #fff;
+    color: var(--ink);
+    border: 3px solid var(--ink);
+    cursor: pointer;
+    transition: none;
+  }
+  .cs-tg[aria-pressed="true"] { background: var(--green); color: #fff; }
+  .cs-tg.warn[aria-pressed="true"] { background: var(--orange-deep); color: #fff; }
+  .cs-tg:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+
+  .cs-scroll { overflow-x: auto; }
+  .cs-tbl { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 380px; }
+  .cs-tbl th {
+    text-align: left;
+    font-size: 9.5px;
+    letter-spacing: 1.3px;
+    text-transform: uppercase;
+    color: var(--green-deep);
+    border-bottom: 2px solid var(--ink);
+    padding: 0 10px 7px 0;
+  }
+  .cs-tbl td {
+    padding: 7px 10px 7px 0;
+    border-bottom: 1px solid var(--line);
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 12.5px;
+  }
+  .cs-tbl td.nm { font-family: "Segoe UI", system-ui, sans-serif; font-size: 13px; }
+  .cs-tbl tr:last-child td { border-bottom: none; }
+  .cs-sw {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    margin-right: 7px;
+    border: 1.5px solid var(--ink);
+    vertical-align: baseline;
+  }
+
+  .cs-note {
+    border-left: 5px solid var(--orange);
+    background: var(--paper2);
+    padding: 12px 16px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .cs-note b { letter-spacing: 0.3px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cs-hint { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="cs">
+  <div class="cs-bar">
+    <span class="cs-word">Arcade<b>·</b>Studio</span>
+    <span class="cs-sub">camera study — spatial phone preview · drag the screen to look</span>
+  </div>
+
+  <div class="cs-wrap">
+    <div>
+      <div class="cs-phone">
+        <div class="cs-screen" id="screen" tabindex="0" role="application"
+             aria-label="Phone preview. Drag or use left and right arrow keys to look around.">
+          <canvas id="cv" width="604" height="1264"></canvas>
+          <div class="cs-hint" id="hint">drag to look</div>
+        </div>
+      </div>
+      <div class="cs-cap">Release to spring back to the visitor's view</div>
+    </div>
+
+    <div class="cs-panel">
+      <div class="cs-card">
+        <h2 class="cs-h">Camera</h2>
+        <div class="cs-ctl">
+          <div class="cs-row">
+            <span class="cs-lab">Pan</span>
+            <input type="range" id="pan" min="-1.6" max="1.6" step="0.01" value="0"
+                   aria-label="Lateral pan in metres">
+            <span class="cs-val" id="panv">0.00 m</span>
+          </div>
+          <div class="cs-row">
+            <span class="cs-lab">Scene depth</span>
+            <input type="range" id="artz" min="0" max="4.6" step="0.05" value="3.2"
+                   aria-label="Depth of the flat oil scene in metres">
+            <span class="cs-val" id="artzv">3.20 m</span>
+          </div>
+          <div class="cs-toggles">
+            <button class="cs-tg" id="tgGrid" aria-pressed="true">Ground grid</button>
+            <button class="cs-tg" id="tgSky" aria-pressed="true">Skyline</button>
+            <button class="cs-tg warn" id="tgV4" aria-pressed="false">v4 depth sign</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="cs-card">
+        <h2 class="cs-h">Live projection</h2>
+        <div class="cs-scroll">
+          <table class="cs-tbl">
+            <thead>
+              <tr><th>Element</th><th>z</th><th>d</th><th>scale</th><th>fade</th></tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <p class="cs-p" style="margin-top:12px">
+          <code>d = 1.9 + z</code> · <code>scale = 230 / d</code> — bigger <code>z</code> is
+          farther, smaller, and higher toward the horizon.
+        </p>
+      </div>
+
+      <div class="cs-card">
+        <h2 class="cs-h">What to look for</h2>
+        <p class="cs-p">
+          <b>Parallax.</b> Drag sideways. The barrel at 0.6 m sweeps across; the oil
+          scene behind barely shifts. Pan enters the projection before the divide by
+          depth, so the separation is real rather than a slide.
+        </p>
+        <p class="cs-p">
+          <b>Convergence.</b> The grid lines are not drawn converging — they are drawn
+          straight in metres and converge because the projection puts them there.
+        </p>
+        <p class="cs-p">
+          <b>The flat scene is one sheet.</b> Push <i>scene depth</i> back and the whole
+          oil painting recedes together. That is the honest limit of billboarding
+          hand-drawn art, and why the derrick and barrel are separate props.
+        </p>
+        <div class="cs-note">
+          <b>v4 depth sign</b> flips the projection to the prototype's phone-view formula,
+          <code>d = 6.5 − z</code>. Watch the far scene lunge to the front while the near
+          barrel retreats — that is the contradiction we found between v4's two views, and
+          the reason this build standardises on <code>+z = farther</code>.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var cv = document.getElementById("cv");
+    var ctx = cv.getContext("2d");
+    var W = 302, H = 632;
+    var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    var CAM = { eyeM: 1.5, nearM: 1.9, focal: 230, horizonRatio: 0.40 };
+    var V4 = { camz: 6.5 };
+    var HOR = Math.round(H * CAM.horizonRatio);
+
+    var state = { pan: 0, artZ: 3.2, grid: true, sky: true, v4: false, looked: false };
+
+    var PROPS = [
+      { id: "art",     name: "Oil scene (flat art)", kind: "art",     x: 0,    h: 2.6, col: "#6b5a3a" },
+      { id: "derrick", name: "Derrick",              kind: "derrick", x: -1.2, h: 2.2, z: 1.4, col: "#2f2a20" },
+      { id: "barrel",  name: "Barrel",               kind: "barrel",  x: 1.15, h: 0.9, z: 0.6, col: "#7a3d12" },
+      { id: "figure",  name: "Visitor (1.7 m)",      kind: "figure",  x: 2.3,  h: 1.7, z: 1.0, col: "#120e0e" }
+    ];
+
+    function depthOf(z) {
+      return state.v4 ? Math.max(0.5, V4.camz - z) : CAM.nearM + z;
+    }
+    function project(x, y, z) {
+      var d = depthOf(z);
+      var k = CAM.focal / d;
+      return { x: W / 2 + (x - state.pan) * k, y: HOR + (CAM.eyeM - y) * k, k: k, d: d };
+    }
+    function fadeOf(d) {
+      return Math.max(0.55, Math.min(1, 1.22 - d * 0.10));
+    }
+    function zOf(p) { return p.kind === "art" ? state.artZ : p.z; }
+
+    /* ---- pixel-art props, drawn in a unit box (0..1 wide, 0..1 tall, origin bottom-left) ---- */
+    function unitRect(g, w, h, x, y, ww, hh, col) {
+      g.fillStyle = col;
+      g.fillRect(x * w, (1 - y - hh) * h, ww * w, hh * h);
+    }
+    function drawDerrick(g, w, h) {
+      var ink = "#241f18", steel = "#4a4335";
+      unitRect(g, w, h, 0.10, 0, 0.06, 0.92, steel);
+      unitRect(g, w, h, 0.84, 0, 0.06, 0.92, steel);
+      for (var i = 0; i < 7; i++) {
+        var y = 0.06 + i * 0.125;
+        unitRect(g, w, h, 0.12, y, 0.76, 0.030, ink);
+      }
+      unitRect(g, w, h, 0.32, 0.92, 0.36, 0.08, ink);
+      unitRect(g, w, h, 0.00, 0, 1.00, 0.05, ink);
+    }
+    function drawBarrel(g, w, h) {
+      unitRect(g, w, h, 0.14, 0, 0.72, 1.00, "#8a4a18");
+      unitRect(g, w, h, 0.14, 0.22, 0.72, 0.09, "#3a2a14");
+      unitRect(g, w, h, 0.14, 0.66, 0.72, 0.09, "#3a2a14");
+      unitRect(g, w, h, 0.14, 0.94, 0.72, 0.06, "#c2701e");
+    }
+    function drawFigure(g, w, h) {
+      var c = "#120e0e";
+      g.fillStyle = c;
+      g.beginPath();
+      g.arc(w * 0.5, h * 0.10, w * 0.30, 0, Math.PI * 2);
+      g.fill();
+      unitRect(g, w, h, 0.34, 0.34, 0.32, 0.48, c);
+      unitRect(g, w, h, 0.36, 0.00, 0.11, 0.35, c);
+      unitRect(g, w, h, 0.53, 0.00, 0.11, 0.35, c);
+    }
+    /* The "flat art": a whole little scene baked into one sheet — the point being
+       that it moves as a single plane no matter where you put it. */
+    function drawArt(g, w, h) {
+      g.fillStyle = "#c9a86a";
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = "#b08f52";
+      g.fillRect(0, h * 0.62, w, h * 0.38);
+      g.fillStyle = "#6b5a3a";
+      for (var i = 0; i < 5; i++) {
+        var bx = (0.06 + i * 0.21) * w, bw = w * 0.045, bh = h * (0.30 + (i % 3) * 0.10);
+        g.fillRect(bx, h * 0.62 - bh, bw, bh);
+        g.fillRect(bx - bw * 0.9, h * 0.62 - bh * 0.22, bw * 2.8, h * 0.022);
+      }
+      g.fillStyle = "#2b2418";
+      g.fillRect(0, h * 0.86, w, h * 0.14);
+      g.fillStyle = "rgba(30,24,14,0.5)";
+      for (var j = 0; j < 9; j++) {
+        g.fillRect((j * 0.11 + 0.02) * w, h * 0.80, w * 0.07, h * 0.05);
+      }
+    }
+    var DRAW = { derrick: drawDerrick, barrel: drawBarrel, figure: drawFigure, art: drawArt };
+    var ASPECT = { derrick: 0.62, barrel: 0.78, figure: 0.34, art: 1.9 };
+
+    function drawScene() {
+      var dpr = cv.width / W;
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, W, H);
+
+      var sky = ctx.createLinearGradient(0, 0, 0, H);
+      sky.addColorStop(0, "#8fb2c9");
+      sky.addColorStop(0.42, "#a9c4b8");
+      sky.addColorStop(0.60, "#7e9a6b");
+      sky.addColorStop(1, "#3f5530");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, W, H);
+
+      if (state.sky) {
+        var sx = -state.pan * CAM.focal / (state.v4 ? V4.camz : 6.5);
+        ctx.save();
+        ctx.globalAlpha = 0.15;
+        ctx.fillStyle = "#16210f";
+        ctx.translate(sx, 0);
+        ctx.fillRect(-40, HOR - 13, W + 80, 13);
+        var blocks = [[6,26,10],[40,18,22],[78,30,14],[130,22,18],[186,34,12],[232,20,20],[268,28,16]];
+        for (var b = 0; b < blocks.length; b++) {
+          ctx.fillRect(blocks[b][0], HOR - 13 - blocks[b][1], blocks[b][2], blocks[b][1]);
+        }
+        ctx.restore();
+      }
+
+      var haze = ctx.createLinearGradient(0, HOR - 28, 0, HOR + 28);
+      haze.addColorStop(0, "rgba(234,242,234,0)");
+      haze.addColorStop(1, "rgba(234,242,234,0.5)");
+      ctx.fillStyle = haze;
+      ctx.fillRect(0, HOR - 28, W, 56);
+      ctx.fillStyle = "rgba(63,85,48,0.16)";
+      ctx.fillRect(0, HOR, W, H - HOR);
+
+      if (state.grid) {
+        ctx.strokeStyle = "#86c24e";
+        ctx.lineWidth = 1;
+        var z, a, p1, p2;
+        for (z = 0; z <= 4.5; z += 0.5) {
+          p1 = project(-3.4, 0, z); p2 = project(3.4, 0, z);
+          ctx.globalAlpha = 0.05 + 0.16 * (1 - z / 4.5);
+          ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+        }
+        for (a = -3; a <= 3; a++) {
+          p1 = project(a, 0, 0); p2 = project(a, 0, 4.6);
+          ctx.globalAlpha = a === 0 ? 0.22 : 0.10;
+          ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      var order = PROPS.slice().sort(function (m, n) {
+        return state.v4 ? zOf(m) - zOf(n) : zOf(n) - zOf(m);
+      });
+
+      for (var i = 0; i < order.length; i++) {
+        var p = order[i], z = zOf(p);
+        var B = project(p.x, 0, z), G = B;
+        var hpx = p.h * B.k, wpx = hpx * ASPECT[p.kind];
+        var fade = fadeOf(B.d);
+
+        ctx.globalAlpha = 0.20 * fade;
+        ctx.fillStyle = "#101408";
+        ctx.beginPath();
+        ctx.ellipse(G.x, G.y, Math.max(1, wpx * 0.34), Math.max(0.6, wpx * 0.07), 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.globalAlpha = fade;
+        ctx.save();
+        ctx.translate(B.x - wpx / 2, B.y - hpx);
+        var oc = document.createElement("canvas");
+        var ow = Math.max(2, Math.round(wpx)), oh = Math.max(2, Math.round(hpx));
+        oc.width = ow; oc.height = oh;
+        DRAW[p.kind](oc.getContext("2d"), ow, oh);
+        ctx.drawImage(oc, 0, 0);
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+      updateRows();
+    }
+
+    function updateRows() {
+      var rows = document.getElementById("rows");
+      var html = "";
+      var list = PROPS.slice().sort(function (m, n) { return zOf(m) - zOf(n); });
+      for (var i = 0; i < list.length; i++) {
+        var p = list[i], z = zOf(p), d = depthOf(z), k = CAM.focal / d;
+        html += "<tr><td class=\"nm\"><span class=\"cs-sw\" style=\"background:" + p.col +
+          "\"></span>" + p.name + "</td><td>" + z.toFixed(2) + "</td><td>" + d.toFixed(2) +
+          "</td><td>" + k.toFixed(1) + "</td><td>" + fadeOf(d).toFixed(2) + "</td></tr>";
+      }
+      rows.innerHTML = html;
+    }
+
+    /* ---- interaction ---- */
+    var screen = document.getElementById("screen");
+    var hint = document.getElementById("hint");
+    var panEl = document.getElementById("pan");
+    var panV = document.getElementById("panv");
+    var drag = null, raf = null, spring = null;
+
+    function setPan(v, fromSlider) {
+      state.pan = Math.max(-1.6, Math.min(1.6, v));
+      panV.textContent = state.pan.toFixed(2) + " m";
+      if (!fromSlider) panEl.value = String(state.pan);
+      schedule();
+    }
+    function schedule() {
+      if (raf) return;
+      raf = requestAnimationFrame(function () { raf = null; drawScene(); });
+    }
+    function markLooked() {
+      if (state.looked) return;
+      state.looked = true;
+      hint.classList.add("gone");
+    }
+    function springBack() {
+      if (spring) cancelAnimationFrame(spring);
+      if (reduce) { setPan(0); return; }
+      var from = state.pan, t0 = performance.now(), dur = 250;
+      (function step(now) {
+        var t = Math.min(1, (now - t0) / dur);
+        var e = 1 - Math.pow(1 - t, 3);
+        setPan(from * (1 - e));
+        if (t < 1) spring = requestAnimationFrame(step); else spring = null;
+      })(t0);
+    }
+
+    screen.addEventListener("pointerdown", function (e) {
+      if (spring) { cancelAnimationFrame(spring); spring = null; }
+      drag = { x: e.clientX, pan: state.pan };
+      try { screen.setPointerCapture(e.pointerId); } catch (err) { /* not fatal */ }
+    });
+    screen.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      markLooked();
+      setPan(drag.pan - (e.clientX - drag.x) * 3.2 / 230);
+    });
+    function endDrag() { if (drag) { drag = null; springBack(); } }
+    screen.addEventListener("pointerup", endDrag);
+    screen.addEventListener("pointercancel", endDrag);
+    screen.addEventListener("keydown", function (e) {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      e.preventDefault();
+      markLooked();
+      setPan(state.pan + (e.key === "ArrowLeft" ? -0.16 : 0.16));
+    });
+
+    panEl.addEventListener("input", function () {
+      markLooked();
+      setPan(parseFloat(panEl.value), true);
+    });
+    var artz = document.getElementById("artz"), artzv = document.getElementById("artzv");
+    artz.addEventListener("input", function () {
+      state.artZ = parseFloat(artz.value);
+      artzv.textContent = state.artZ.toFixed(2) + " m";
+      schedule();
+    });
+
+    function toggle(id, key) {
+      var el = document.getElementById(id);
+      el.addEventListener("click", function () {
+        state[key] = !state[key];
+        el.setAttribute("aria-pressed", String(state[key]));
+        schedule();
+      });
+    }
+    toggle("tgGrid", "grid");
+    toggle("tgSky", "sky");
+    toggle("tgV4", "v4");
+
+    drawScene();
+  })();
+</script>
+</body>
+</html>

@@ -18,10 +18,11 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { StoryProp } from '@/story/storyDoc';
 import { PROP_LIBRARY } from '@/story/props/library';
-import { composeFrame } from '@/story/props/compose';
+import { composeFrame, COMPOSE_DEFAULTS } from '@/story/props/compose';
 import { validateAndProcessImage, formatBytes } from '@/utils/imageUpload';
 import { useStudioDraft } from './studioDraftStore';
 import { svgToDataUrl } from './svgPreview';
+import { deriveBackdrop, parseSvgDoc, scaledBackdrop } from './backdrop';
 import {
   FRONT,
   TOP,
@@ -44,10 +45,14 @@ interface StageEditorProps {
 
 export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose }) => {
   const doc = useStudioDraft((s) => s.doc);
-  const { setProps, patchFrame, addAsset } = useStudioDraft.getState();
+  const { patchFrame, addAsset } = useStudioDraft.getState();
 
   const frame = doc.frames[frameIndex];
   const [props, setLocal] = useState<StoryProp[]>(frame?.props ?? []);
+  // The frame's existing art, frozen at open as the layer drawn behind the
+  // props. Freezing it (rather than re-reading the composed art) is what keeps
+  // re-editing from folding already-placed props back into the backdrop.
+  const [backdropDoc] = useState(() => (frame ? deriveBackdrop(frame) : ''));
   const [selected, setSelected] = useState(-1);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -61,8 +66,13 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
   // the composition memo below — which re-serializes the whole scene.
   const images = useMemo(() => doc.assets ?? {}, [doc.assets]);
 
+  // The backdrop's native size, parsed once. Its inner markup is the layer the
+  // preview and the saved art both draw behind the props.
+  const backdrop = useMemo(() => parseSvgDoc(backdropDoc), [backdropDoc]);
+
   // The camera view is the composer's own output, so what is dragged here is
   // exactly what gets saved — no second rendering path to drift out of sync.
+  // The backdrop is scaled to fill the taller camera-view frame.
   const previewSvg = useMemo(
     () =>
       composeFrame(props, {
@@ -71,8 +81,9 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
         groundY: FRONT.groundY,
         ppm: FRONT.ppm,
         images,
+        backdrop: scaledBackdrop(backdrop.inner, backdrop.width, backdrop.height, FRONT.w, FRONT.h),
       }),
-    [props, images],
+    [props, images, backdrop],
   );
 
   const update = (index: number, patch: Partial<StoryProp>): void =>
@@ -141,10 +152,23 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
   };
 
   const save = (): void => {
-    setProps(frameIndex, props);
+    // Compose at the backdrop's native size so its inner markup drops in
+    // unscaled — the saved art stays byte-faithful to the original scene — with
+    // the props' ground line and scale following the same proportion. The
+    // backdrop is stored so a later re-edit reads it rather than re-deriving it
+    // from this composed art (which already contains the props).
+    const groundScale = backdrop.height / COMPOSE_DEFAULTS.height;
     patchFrame(frameIndex, {
       props,
-      art: composeFrame(props, { images }),
+      backdrop: backdropDoc,
+      art: composeFrame(props, {
+        width: backdrop.width,
+        height: backdrop.height,
+        groundY: COMPOSE_DEFAULTS.groundY * groundScale,
+        ppm: COMPOSE_DEFAULTS.ppm * groundScale,
+        images,
+        backdrop: backdrop.inner,
+      }),
     });
     onClose();
   };

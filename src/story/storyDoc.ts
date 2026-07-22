@@ -47,6 +47,12 @@ export interface StoryFrame {
   art: string;
   /** Authored composition source. Absent on the bundled default story. */
   props?: StoryProp[];
+  /**
+   * Frozen art layer drawn behind the staged props, as a full SVG document.
+   * Set when a hand-authored frame is first staged so its original scene is
+   * preserved and composition never blanks it. Absent until then.
+   */
+  backdrop?: string;
 }
 
 /** An author-uploaded image available to any frame. */
@@ -135,6 +141,10 @@ function sanitizeFrame(raw: unknown): StoryFrame | null {
   if (Array.isArray(r.props)) {
     frame.props = r.props.map(sanitizeProp).filter((p): p is StoryProp => p !== null);
   }
+  // Only keep a backdrop that is itself an SVG document; anything else would
+  // compose into a broken layer.
+  const backdrop = str(r.backdrop, '');
+  if (backdrop.includes('<svg')) frame.backdrop = backdrop;
   return frame;
 }
 

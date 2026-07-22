@@ -11,7 +11,12 @@
  */
 
 import React, { useState } from 'react';
-import { publishStory, slugifyStoryId, type PublishOutcome } from '@/services/storyApi';
+import {
+  isStoryHostConfigured,
+  publishStory,
+  slugifyStoryId,
+  type PublishOutcome,
+} from '@/services/storyApi';
 import { useStudioDraft } from './studioDraftStore';
 
 /** sessionStorage key for the publish secret. */
@@ -113,6 +118,27 @@ export const PublishDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 {copied ? 'COPIED' : 'COPY'}
               </button>
             </div>
+            {!isStoryHostConfigured() && (
+              <div className="st-warn">
+                <b>One setup step left.</b> The story is saved, but visitors opening the link will
+                still see the bundled demo until the app knows where published stories live. Set{' '}
+                <code>VITE_STORY_BASE_URL</code> to the origin below, then redeploy.
+                <div className="st-linkrow st-mt">
+                  <input
+                    readOnly
+                    value={new URL(result.url).origin}
+                    onFocus={(e) => e.target.select()}
+                  />
+                  <button
+                    className="st-btn green"
+                    onClick={() => void copy(new URL(result.url).origin)}
+                  >
+                    COPY
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="st-statline">
               Republishing with the same title replaces this story. Change the title to publish a
               separate one.

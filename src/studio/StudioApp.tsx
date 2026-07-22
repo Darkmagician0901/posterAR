@@ -17,8 +17,8 @@ import { FramesRail } from './FramesRail';
 import { PhonePreview } from './PhonePreview';
 import { Inspector } from './Inspector';
 import { StageEditor } from './StageEditor';
+import { PublishDialog } from './PublishDialog';
 import { useStudioDraft } from './studioDraftStore';
-import { isStoryHostConfigured } from '@/services/storyApi';
 import './studio.css';
 
 export const StudioApp: React.FC = () => {
@@ -28,8 +28,7 @@ export const StudioApp: React.FC = () => {
   const { patchDoc, undo, reset } = useStudioDraft.getState();
   const [stageOpen, setStageOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
-
-  const publishable = isStoryHostConfigured();
+  const [publishOpen, setPublishOpen] = useState(false);
 
   return (
     <div className="st-root">
@@ -94,12 +93,8 @@ export const StudioApp: React.FC = () => {
           </a>
           <button
             className="st-btn orange"
-            disabled={!publishable}
-            title={
-              publishable
-                ? 'Publish this story'
-                : 'Publishing needs a story host — set VITE_STORY_BASE_URL'
-            }
+            onClick={() => setPublishOpen(true)}
+            title="Publish this story and get a shareable link"
           >
             ⬆ PUBLISH
           </button>
@@ -115,6 +110,8 @@ export const StudioApp: React.FC = () => {
       {stageOpen && (
         <StageEditor frameIndex={selected} onClose={() => setStageOpen(false)} />
       )}
+
+      {publishOpen && <PublishDialog onClose={() => setPublishOpen(false)} />}
     </div>
   );
 };

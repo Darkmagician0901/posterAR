@@ -3,6 +3,8 @@ import {
   resolveStorySource,
   readLocalDraft,
   loadStoryForLocation,
+  slugifyStoryId,
+  publishStory,
   LOCAL_DRAFT_KEY,
 } from './storyApi';
 
@@ -86,5 +88,120 @@ describe('loadStoryForLocation', () => {
       vi.fn(() => Promise.reject(new Error('offline'))),
     );
     await expect(loadStoryForLocation('?s=abc')).resolves.toBeNull();
+  });
+});
+
+describe('slugifyStoryId', () => {
+  it('produces ids the publish endpoint accepts', () => {
+    const pattern = /^[a-z0-9][a-z0-9-]{0,63}$/;
+    for (const title of [
+      'THE GROUND REMEMBERS',
+      "10th & Center",
+      '  spaced  out  ',
+      'Ünïcødé Title',
+      '2026 retrospective',
+      '!!!',
+      '',
+    ]) {
+      expect(slugifyStoryId(title)).toMatch(pattern);
+    }
+  });
+
+  it('lowercases and hyphenates', () => {
+    expect(slugifyStoryId('THE GROUND REMEMBERS')).toBe('the-ground-remembers');
+  });
+
+  it('strips leading and trailing separators', () => {
+    expect(slugifyStoryId('  --hello--  ')).toBe('hello');
+  });
+
+  it('never starts with a hyphen, even for symbol-only titles', () => {
+    expect(slugifyStoryId('!!!')).toMatch(/^[a-z0-9]/);
+    expect(slugifyStoryId('')).toMatch(/^[a-z0-9]/);
+  });
+
+  it('caps length so the id stays path-safe', () => {
+    expect(slugifyStoryId('x'.repeat(200)).length).toBeLessThanOrEqual(48);
+  });
+
+  it('round-trips through resolveStorySource', () => {
+    const id = slugifyStoryId('The Ground Remembers');
+    expect(resolveStorySource(`?s=${id}`)).toEqual({ kind: 'published', id });
+  });
+});
+
+describe('publishStory', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('returns the published and visitor URLs on success', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ id: 'abc', url: 'https://blob.example/stories/abc.json' }),
+        }),
+      ),
+    );
+    const out = await publishStory({ title: 'x' }, 'abc', 'secret');
+    expect(out.ok).toBe(true);
+    if (out.ok) {
+      expect(out.url).toBe('https://blob.example/stories/abc.json');
+      expect(out.viewUrl).toContain('?s=abc');
+    }
+  });
+
+  it('sends the secret as a bearer token and never in the body', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve({ url: 'https://x/y.json' }) }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    await publishStory({ title: 'x' }, 'abc', 'super-secret');
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect((init.headers as Record<string, string>).authorization).toBe('Bearer super-secret');
+    expect(String(init.body)).not.toContain('super-secret');
+  });
+
+  it('surfaces the server error message rather than a generic failure', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({ error: 'Not authorised.' }),
+        }),
+      ),
+    );
+    const out = await publishStory({}, 'abc', 'wrong');
+    expect(out).toEqual({ ok: false, error: 'Not authorised.' });
+  });
+
+  it('falls back to a status message when the server sends no error text', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) })),
+    );
+    const out = await publishStory({}, 'abc', 's');
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.error).toContain('503');
+  });
+
+  it('reports a network failure rather than throwing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new Error('offline'))),
+    );
+    const out = await publishStory({}, 'abc', 's');
+    expect(out.ok).toBe(false);
+  });
+
+  it('treats a success response with no url as a failure', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'abc' }) })),
+    );
+    const out = await publishStory({}, 'abc', 's');
+    expect(out.ok).toBe(false);
   });
 });

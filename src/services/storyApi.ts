@@ -100,6 +100,68 @@ export function readLocalDraft(): unknown | null {
   }
 }
 
+/** Outcome of a publish attempt. Never throws; failures are values. */
+export type PublishOutcome =
+  | { ok: true; id: string; url: string; viewUrl: string }
+  | { ok: false; error: string };
+
+/**
+ * Turns a title into a publishable id.
+ *
+ * @param title — The story title.
+ * @returns A slug matching the id pattern the publish endpoint accepts.
+ */
+export function slugifyStoryId(title: string): string {
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+  // The endpoint requires a leading alphanumeric and a non-empty value.
+  return /^[a-z0-9]/.test(slug) ? slug : `story-${slug}`.replace(/-+$/, '') || 'story';
+}
+
+/**
+ * Publishes a story document.
+ *
+ * @param doc — The document to publish.
+ * @param id — Story id; becomes the `?s=` value.
+ * @param secret — The publish secret, sent as a bearer token.
+ * @returns The published location, or a message explaining why it failed.
+ */
+export async function publishStory(
+  doc: unknown,
+  id: string,
+  secret: string,
+): Promise<PublishOutcome> {
+  try {
+    const res = await fetch('/api/publish', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${secret}`,
+      },
+      body: JSON.stringify({ id, doc }),
+    });
+
+    const payload = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+    if (!res.ok) {
+      return { ok: false, error: payload.error ?? `Publish failed (${res.status}).` };
+    }
+    if (typeof payload.url !== 'string') {
+      return { ok: false, error: 'The server did not return a story location.' };
+    }
+    return {
+      ok: true,
+      id,
+      url: payload.url,
+      viewUrl: `${window.location.origin}/?s=${encodeURIComponent(id)}`,
+    };
+  } catch {
+    return { ok: false, error: 'Could not reach the server. Check your connection.' };
+  }
+}
+
 /**
  * Loads whichever story the current URL asks for.
  *

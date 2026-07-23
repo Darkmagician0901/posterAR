@@ -23,6 +23,7 @@ import { validateAndProcessImage, formatBytes } from '@/utils/imageUpload';
 import { useStudioDraft } from './studioDraftStore';
 import { svgToDataUrl } from './svgPreview';
 import { deriveBackdrop, parseSvgDoc, scaledBackdrop } from './backdrop';
+import { PROP_LIMITS, duplicateProp } from './propEdit';
 import {
   FRONT,
   TOP,
@@ -335,17 +336,48 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
             <>
               <span className="st-pp-name">{selName}</span>
               <label className="st-pp-field">
+                <span>X — left / right</span>
+                <span className="st-fr">
+                  <input
+                    type="range"
+                    min={-PROP_LIMITS.xMax}
+                    max={PROP_LIMITS.xMax}
+                    step={0.05}
+                    value={sel.x}
+                    onChange={(e) => update(selected, { x: Number(e.target.value) })}
+                  />
+                  <span className="st-val">
+                    {sel.x >= 0 ? '+' : ''}
+                    {sel.x.toFixed(2)} m
+                  </span>
+                </span>
+              </label>
+              <label className="st-pp-field">
+                <span>Z — depth</span>
+                <span className="st-fr">
+                  <input
+                    type="range"
+                    min={PROP_LIMITS.zMin}
+                    max={PROP_LIMITS.zMax}
+                    step={0.05}
+                    value={sel.z}
+                    onChange={(e) => update(selected, { z: Number(e.target.value) })}
+                  />
+                  <span className="st-val">{sel.z.toFixed(2)} m</span>
+                </span>
+              </label>
+              <label className="st-pp-field">
                 <span>Height</span>
                 <span className="st-fr">
                   <input
                     type="range"
-                    min={0.2}
-                    max={8}
-                    step={0.1}
+                    min={PROP_LIMITS.hMin}
+                    max={PROP_LIMITS.hMax}
+                    step={0.05}
                     value={sel.h}
                     onChange={(e) => update(selected, { h: Number(e.target.value) })}
                   />
-                  <span className="st-val">{sel.h.toFixed(1)} m</span>
+                  <span className="st-val">{sel.h.toFixed(2)} m</span>
                 </span>
               </label>
               <label className="st-pp-field">
@@ -353,13 +385,13 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
                 <span className="st-fr">
                   <input
                     type="range"
-                    min={0}
-                    max={3}
-                    step={0.1}
+                    min={PROP_LIMITS.eMin}
+                    max={PROP_LIMITS.eMax}
+                    step={0.05}
                     value={sel.e}
                     onChange={(e) => update(selected, { e: Number(e.target.value) })}
                   />
-                  <span className="st-val">{sel.e.toFixed(1)} m</span>
+                  <span className="st-val">{sel.e.toFixed(2)} m</span>
                 </span>
               </label>
               <button
@@ -367,6 +399,15 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
                 onClick={() => update(selected, { f: !sel.f })}
               >
                 ⇄ FLIP
+              </button>
+              <button
+                className="st-ppb"
+                onClick={() => {
+                  setLocal((list) => [...list, duplicateProp(sel)]);
+                  setSelected(props.length);
+                }}
+              >
+                ⧉ DUPLICATE
               </button>
               <button
                 className="st-ppb"

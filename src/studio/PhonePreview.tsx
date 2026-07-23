@@ -14,9 +14,9 @@
  * gradient rather than a camera feed, because there is no camera on a desk.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useStudioDraft } from './studioDraftStore';
-import { svgToDataUrl } from './svgPreview';
+import { phoneScene } from './phoneScene';
 import { useStoryTypewriter } from '@/components/story/useStoryTypewriter';
 
 /** Where a playthrough currently is. */
@@ -39,6 +39,48 @@ export const PhonePreview: React.FC<PhonePreviewProps> = ({ playing, onExitPlay 
   // The real viewer only lets you tap once a surface is found; mirror that beat
   // rather than jumping straight to the story.
   const [surfaceReady, setSurfaceReady] = useState(false);
+
+  // Perspective preview: lateral drag-to-look. Rest pose is pan 0 (the visitor's
+  // viewpoint); release leaves the camera where you dragged it, matching the v4
+  // prototype. Redraws are throttled through requestAnimationFrame.
+  const [pan, setPan] = useState(0);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
+  const dragRef = useRef<{ x: number; pan: number } | null>(null);
+  const images = doc.assets ?? {};
+  const reduce =
+    typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+
+  const applyPan = (next: number): void => {
+    const clamped = Math.max(-1.6, Math.min(1.6, next));
+    if (rafRef.current) return;
+    rafRef.current = window.requestAnimationFrame(() => {
+      rafRef.current = null;
+      setPan(clamped);
+    });
+  };
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>): void => {
+    dragRef.current = { x: e.clientX, pan };
+    stageRef.current?.setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>): void => {
+    if (!dragRef.current) return;
+    applyPan(dragRef.current.pan - ((e.clientX - dragRef.current.x) * 3.2) / 230);
+  };
+  const endDrag = (): void => {
+    dragRef.current = null; // stay where you left it — no spring-back
+  };
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (e.key === 'ArrowLeft') applyPan(pan - 0.3);
+    else if (e.key === 'ArrowRight') applyPan(pan + 0.3);
+  };
+  useEffect(
+    () => () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    },
+    [],
+  );
 
   // In play mode the index is the playthrough's own; in editing it follows the
   // rail selection.
@@ -90,7 +132,17 @@ export const PhonePreview: React.FC<PhonePreviewProps> = ({ playing, onExitPlay 
       <div className="st-phone">
         <div className="st-notch" />
         <div className="st-screen">
-          <div className="st-stage">{frame && <img src={svgToDataUrl(frame.art)} alt="" />}</div>
+          <div
+            className={`st-stage${reduce ? ' st-still' : ''}`}
+            ref={stageRef}
+            tabIndex={0}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            onKeyDown={onKeyDown}
+            dangerouslySetInnerHTML={frame ? { __html: phoneScene(frame, pan, images) } : undefined}
+          />
 
           {/* Era mood wash, matching StoryOverlay's vignette. */}
           <div

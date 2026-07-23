@@ -59,6 +59,13 @@ describe('PhonePreview', () => {
     expect(html).toContain('st-mini-tl');
   });
 
+  it('renders the perspective scene rather than a flat image', () => {
+    const html = renderToString(<PhonePreview playing={false} onExitPlay={() => {}} />);
+    expect(html).toContain('viewBox="0 0 302 632"'); // the perspective canvas
+    expect(html).toContain('url(#camsky)'); // the pinhole-camera sky
+    expect(html).not.toContain('src="data:image/svg'); // no flat frame-art <img>
+  });
+
   it('renders a timeline stop per frame', () => {
     const html = renderToString(<PhonePreview playing={false} onExitPlay={() => {}} />);
     expect(html.match(/class="st-mtl[^"]*"/g)).toHaveLength(DEFAULT_STORY.frames.length);

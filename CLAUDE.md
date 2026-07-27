@@ -72,7 +72,7 @@ Stack: **vitest ^4.1.8** + **happy-dom ^20.9.0** (configured in `vitest.config.t
 
 ## Conventions
 
-- **Conventional Commits**: `feat`, `fix`, `chore`, `docs`, `refactor`, `test` with scopes such as `gif`, `ar`, `upload`, `8thwall`, `diag`.
+- **Commit messages: one plain, readable sentence** — imperative mood, capitalized, no trailing period, and **no `feat:`/`fix:` prefix or scope**. Write it so a human skimming the GitHub history (including a non-engineer, e.g. a recruiter) understands what changed and why it matters. One line only; no body. E.g. `Add a draggable 3D phone preview so authors can look around a scene`.
 - **Plain three.js only.** Do NOT add `@react-three/*` or `@use-gesture/*` — both were removed in the 8th Wall migration.
 - TypeScript strict mode; no `any` without a comment justifying it.
 - **No `Co-Authored-By: Claude` trailer** on commits.
@@ -82,7 +82,7 @@ Stack: **vitest ^4.1.8** + **happy-dom ^20.9.0** (configured in `vitest.config.t
 When a unit of work is finished, ship it to Vercel without waiting to be asked, so it can be reviewed by just opening the URL:
 
 1. Verify green first — `npm run type-check` and `npm run test` must pass.
-2. **Commit** (Conventional Commits, no Claude co-author trailer).
+2. **Commit** (one plain readable sentence per the Conventions above; no Claude co-author trailer).
 3. **Push** the branch.
 4. **Open/merge a PR into `main`**, resolving any conflicts.
 

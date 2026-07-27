@@ -581,6 +581,22 @@ svg.drift {
   overflow-y: auto;
   padding: 14px 14px 30px;
   flex: 0 0 auto;
+  /* VT323 — the readable CRT-terminal companion to the pixel display face —
+     is the right panel's body font, so labels and typed copy read clearly
+     while still belonging to the retro theme. Section headings and buttons
+     keep 'Press Start 2P' via their own explicit rules. */
+  font-family: 'VT323', 'Segoe UI', monospace;
+}
+/* VT323 is a single-weight terminal face and reads small at the old sans
+   sizes, so bump the label and field sizes and drop the faux-bold. */
+.st-insp .st-lbl {
+  font-size: 12.5px;
+  font-weight: 400;
+  letter-spacing: 0.6px;
+}
+.st-insp .st-in,
+.st-insp .st-ta {
+  font-size: 16px;
 }
 .st-sec {
   background: #fff;

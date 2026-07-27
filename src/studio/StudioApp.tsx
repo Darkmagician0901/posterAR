@@ -34,10 +34,8 @@ export const StudioApp: React.FC = () => {
     <div className="st-root">
       <div className="st-topbar">
         <div className="st-logo">
-          <div className="st-cube" aria-hidden="true">
-            <i className="t" />
-            <i className="l" />
-            <i className="r" />
+          <div className="st-eml" aria-label="UBC Emerging Media Lab">
+            <span>EML</span>
           </div>
           <div>
             <div className="st-word">

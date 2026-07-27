@@ -18,6 +18,9 @@
   --paper: #f4efe2;
   --paper2: #eae2ce;
   --line: #d9cba0;
+  --ubc: #002145;
+  --purple: #b14be0;
+  --purple-deep: #6f2ba0;
 
   position: fixed;
   inset: 0;
@@ -59,51 +62,43 @@
 }
 .st-logo .st-word {
   font-family: 'Press Start 2P', monospace;
-  font-size: 13px;
+  font-size: 17px;
+  line-height: 1;
   letter-spacing: 2px;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
 }
 .st-logo .st-word b {
-  color: var(--orange);
+  color: var(--purple);
+  text-shadow: 2px 2px 0 var(--purple-deep);
 }
 .st-logo .st-sub {
   font-family: 'VT323', monospace;
   font-size: 13px;
   color: #9aa78a;
   letter-spacing: 1px;
-  margin-top: 2px;
+  line-height: 1;
+  margin-top: 1px;
 }
 
-/* isometric cube mark */
-.st-cube {
-  position: relative;
-  width: 26px;
-  height: 29px;
+/* EML badge — UBC Emerging Media Lab spine, set sideways bottom-to-top */
+.st-eml {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 46px;
+  background: var(--ubc);
+  border-radius: 5px;
 }
-.st-cube i {
-  position: absolute;
-  width: 13px;
-  height: 13px;
-}
-.st-cube .t {
-  top: 0;
-  left: 6px;
-  background: var(--green-light);
-  transform: rotate(45deg) scaleY(0.58);
-}
-.st-cube .l {
-  bottom: 1px;
-  left: 0;
-  height: 16px;
-  background: var(--green);
-  transform: skewY(26deg);
-}
-.st-cube .r {
-  bottom: 1px;
-  right: 0;
-  height: 16px;
-  background: #4a7d28;
-  transform: skewY(-26deg);
+.st-eml span {
+  transform: rotate(-90deg);
+  font-family: 'VT323', monospace;
+  font-size: 22px;
+  letter-spacing: 1px;
+  line-height: 1;
+  color: var(--paper);
+  white-space: nowrap;
 }
 
 .st-title-field {

@@ -28,6 +28,15 @@ export const MAX_POSTER_SCALE = 3.0;
 export const MIN_POSTER_ROTATION_DEG = -180;
 export const MAX_POSTER_ROTATION_DEG = 180;
 
+/**
+ * Marker-testbed distance-slider limits, in metres along the marker's normal
+ * (the axis pointing out of the printed picture). A little negative travel is
+ * allowed so assets can be pushed just behind the marker plane, which is a
+ * useful way to see whether the anchoring maths handles sign correctly.
+ */
+export const MIN_MARKER_DISTANCE = -0.25;
+export const MAX_MARKER_DISTANCE = 2.0;
+
 /** Maximum number of posters allowed in the scene at once. */
 export const MAX_POSTERS = parseInt(import.meta.env.VITE_MAX_POSTERS || '10', 10);
 

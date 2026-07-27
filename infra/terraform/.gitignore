@@ -1,0 +1,13 @@
+# Terraform state contains the generated database password and the IAM secret
+# key in plaintext. It must never be committed.
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
+crash.*.log
+
+# Variable files hold your allowlisted IP addresses and any overrides.
+*.tfvars
+*.tfvars.json
+!example.tfvars

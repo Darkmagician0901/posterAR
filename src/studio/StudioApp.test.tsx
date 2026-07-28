@@ -21,6 +21,11 @@ describe('StudioApp', () => {
     useStudioDraft.getState().reset();
   });
 
+  it('shows the optional audio box with no clip by default', () => {
+    const html = renderToString(<StudioApp />);
+    expect(html).toContain('ADD AUDIO');
+  });
+
   it('renders without throwing', () => {
     expect(() => renderToString(<StudioApp />)).not.toThrow();
   });

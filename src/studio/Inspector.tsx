@@ -10,7 +10,8 @@
  * and there is nowhere better for it until a settings modal exists.
  */
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
+import { validateAudioUpload } from './audioUpload';
 import { useStudioDraft } from './studioDraftStore';
 
 /** Era mood tints, taken from the shipped story's five eras. */
@@ -42,6 +43,37 @@ export const Inspector: React.FC<InspectorProps> = ({ onOpenStage }) => {
   const selected = useStudioDraft((s) => s.selected);
   const persistError = useStudioDraft((s) => s.persistError);
   const { patchFrame, patchDoc } = useStudioDraft.getState();
+
+  // Declared above the early return below (rules-of-hooks): neither this
+  // state nor these handlers read `frame`, only `selected` and `patchFrame`,
+  // which are already available at this point.
+  const audioInputRef = useRef<HTMLInputElement>(null);
+  const [audioError, setAudioError] = useState<string | null>(null);
+
+  const onPickAudio = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // let the same file be re-picked after a remove
+    if (!file) return;
+    const check = validateAudioUpload(file);
+    if (!check.ok) {
+      setAudioError(check.reason);
+      return;
+    }
+    setAudioError(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        patchFrame(selected, { audio: reader.result, audioName: file.name });
+      }
+    };
+    reader.onerror = () => setAudioError('Could not read that file — try another.');
+    reader.readAsDataURL(file);
+  };
+
+  const removeAudio = (): void => {
+    setAudioError(null);
+    patchFrame(selected, { audio: undefined, audioName: undefined });
+  };
 
   const frame = doc.frames[selected];
   if (!frame) return <div className="st-insp" />;
@@ -114,6 +146,29 @@ export const Inspector: React.FC<InspectorProps> = ({ onOpenStage }) => {
             {frame.line.length}/{NARRATION_MAX}
           </span>
         </div>
+      </div>
+
+      <div className="st-sec">
+        <h3>
+          AUDIO <em>optional</em>
+        </h3>
+        <input ref={audioInputRef} type="file" accept="audio/*" hidden onChange={onPickAudio} />
+        {frame.audio ? (
+          <div className="st-audio">
+            <audio className="st-audio-play" src={frame.audio} controls preload="none" />
+            <div className="st-audio-row">
+              <span className="st-audio-name">{frame.audioName ?? 'audio clip'}</span>
+              <button className="st-audio-x" onClick={removeAudio} title="Remove audio">
+                ✕
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button className="st-abtn" onClick={() => audioInputRef.current?.click()}>
+            ＋ ADD AUDIO
+          </button>
+        )}
+        {audioError !== null && <div className="st-audio-err">{audioError}</div>}
       </div>
 
       <div className="st-sec">

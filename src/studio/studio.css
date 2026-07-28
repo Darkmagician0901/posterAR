@@ -1158,3 +1158,46 @@ svg.drift {
 .st-mt {
   margin-top: 12px;
 }
+
+/* ===== inspector audio box ===== */
+.st-audio {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.st-audio-play {
+  width: 100%;
+  height: 34px;
+}
+.st-audio-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.st-audio-name {
+  flex: 1;
+  min-width: 0;
+  font-family: 'VT323', monospace;
+  font-size: 15px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.st-audio-x {
+  flex: 0 0 auto;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  border-radius: 6px;
+  font-size: 12px;
+  padding: 3px 9px;
+}
+.st-audio-x:hover {
+  background: var(--paper2);
+}
+.st-audio-err {
+  margin-top: 6px;
+  font-family: 'VT323', monospace;
+  font-size: 15px;
+  color: #b33a2b;
+}

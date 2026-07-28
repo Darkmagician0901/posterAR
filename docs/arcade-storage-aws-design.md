@@ -221,13 +221,35 @@ write-once, which is what makes the `immutable` directive safe.
 `expiration { days = 90 }` (`s3.tf:86-103`) must be scoped to the `tmp/` prefix.
 Left as-is it deletes published exhibits.
 
-**`r1024.webp` is deferrable.** `svgTexture.ts` rasterizes at `RASTER_MAX = 1024`
-on the longest axis of the *whole composed frame*, so a full-resolution asset is
-decoded and then largely thrown away. Generating a display derivative in the
-browser at upload time (the existing `imageUpload.ts` canvas path already does
-this kind of work) cuts fetch and decode cost substantially. The `assets/<sha>/`
-prefix leaves room for it, so v1 may ship with only `full.webp` and add the
-derivative later **with no schema change**.
+**`r1024.webp` ships in v1.** It was initially scoped as a deferrable
+optimization; §14.2 promotes it to required. `svgTexture.ts` rasterizes at
+`RASTER_MAX = 1024` on the longest axis of the *whole composed frame*, so a
+full-resolution asset is decoded and then largely thrown away — and, more
+importantly, every hydrated byte inflates the `data:` URL that gets assigned to
+`img.src`, which is the one place this design has an unquantified device limit.
+Keeping the hydrated payload small is a correctness margin, not just a
+performance win.
+
+Generated in the browser at upload time; the existing `imageUpload.ts` canvas
+path already does this kind of work, so this is a second invocation rather than
+new machinery. Both variants upload under the same content address, so the
+schema is unchanged either way and `full.webp` remains the fallback (§8.4).
+
+### 5.1 Base URLs
+
+| Variable | Points at | Empty means |
+|---|---|---|
+| `VITE_STORY_BASE_URL` | origin serving `stories/` | same-origin, relative |
+| `VITE_ASSET_BASE_URL` | origin serving `assets/` | same-origin, relative |
+
+Two variables rather than one, because the split-origin deployment may serve the
+document and the assets from different places. Both default to empty, which
+yields relative paths — the correct value for the single-origin shape. Neither
+ever appears **inside** a document; they are build configuration, which is what
+makes §8.2's guarantee hold.
+
+Marker fingerprints get no variable: they are always fetched from a same-origin
+path (§14.1).
 
 ---
 
@@ -494,9 +516,9 @@ GET ${STORY_BASE}/stories/<id>.json          ← CloudFront, 60 s TTL
       ▼  collectAssetRefs over every frame → unique assetIds
       │
       ▼  for each, GET ${ASSET_BASE}/assets/<sha>/r1024.webp    ← immutable, cached forever
-      │    (404 ⇒ fall back to full.webp; r1024 is deferrable, see §5)
+      │    (404 ⇒ fall back to full.webp)
       │    blob → FileReader.readAsDataURL
-      │    module-level cache keyed by assetId; N unique assets, not N×frames
+      │    bounded LRU cache keyed by assetId; N unique assets, not N×frames
       ▼
   Map<alias, dataUrl>
       │
@@ -687,13 +709,45 @@ here (§8.1) purely so that adding it later requires no schema change.
 | `scaledWidth`/`scaledHeight` may not be metres | `StoryAnchor` sizing | Same |
 | Marker normal axis may be +Y not +Z | `StoryAnchor.local` values, not its shape | `MARKER_NORMAL_AXIS`, a one-line fix |
 | ~10 simultaneous target cap | Only if one story spans many markers | `story_markers` join table models 1 and N identically (§6) |
-| **Engine accepting a cross-origin absolute `imagePath`** | Marker fingerprints served from S3 | Single-origin deployment (§9) makes it same-origin; otherwise a path rewrite |
+The four above are the project's known unverified items. This design adds no
+dependency on any of them beyond `StoryAnchor`, which is shaped to survive
+either outcome.
 
-The first four are the project's known unverified items. The fifth is introduced
-by this design and is the only new risk it adds. `loadImageTargets(manifestUrl)`
-is already parameterized and `resolveImagePath` already rewrites `imagePath` to
-an absolute URL when given an absolute manifest URL, so **no code change is
-needed** — but whether the engine fetches that URL successfully is untested.
+### 14.1 Cross-origin `imagePath` — closed by design, not by verification
+
+Serving marker fingerprints from S3 raised the question of whether the engine
+accepts an absolute, cross-origin `imagePath`. **The published documentation is
+silent on it.** Every reference frames the field as page-relative — *"The
+`imagePath` field in the JSON must resolve relative to your page URL (e.g.
+`/targets/my-target_luminance.jpeg`)"* — and the CLI README gives no hosting
+guidance at all, only local `require()` examples. Absolute URLs are neither
+documented as supported nor as forbidden.
+
+Undocumented behaviour is not a foundation. **The design therefore never asks
+the engine to resolve a cross-origin path**, in either deployment shape:
+
+| Shape | How fingerprints stay same-origin |
+|---|---|
+| Single CloudFront distribution | `/markers/*` is a behaviour on the same domain as the app. Naturally same-origin. |
+| Frontend on Vercel | A Vercel rewrite maps `/image-targets/:path*` to the S3 origin. The page requests a same-origin path; the engine resolves it page-relative exactly as documented. |
+
+Either way the engine sees a path rooted at the page origin, which is the only
+form the documentation describes. `loadImageTargets(manifestUrl)` is already
+parameterized and `resolveImagePath` already roots `imagePath` in the manifest's
+directory, so **no application code changes** — this is entirely a routing
+concern.
+
+This converts the design's one novel risk into a configuration requirement.
+Recorded here so nobody later "simplifies" it by pointing the manifest straight
+at a bucket URL.
+
+### 14.2 Risks that remain open
+
+| Risk | Severity | Mitigation |
+|---|---|---|
+| **`data:` URL size ceiling on iOS Safari** when several images are hydrated into one SVG that is then assigned to `img.src` | Medium — unquantified | Ship the `r1024` derivative in v1 (§5), not later. Add a per-frame hydrated-size budget with a telemetry warning. **Verify on device with a worst-case frame.** |
+| Unbounded growth of the resolved-asset cache | Low | Bound it, mirroring `posterTextureCache`, which already enforces a memory budget — reuse that precedent rather than inventing one |
+| Story deletion is unspecified (S3 artifact + `asset_usage` cascade) | Low | Out of scope: v1 has no management UI. Define it with the story browser |
 
 ---
 

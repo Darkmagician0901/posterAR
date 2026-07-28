@@ -21,6 +21,22 @@
 - Server verification: `cd server && npm test`.
 - Every new pure module gets a colocated `*.test.ts`. Browser/engine interactions are verified on device, not unit-tested — follow the existing posture.
 - **Do not touch `stories/` publishing or CloudFront.** That is Plan B.
+- **No agent runs `terraform apply`, touches an AWS console, or sets a secret.** Those are `docs/arcade-storage-ops-checklist.md`, performed by the repository owner.
+
+## Execution Specification
+
+| Role | Model | Effort | Responsibility |
+|---|---|---|---|
+| **Coordinator** | Opus 5 | max | Dispatch, review between tasks, resolve cross-task inconsistencies, own merges and any conflicted git operation |
+| **Implementer** | Sonnet 5 | high | One task, fresh context, TDD steps as written |
+| **Reviewer** | Sonnet 5 | high | Verify the task's tests actually failed before and pass after; check the diff against the task's `Interfaces` block |
+
+**Task 0 is coordinator-only.** It is a merge with a known `CLAUDE.md` conflict; a
+fresh subagent has no basis for judging which side of a conflict to keep.
+
+**Do not dispatch a task whose prerequisite ops item is unconfirmed.** An
+implementer without AWS access will stub the call or invent credentials, and
+both look like progress in a diff.
 
 ---
 
@@ -737,117 +753,23 @@ documents published before this change keep rendering unchanged."
 
 ---
 
-## Task 4: Terraform — fix the lifecycle bug, add prefixes
+## Task 4: Infrastructure — MOVED TO THE OPS CHECKLIST
 
-The existing rule deletes **the whole bucket** after 90 days. It must be fixed before any real asset lands there.
+**Do not attempt this task in code.** It is `docs/arcade-storage-ops-checklist.md`, items **OPS-1 through OPS-4**, and it is performed manually by the repository owner.
 
-**Files:**
-- Modify: `infra/terraform/s3.tf:86-103`
-- Modify: `infra/terraform/variables.tf`
+Two reasons:
 
-**Interfaces:**
-- Consumes: nothing.
-- Produces: a bucket safe to hold production assets, with `assets/` served `immutable`.
+1. **`infra/terraform/` does not exist on this branch.** It lives only on `feat/marker-spaces-testbed` (PR #40) — not on `main`, not on `feat/story-composition`. The integration branch built in Task 0 therefore has no Terraform to edit. Dragging PR #40 in would also drag in the entire marker testbed, which is out of scope for storage.
+2. AWS provisioning, credentials, and console configuration are owned by the repository owner by explicit decision.
 
-- [ ] **Step 1: Scope the lifecycle rule to `tmp/`**
+**What still gates this plan:** the bucket carries a lifecycle rule that expires **the whole bucket** after 90 days (`infra/terraform/s3.tf:86-103`, `filter {}`). Assets uploaded by Task 8 would be deleted three months later. **OPS-1 must be completed before Task 8 runs against a real bucket.** The exact HCL is in the checklist.
 
-Replace the `aws_s3_bucket_lifecycle_configuration.assets` resource in `infra/terraform/s3.tf`:
+Tasks 5–7 (server code) are unaffected — `server/` **is** on `main` and is present on the integration branch.
 
-```hcl
-# Only scratch objects expire.
-#
-# This rule previously used `filter {}` — the WHOLE BUCKET — with a 90-day
-# expiration, written when this bucket held nothing but disposable testbed
-# uploads. Published exhibits reference assets indefinitely, so an unscoped
-# expiry would silently delete live content three months after upload.
-# Lifetime for assets/ is managed by reference counting instead (see the
-# asset_usage table), not by age.
-resource "aws_s3_bucket_lifecycle_configuration" "assets" {
-  bucket = aws_s3_bucket.assets.id
+- [ ] **Step 1: Confirm OPS-1 is done before proceeding past Task 7**
 
-  rule {
-    id     = "expire-scratch-only"
-    status = "Enabled"
+Ask the repository owner to confirm the lifecycle rule is scoped to `tmp/`. Until then, Tasks 5–7 may be built and unit-tested freely (they never touch a real bucket), but **do not run Task 8 against production AWS**.
 
-    filter {
-      prefix = "tmp/"
-    }
-
-    expiration {
-      days = 90
-    }
-  }
-
-  rule {
-    id     = "abort-incomplete-uploads"
-    status = "Enabled"
-
-    filter {}
-
-    abort_incomplete_multipart_upload {
-      days_after_initiation = 1
-    }
-  }
-}
-```
-
-- [ ] **Step 2: Require explicit CORS origins**
-
-In `infra/terraform/variables.tf`, remove the `default = ["*"]` from `cors_allowed_origins` and add a validation:
-
-```hcl
-variable "cors_allowed_origins" {
-  description = <<-EOT
-    Origins allowed to read assets and issue presigned PUT uploads.
-
-    Deliberately has NO default. The viewer fetches asset bytes cross-origin
-    in order to convert them to data: URLs, so a wrong or wildcard value here
-    is either a broken exhibit or an open bucket. List the Vercel production
-    origin and any preview origins that must load assets.
-  EOT
-  type        = list(string)
-
-  validation {
-    condition     = !contains(var.cors_allowed_origins, "*")
-    error_message = "Refusing a wildcard CORS origin. List specific origins."
-  }
-}
-```
-
-- [ ] **Step 3: Verify the configuration is valid**
-
-```bash
-cd infra/terraform
-terraform fmt -check
-terraform validate
-```
-
-Expected: both pass. `terraform validate` does not need credentials.
-
-- [ ] **Step 4: Review the plan against the live bucket**
-
-```bash
-terraform plan -var-file=example.tfvars
-```
-
-Expected: shows the lifecycle rule being **replaced**, not the bucket. **If the plan proposes destroying `aws_s3_bucket.assets`, stop and investigate — it must not.**
-
-- [ ] **Step 5: Commit**
-
-```bash
-cd ../..
-git add infra/terraform/s3.tf infra/terraform/variables.tf
-git commit -m "fix(storage): scope the S3 expiration rule to tmp/
-
-The lifecycle rule used filter {} — the whole bucket — with a 90-day
-expiration, written when the bucket held only disposable testbed uploads.
-Published exhibits reference assets indefinitely, so this would have silently
-deleted live content three months after upload.
-
-Assets are now retained by reference counting rather than by age. Also
-removes the wildcard default for cors_allowed_origins: the viewer reads asset
-bytes cross-origin, so that value is load-bearing and must be stated."
-```
 
 ---
 

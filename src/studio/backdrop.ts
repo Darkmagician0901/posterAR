@@ -85,10 +85,18 @@ export function scaledBackdrop(
  * falls back to the frame's own art, so a legacy frame that has never been
  * edited still shows its hand-authored scene behind the props.
  *
+ * A frame that already carries props is the exception: its art was composed
+ * *from* those props, so treating it as a backdrop would paint every object
+ * twice — once in the frozen layer, once as the prop drawn over it — and saving
+ * would then bake that doubling in permanently. Such a frame needs no backdrop,
+ * because its art is regenerable from its props.
+ *
  * @param frame — The frame being staged.
- * @returns The backdrop document string, or empty when the frame has no art.
+ * @returns The backdrop document string, or empty when the frame has no art or
+ *   composes its own.
  */
 export function deriveBackdrop(frame: StoryFrame): string {
   if (typeof frame.backdrop === 'string' && frame.backdrop !== '') return frame.backdrop;
+  if (Array.isArray(frame.props) && frame.props.length > 0) return '';
   return frame.art.includes('<svg') ? frame.art : '';
 }

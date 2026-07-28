@@ -112,11 +112,14 @@ describe('studioDraftStore', () => {
   });
 
   it('stores staged props on the right frame', () => {
+    const before = useStudioDraft.getState().doc.frames[0].props;
     useStudioDraft
       .getState()
       .setProps(2, [{ t: 'lib', k: 'sunflower', x: 1, z: 2, h: 1.6, f: false, e: 0 }]);
     expect(useStudioDraft.getState().doc.frames[2].props).toHaveLength(1);
-    expect(useStudioDraft.getState().doc.frames[0].props).toBeUndefined();
+    // Every other frame keeps whatever it had. The bundled frames now ship
+    // staged props of their own, so "untouched" is no longer "undefined".
+    expect(useStudioDraft.getState().doc.frames[0].props).toEqual(before);
   });
 
   it('surfaces a persistence failure instead of losing the edit silently', () => {

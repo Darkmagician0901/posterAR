@@ -24,6 +24,7 @@ import {
   validateStoryDoc,
 } from '@/story/storyDoc';
 import { DEFAULT_STORY } from '@/story/defaultStory';
+import { backfillEraProps } from '@/story/eraBackfill';
 import { LOCAL_DRAFT_KEY } from '@/services/storyApi';
 
 /** How many undo steps to retain. */
@@ -108,11 +109,19 @@ function persist(doc: StoryDoc): string | null {
   }
 }
 
-/** Reads a previously saved draft, or the bundled story when there is none. */
+/**
+ * Reads a previously saved draft, or the bundled story when there is none.
+ *
+ * A saved draft shadows the bundled story, so an author who already has one
+ * would keep the old flat era art forever. backfillEraProps stages those frames
+ * on the way in, leaving every other edit they made alone.
+ */
 function initialDoc(): StoryDoc {
   try {
     const raw = window.localStorage.getItem(LOCAL_DRAFT_KEY);
-    if (raw !== null) return validateStoryDoc(JSON.parse(raw) as unknown, DEFAULT_STORY);
+    if (raw !== null) {
+      return backfillEraProps(validateStoryDoc(JSON.parse(raw) as unknown, DEFAULT_STORY));
+    }
   } catch {
     // Corrupt draft — fall through to the bundled story rather than blocking.
   }

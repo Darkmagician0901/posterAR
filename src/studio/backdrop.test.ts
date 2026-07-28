@@ -75,6 +75,26 @@ describe('deriveBackdrop', () => {
   it('is empty for a frame whose art carries no svg', () => {
     expect(deriveBackdrop({ ...base, art: '' })).toBe('');
   });
+
+  // Double-draw regression: the bundled frames now compose their art from
+  // props. Treating that art as a backdrop would paint every object twice —
+  // once in the frozen layer, once as the prop over it — and saving would bake
+  // the doubling in permanently.
+  it('is empty for a frame that composed its own art from props', () => {
+    const props = [{ t: 'lib' as const, k: 'car', x: 0, z: 1, h: 1.35, f: false, e: 0 }];
+    expect(deriveBackdrop({ ...base, props })).toBe('');
+  });
+
+  it('still falls back to art for a frame with an empty props array', () => {
+    // An emptied frame is a legacy frame by another name: nothing composed its
+    // art, so the hand-authored scene is still the backdrop worth keeping.
+    expect(deriveBackdrop({ ...base, props: [] })).toBe(OIL);
+  });
+
+  it('prefers a stored backdrop over dropping it for a propped frame', () => {
+    const props = [{ t: 'lib' as const, k: 'car', x: 0, z: 1, h: 1.35, f: false, e: 0 }];
+    expect(deriveBackdrop({ ...base, backdrop: '<svg>kept</svg>', props })).toBe('<svg>kept</svg>');
+  });
 });
 
 describe('save composition (data-loss regression)', () => {

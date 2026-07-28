@@ -46,6 +46,7 @@ export const PhonePreview: React.FC<PhonePreviewProps> = ({ playing, onExitPlay 
   const [pan, setPan] = useState(0);
   const stageRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const dragRef = useRef<{ x: number; pan: number } | null>(null);
   const images = doc.assets ?? {};
   const reduce =
@@ -87,6 +88,26 @@ export const PhonePreview: React.FC<PhonePreviewProps> = ({ playing, onExitPlay 
   const index = playing ? playIndex : selected;
   const frame = doc.frames[index] ?? doc.frames[0];
   const isLast = index === doc.frames.length - 1;
+
+  // Play the shown frame's audio during a placed playthrough; stop on advance,
+  // on leaving 'placed', and on exit. The BEGIN/tap gesture unlocks autoplay.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    const src = playing && stage === 'placed' ? frame?.audio : undefined;
+    if (src) {
+      if (el.getAttribute('src') !== src) el.setAttribute('src', src);
+      el.currentTime = 0;
+      void el.play().catch(() => {
+        /* a blocked autoplay is non-fatal — the story still plays silently */
+      });
+    } else {
+      el.pause();
+    }
+  }, [playing, stage, index, frame?.audio]);
+
+  // Stop audio if the preview unmounts mid-play.
+  useEffect(() => () => audioRef.current?.pause(), []);
 
   const showingFrame = !playing || stage === 'placed';
   const { shown, done, skip } = useStoryTypewriter(
@@ -132,6 +153,7 @@ export const PhonePreview: React.FC<PhonePreviewProps> = ({ playing, onExitPlay 
       <div className="st-phone">
         <div className="st-notch" />
         <div className="st-screen">
+          <audio ref={audioRef} preload="none" />
           <div
             className={`st-stage${reduce ? ' st-still' : ''}`}
             ref={stageRef}

@@ -1,0 +1,713 @@
+# ARCADE STUDIO — AWS-native storage design
+
+**Date:** 2026-07-28
+**Status:** Design, awaiting approval. No implementation code until approved.
+**Scope:** The storage layer only — where story documents, image assets, and
+marker fingerprints live, and how they move between the studio, AWS, and the
+viewer.
+
+---
+
+## 1. What this covers, and what it does not
+
+**In scope**
+
+- S3 object layout and the caching/lifecycle rules per prefix
+- RDS schema for the control plane
+- Content-addressed asset pipeline (upload, dedup, integrity, garbage collection)
+- `StoryDoc` schema v4 — asset tokens instead of inlined bytes
+- The token → `data:` URL hydration path that keeps SVG rasterization working
+- Publish and read flows, including failure ordering
+- Module decomposition, test strategy, and a dependency-ordered build sequence
+
+**Supersedes** the *Storage* section of `docs/arcade-studio-plan.md`, which chose
+Vercel Blob and rejected "the plan doc's Postgres + Supabase S3 design" on the
+grounds that it "is wrong for moving a 3 KB document."
+
+That reasoning was correct, and its precondition has since changed. The estimate
+it rested on — *"the published doc is a few KB because props are references; even
+with composed SVGs inlined a five-frame story is well under 100 KB"* — holds only
+while no uploaded raster images exist. The same document names the exception:
+custom image uploads, deferred there to Phase 4. That is the work being designed
+here. A five-frame story with one 2 MB photo is ~10.6 MB, not 100 KB, so the
+document is no longer the thing being moved — the images are.
+
+Nothing else in `arcade-studio-plan.md` is superseded. Its auth model (§10), its
+routing (`/studio`, `/?s=<id>`), and its per-field fallback guarantee are all
+carried forward unchanged.
+
+**Explicitly out of scope** (each is its own later spec)
+
+- **Marker anchoring runtime.** The `anchor` field is defined here so the schema
+  is stable, but resolving it to a pose is separate work that depends on device
+  verification (§3).
+- **Video and audio assets.** The bucket layout accommodates them; no render
+  path exists. See §12.
+- **Multi-operator auth.** The schema carries `owner_id` throughout so real
+  identity replaces a value, not a column. See §10.
+- **The frontend hosting decision.** Deliberately factored out; see §2.2.
+
+---
+
+## 2. Assumptions
+
+Two questions were open when this was written. Both are answered here with a
+defensible default so the design is complete. Both are cheap to flip.
+
+### 2.1 Animated GIFs are not permitted in composed frame art
+
+`hydrateArt` bakes an image into a static SVG which `svgTexture.ts` rasterizes
+through `<img>` into one `CanvasTexture`. **An animated GIF inlined that way
+renders as its first frame only, silently.** This is exactly the failure
+`CLAUDE.md` warns about ("GIFs must stay GIFs… never flatten a GIF to WebP")
+arriving through a new door.
+
+**Decision:** the studio rejects animated GIFs as *composed frame assets*, with
+a message explaining why. The existing GIF pipeline (`gifDecode` →
+`gifPlayhead` → `gifAnimator` → `posterTextureCache`) is untouched and continues
+to serve the poster path.
+
+**Growth path if this is wrong:** animated assets bypass composition entirely —
+a GIF becomes a sibling plane with its own animator, positioned like a prop but
+rendered on the existing GIF path. That is a second render path, not a storage
+change, so **this decision does not constrain the storage design**. The
+`story_assets` table already carries `is_animated`.
+
+### 2.2 Frontend hosting is not decided here
+
+Whether the app is served from Vercel or from S3+CloudFront changes exactly one
+thing in this design: whether asset fetches are same-origin. §9 specifies both
+configurations. Nothing else in the storage contract depends on it.
+
+---
+
+## 3. Verified constraints
+
+Everything below was confirmed against the repository or primary documentation.
+Nothing here is recalled from training data.
+
+### 3.1 SVG in an image context cannot load external resources
+
+> "External resources (e.g., images, stylesheets) cannot be loaded, though they
+> can be used if inlined through `data:` URLs."
+> — [MDN, *SVG as an image*](https://developer.mozilla.org/en-US/docs/Web/SVG/Guides/SVG_as_an_image)
+
+This is specified behaviour, not a browser quirk. `svgTexture.ts:110-118`
+rasterizes by assigning the SVG to `img.src`, so **an `https://` image reference
+inside `frame.art` renders blank with no error**. This single fact determines the
+entire asset design: bytes must be `data:` URLs *at the moment of
+rasterization*, and must not be `data:` URLs anywhere else.
+
+### 3.2 The current schema enforces the duplication
+
+`storyDoc.ts::sanitizeAssets` rejects any `href` not matching `^data:image/`.
+Bytes are stored in `doc.assets` *and* inlined again into every `frame.art` that
+uses them. A 2 MB photo in 3 frames ≈ 10.6 MB against a 12 MB publish cap
+(`api/publish.ts::MAX_BODY_BYTES`), a ~5 MB `localStorage` limit, and 50 undo
+snapshots.
+
+### 3.3 Composition has exactly two image-emission sites
+
+`src/story/props/compose.ts` lines 82 and 161, both
+`<image href="${escapeAttr(href)}" …/>`. Changing what goes in that attribute is
+a contained edit.
+
+### 3.4 S3 supports conditional writes
+
+`If-None-Match: *` on `PutObject` uploads only if the key does not exist,
+returning **412 Precondition Failed** otherwise, and **409
+ConditionalRequestConflict** if a concurrent write races. Requires SigV4.
+— [S3 conditional writes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html)
+
+### 3.5 Presigned URLs support SHA-256 checksums
+
+Presigned URLs created with **SigV4** support algorithm-specific checksum
+headers including `x-amz-checksum-sha256`. S3 validates the uploaded bytes
+against the supplied checksum.
+— [Checking object integrity](https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html),
+[Presigned URLs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html)
+
+### 3.6 CloudFront caches CORS-less responses unless `Origin` is in the cache key
+
+> "If CloudFront receives a first request without an `Origin` header, it caches
+> the response without CORS headers and uses this cached response for all future
+> requests until it expires."
+> — [AWS re:Post](https://repost.aws/knowledge-center/no-access-control-allow-origin-error)
+
+This produces intermittent, cache-state-dependent CORS failures. §9 handles it.
+
+### 3.7 Existing infrastructure facts
+
+- `infra/terraform/s3.tf:86-103` applies `expiration { days = 90 }` with
+  `filter {}` — **whole bucket**. Written for a throwaway testbed. It would
+  silently delete published exhibits after three months.
+- `infra/terraform/iam.tf` provisions an IAM **user** with long-lived keys.
+- `server/src/config.ts` defaults `S3_FORCE_PATH_STYLE=true` (a Supabase
+  legacy); real AWS S3 requires `false`.
+- Auth today is `x-owner-id`, a device token — identity, **not
+  authentication** (`server/src/routes/assets.ts:31-34`).
+- `src/services/storyApi.ts` already fetches
+  `${VITE_STORY_BASE_URL}/stories/<id>.json`. **The read path is host-agnostic
+  already** — pointing it at CloudFront is configuration, not code.
+
+---
+
+## 4. Architecture
+
+Two planes, with one invariant governing their relationship.
+
+```
+                        PUBLISH (operator, a few times a week)
+                                     │
+                     ┌───────────────┴────────────────┐
+                     ▼                                ▼
+             RDS  (control plane)            S3  (content plane)
+             ───────────────────             ──────────────────
+             what exists                     the bytes themselves
+             who owns it                     stories/<id>.json
+             which asset is used where       assets/<sha256>/…
+             which markers are registered    markers/<id>/…
+                                                      │
+                                                      ▼
+                                                 CloudFront
+                                                      │
+                                                      ▼
+                                                   VIEWER
+                            (read path never touches RDS or the API)
+```
+
+> **Invariant — artifact authority.**
+> The S3 artifact is the source of truth for rendering. RDS rows are a derived
+> index for querying. If they diverge, the artifact wins and RDS is rebuilt
+> from it.
+
+This resolves the ambiguity of `anchor` and `assets` appearing in both places:
+they live in the artifact (authoritative, because the viewer reads only S3);
+RDS holds a *copy* of the marker binding and the asset-usage edges, written at
+publish, used only to answer author-time questions.
+
+**Why frames are not rows.** A frame's dominant payload is `art`, a complete SVG
+document of several KB to tens of KB. The viewer needs all frames, always, in
+order — there is no query, only "give me the document". Putting them in Postgres
+would turn every visitor into a Lambda invocation plus a DB connection
+(≈100–800 ms cold) instead of a CDN GET (≈20–50 ms edge-cached), would cost per
+view, and would take the exhibit down whenever the API is down.
+
+**A note on Lambda + RDS.** This pairing is normally an anti-pattern because of
+connection exhaustion. Here it is fine: keeping RDS off the read path leaves the
+API author-time-only — one operator, a handful of writes per week, concurrency
+≈ 1. No RDS Proxy is required.
+
+---
+
+## 5. S3 layout
+
+| Prefix | Mutability | `Cache-Control` | Lifecycle |
+|---|---|---|---|
+| `stories/<story_id>.json` | **mutable at a stable key** | `public, max-age=60, must-revalidate` | persistent |
+| `assets/<sha256>/full.webp` | immutable by construction | `public, max-age=31536000, immutable` | persistent, GC by refcount |
+| `assets/<sha256>/r1024.webp` | immutable by construction | `public, max-age=31536000, immutable` | persistent, GC by refcount |
+| `markers/<marker_id>/target.json` | immutable per marker | `public, max-age=31536000, immutable` | persistent |
+| `markers/<marker_id>/luminance.png` | immutable per marker | `public, max-age=31536000, immutable` | persistent |
+| `tmp/` | scratch | `no-store` | **expire after 90 days** |
+
+`stories/<id>.json` is the one object that changes under a fixed key — that is
+how `/?s=<id>` resolves without a lookup table. The 60-second TTL is what makes
+republishing visible promptly; it matches what Vercel Blob does today
+(`cacheControlMaxAge: 60`). Everything else is content-addressed or
+write-once, which is what makes the `immutable` directive safe.
+
+**Terraform change required:** the existing bucket-wide
+`expiration { days = 90 }` (`s3.tf:86-103`) must be scoped to the `tmp/` prefix.
+Left as-is it deletes published exhibits.
+
+**`r1024.webp` is deferrable.** `svgTexture.ts` rasterizes at `RASTER_MAX = 1024`
+on the longest axis of the *whole composed frame*, so a full-resolution asset is
+decoded and then largely thrown away. Generating a display derivative in the
+browser at upload time (the existing `imageUpload.ts` canvas path already does
+this kind of work) cuts fetch and decode cost substantially. The `assets/<sha>/`
+prefix leaves room for it, so v1 may ship with only `full.webp` and add the
+derivative later **with no schema change**.
+
+---
+
+## 6. RDS schema
+
+Control plane only. Never read by a viewer.
+
+```sql
+-- 003_stories.sql
+
+CREATE TABLE stories (
+  id             text PRIMARY KEY,          -- the ?s= slug
+  owner_id       text NOT NULL,
+  title          text NOT NULL,
+  artifact_key   text NOT NULL,             -- 'stories/<id>.json'
+  artifact_etag  text,                      -- S3 ETag of the last publish
+  schema_version integer NOT NULL,
+  published_at   timestamptz NOT NULL,
+  created_at     timestamptz NOT NULL DEFAULT now()
+);
+
+-- NOT `assets`. Migration 001 already defines an `assets` table for the poster
+-- path: uuid primary key, `<owner>/<uuid>.<ext>` storage keys, no content
+-- addressing. That table is live and must not be disturbed. Unifying the two
+-- asset systems is deliberately deferred — it would mean rekeying every
+-- existing poster object for no benefit to this work.
+CREATE TABLE story_assets (
+  sha256        text PRIMARY KEY,           -- lowercase hex, the content address
+  owner_id      text NOT NULL,              -- first uploader
+  content_type  text NOT NULL,
+  byte_size     bigint NOT NULL,
+  width         integer NOT NULL,
+  height        integer NOT NULL,
+  is_animated   boolean NOT NULL,
+  original_name text,
+  committed     boolean NOT NULL DEFAULT false,  -- see §7.3
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE asset_usage (
+  story_id text NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  sha256   text NOT NULL REFERENCES story_assets(sha256),
+  PRIMARY KEY (story_id, sha256)
+);
+CREATE INDEX asset_usage_sha256_idx ON asset_usage(sha256);
+
+CREATE TABLE markers (
+  id         text PRIMARY KEY,              -- 'poster-01'
+  owner_id   text NOT NULL,
+  name       text NOT NULL,
+  target_key text NOT NULL,                 -- 'markers/<id>/target.json'
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- A join table rather than stories.marker_id: this models one-marker-per-story
+-- and many-markers-per-story identically, so resolving that open question later
+-- needs no migration.
+CREATE TABLE story_markers (
+  story_id  text NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  marker_id text NOT NULL REFERENCES markers(id),
+  PRIMARY KEY (story_id, marker_id)
+);
+```
+
+**Two name collisions were checked and avoided.** Migration 001 owns `assets`
+(poster path) and migration 002 owns `marker_bindings` (the testbed's
+asset-to-marker placements). Neither is touched. `markers` here is a *registry* —
+which fingerprints exist and who owns them — which is a different concern from
+`marker_bindings`, and the two can coexist.
+
+> **Only two of these five tables are load-bearing in v1.**
+>
+> `story_assets` and `asset_usage` are needed from day one: the first carries the
+> `committed` flag and the dedup index, the second is the refcount that makes
+> garbage collection safe (§7.4). Build them in Phase 2.
+>
+> `stories`, `markers`, and `story_markers` are forward-looking.
+> `arcade-studio-plan.md` resolved that v1 ships **one story at a time**, with no
+> browser, list, or management UI — publishing overwrites the current story. An
+> index nobody queries earns nothing yet. They are specified here so the shape is
+> settled and adding them is additive, but **Phase 4 can ship without them**, with
+> the artifact in S3 as the only record of a published story. Create them when a
+> story browser or a marker manager actually exists.
+>
+> This is the one place the design deliberately specifies more than v1 needs, and
+> it is called out rather than hidden.
+
+No `users` table yet. `owner_id` is the existing device token
+(`src/utils/deviceToken.ts`); introducing real accounts replaces the *value* in
+that column, not the column. See §10.
+
+The refcount for garbage collection is `SELECT count(*) FROM asset_usage WHERE
+sha256 = $1`, which is why `asset_usage_sha256_idx` exists.
+
+---
+
+## 7. Asset pipeline
+
+### 7.1 Upload on drop
+
+Uploading at publish time would leave base64 in `localStorage` and fix only the
+published side. Assets upload the moment the file lands.
+
+```
+User drops file
+      │
+      ▼  existing imageUpload.ts (WebP, ≤2048 px, ≤2 MB)
+canonical bytes
+      │
+      ▼  crypto.subtle.digest('SHA-256', bytes)      [secure context: already required]
+  assetId (64 hex)
+      │
+      ▼  POST /api/assets/presign { sha256, contentType, byteSize, width, height, isAnimated }
+      │
+      ├── row exists AND committed ──▶ { exists: true }        DEDUP HIT — no upload
+      │
+      └── no row, OR row exists but uncommitted ──▶ { uploadUrl, requiredHeaders }
+              (an uncommitted row means a previous upload was abandoned;
+               re-presigning the same key is safe and idempotent)
+                              │
+                              ▼  PUT assets/<sha256>/full.webp
+                              │     If-None-Match: *
+                              │     x-amz-checksum-sha256: <base64 of the digest>
+                              │
+                              ├── 200 ──▶ POST /api/assets/<sha>/commit
+                              ├── 412 ──▶ object already exists; treat as success
+                              └── 409 ──▶ concurrent write; retry once
+                              │
+                              ▼
+                    draft stores { assetId } only
+              (in-memory data: URL retained for instant preview)
+```
+
+### 7.2 Why the two S3 headers matter
+
+**`If-None-Match: *`** makes the write conditional, so a concurrent upload of
+identical bytes cannot clobber a completed object, and a 412 is a *successful*
+dedup rather than an error (§3.4).
+
+**`x-amz-checksum-sha256`** closes a real integrity hole. Content addressing
+requires the *client* to hash before upload, so a dishonest client could upload
+bytes X under the key `SHA256(Y)`. Because dedup is **global**, that one upload
+would poison that address for every story. Binding the checksum into the
+presigned signature makes S3 itself reject the mismatch (§3.5). With a single
+trusted operator this is theoretical; it stops being theoretical the moment the
+`owner_id` column carries real accounts.
+
+### 7.3 The `committed` flag
+
+The `story_assets` row is inserted when the presign is issued, before the bytes
+exist.
+`committed` stays `false` until the client confirms the PUT. Publish rejects any
+document referencing an uncommitted asset, so a failed upload can never produce
+a published story with a missing image — and the check is one indexed query, not
+N `HeadObject` calls.
+
+### 7.4 Garbage collection
+
+```sql
+SELECT a.sha256 FROM story_assets a
+WHERE NOT EXISTS (SELECT 1 FROM asset_usage u WHERE u.sha256 = a.sha256)
+  AND a.created_at < now() - interval '30 days';
+```
+
+The 30-day grace period exists **because** uploads happen on drop: an asset
+legitimately has no usage rows between being dropped and the story being
+published. Without the grace window, GC would delete work in progress.
+
+Deleting a story cascades its `asset_usage` rows, which drops the refcount;
+the object survives while any other story still references it. An operator
+therefore cannot delete "their" asset if it is shared — correct behaviour, and
+worth surfacing in the UI.
+
+---
+
+## 8. Document schema v4 and the hydration path
+
+### 8.1 `StoryDoc` v4
+
+```ts
+interface StoryDoc {
+  schemaVersion: 4;
+  id: string;
+  title: string;
+  loc: string;
+  intro: { title: string; subtitle: string };
+  outro: { title: string; subtitle: string };
+  frames: StoryFrame[];                      // art carries asset: tokens
+  assets?: Record<string, StoryAssetRef>;    // alias → reference
+  anchor?: StoryAnchor;                      // absent ⇒ today's tap-to-place
+}
+
+/** No URL. No bytes. An opaque content address. */
+interface StoryAssetRef {
+  assetId: string;   // /^[a-f0-9]{64}$/ — enforced by the validator
+  aspect: number;
+  name?: string;
+}
+// The KEYS of `assets` are aliases and must match /^[A-Za-z0-9_-]{1,64}$/ —
+// the same charset the art token accepts (§8.3). The validator drops any entry
+// whose key or assetId fails its pattern, so an alias can never carry markup.
+
+interface StoryAnchor {
+  type: 'marker';
+  markerId: string;              // /^[a-z0-9][a-z0-9-]{0,63}$/
+  local: LocalTransform;         // reuses src/xr/markerRelativeTransform.ts
+  widthInMarkers: number;        // tile width as a MULTIPLE of marker width
+  mode: 'follow' | 'latch';
+}
+```
+
+`widthInMarkers` is deliberately relative rather than metres. Two of the four
+unverified device items — whether `configure({ scale })` needs `'absolute'`, and
+whether `scaledWidth` is true physical metres — would invalidate any absolute
+measurement. A ratio holds under any scale mode. **This is the only place the
+storage design touches an unverified item, and it is structured so that neither
+outcome forces a schema change.**
+
+### 8.2 The security property
+
+The document contains **no URL**. `assetId` is 64 hex characters, validated by
+regex, so it cannot contain `../`, a scheme, or a host. The base URL comes from
+build configuration (`VITE_ASSET_BASE_URL`), never from the document.
+
+This is strictly stronger than the current design and strictly stronger than
+storing URLs. Today's `^data:image/` check guarantees composed art cannot reach
+off-origin; storing `https://` URLs would surrender that, letting a hostile
+published document point every viewer's browser at arbitrary hosts. An opaque ID
+resolved client-side **cannot express an off-origin reference at all**.
+
+### 8.3 Tokens in art
+
+```
+authored:   <image href="asset:logo" x="…" y="…" width="…" height="…"/>
+at render:  <image href="data:image/webp;base64,…" x="…" …/>
+```
+
+The alias indirection is load-bearing: `frame.art` references `logo`, and
+`assets.logo.assetId` names the bytes. Swapping the underlying image is a
+one-field metadata change and **the art string never moves**.
+
+```ts
+// src/story/artTokens.ts — pure, no DOM, no network
+const ASSET_TOKEN_RE = /\b(xlink:href|href)="asset:([A-Za-z0-9_-]{1,64})"/g;
+
+function collectAssetRefs(art: string): string[];
+function hydrateArt(art: string, resolved: ReadonlyMap<string, string>): string;
+```
+
+The regex is bounded to the attribute form and the alias charset, so no other
+content can be matched or injected, and the replacement is attribute-escaped by
+the same `escapeAttr` the composer uses. An alias missing from the map is
+replaced with a 1×1 transparent `data:` URL — a gap in the art, never a broken
+document.
+
+### 8.4 Read path
+
+```
+GET ${STORY_BASE}/stories/<id>.json          ← CloudFront, 60 s TTL
+      │
+      ▼  validateStoryDoc()  — dispatches on schemaVersion
+   StoryDoc v4
+      │
+      ▼  collectAssetRefs over every frame → unique assetIds
+      │
+      ▼  for each, GET ${ASSET_BASE}/assets/<sha>/r1024.webp    ← immutable, cached forever
+      │    (404 ⇒ fall back to full.webp; r1024 is deferrable, see §5)
+      │    blob → FileReader.readAsDataURL
+      │    module-level cache keyed by assetId; N unique assets, not N×frames
+      ▼
+  Map<alias, dataUrl>
+      │
+      ▼  hydrateArt(frame.art, map)
+      │
+      ▼  svgToTexture()  →  CanvasTexture  →  StoryTile  →  render
+```
+
+Every failure degrades: a missing asset becomes a transparent pixel, a missing
+or malformed document falls back to the bundled factory story — preserving the
+existing guarantee that no failure path leaves a visitor with a broken exhibit.
+
+### 8.5 Backward compatibility
+
+v3 documents (`assets[k].href` = `data:` URL, art with inlined data URLs) remain
+readable **unchanged and forever**. The validator dispatches on
+`schemaVersion`; v3 needs no hydration because its bytes are already inline.
+Only newly published documents are v4. The studio migrates a v3 draft on open by
+uploading each inline asset and rewriting the references.
+
+The five hand-drawn eras contain no `<image>` at all — they are pure SVG paths —
+so the shipping story mode is unaffected by any of this.
+
+### 8.6 One rasterizer change
+
+`svgTexture.ts:112` builds
+`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`. Once base64
+payloads are inlined, `encodeURIComponent` expands `+`, `/` and `=` three-for-one
+— roughly 6% on top of base64's 33%, plus a large intermediate string. Replacing
+it with `URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))` (and
+`revokeObjectURL` on load) avoids both.
+
+Restricted mode still applies to a `blob:` URL — the restriction is a property of
+the image context, not the URL scheme — so the token design remains mandatory.
+CSP already permits `blob:` in `img-src`.
+
+---
+
+## 9. Caching and CORS
+
+`hydrateArt` needs the *bytes* in the browser: `fetch → blob →
+FileReader.readAsDataURL`. That is an XHR-class request and needs
+`Access-Control-Allow-Origin` on the **response** unless it is same-origin.
+
+**Preferred — single origin.** One CloudFront distribution, two behaviours:
+`/` → frontend origin, `/assets/*` `/stories/*` `/markers/*` → bucket origin.
+Asset fetches become same-origin and CORS never enters the picture. This also
+makes the marker fingerprint's `imagePath` same-origin, which sidesteps the
+open question in §13.
+
+**If the frontend stays on Vercel (split origin), all three are required:**
+
+1. S3 CORS with explicit origins (not `*`) — `cors_allowed_origins` in
+   `variables.tf` currently defaults to `["*"]`.
+2. A CloudFront **cache policy that includes `Origin` in the cache key**.
+   Without it, a first request lacking `Origin` caches a CORS-less response that
+   is then served to cross-origin callers, producing intermittent failures that
+   depend on cache state (§3.6).
+3. The managed **`CORS-S3Origin`** origin request policy, so `Origin` reaches
+   the bucket at all.
+
+The storage contract is identical either way. This is a deployment concern, not
+a schema concern, which is why §2.2 defers it without blocking.
+
+---
+
+## 10. Security model
+
+| Concern | Position |
+|---|---|
+| Off-origin references in published art | Structurally impossible — §8.2 |
+| Content-address poisoning | Prevented by `x-amz-checksum-sha256` — §7.2 |
+| Publish authorization | Bearer shared secret, `timingSafeEqual`, as today |
+| Asset upload authorization | `x-owner-id` device token — **identity, not authentication** |
+| Read authorization | None. Published artifacts are public objects |
+| Stored-XSS via upload | Content-type allowlist retained (`assets.ts:12-17`) |
+
+Two honest gaps, both pre-existing and both deliberately unchanged here:
+
+- The publish secret is held in a browser — prompted once per session and kept
+  in `sessionStorage`, per `arcade-studio-plan.md`. Acceptable for a
+  single-operator tool; it is the thing to replace first if the exhibit gains
+  more operators. Note that the `/studio` route gate is a UX affordance and
+  **not** a security control: a `VITE_`-prefixed variable is inlined into the
+  bundle at build time, which is exactly how `feat/admin-panel-ui`'s
+  `VITE_ADMIN_PASSPHRASE` failed. The gate that matters is on the write.
+- `x-owner-id` is a device token, so any client can claim any owner. The schema
+  is written so that adding real accounts changes the value in `owner_id`, not
+  the shape of any table.
+
+Read access is public by design — a published exhibit is meant to be opened by
+any visitor with the link. **If unlisted or access-controlled exhibits are ever
+required, the read path must move behind the API and §4's central claim changes.**
+That is the one decision that would invalidate this architecture rather than
+extend it.
+
+---
+
+## 11. Module decomposition
+
+**New — pure logic, no infrastructure, fully unit-testable**
+
+| Module | Responsibility | Depends on |
+|---|---|---|
+| `src/story/artTokens.ts` | `collectAssetRefs`, `hydrateArt`, the token regex | nothing |
+| `src/story/assetHash.ts` | `sha256Hex(bytes)` via `crypto.subtle` | secure context |
+
+**New — I/O**
+
+| Module | Responsibility |
+|---|---|
+| `src/story/assetResolver.ts` | `assetId` → `data:` URL, module-level cache, never throws |
+| `src/services/assetApi.ts` | presign / commit client, dedup handling, 412 + 409 paths |
+| `server/src/db/storiesRepo.ts` | `stories` upsert, read |
+| `server/src/db/assetUsageRepo.ts` | usage replace-in-transaction, refcount query |
+| `server/src/db/markersRepo.ts` | marker registry |
+| `server/migrations/003_stories.sql` | §6 schema |
+
+**Changed**
+
+| Module | Change |
+|---|---|
+| `src/story/storyDoc.ts` | v4 types; validator dispatches on `schemaVersion`; `assetId` regex |
+| `src/story/props/compose.ts` | emit `asset:<alias>` at the two `<image href>` sites |
+| `src/story/svgTexture.ts` | blob URL instead of percent-encoded data URL (§8.6) |
+| `src/services/storyApi.ts` | resolve + hydrate assets after fetching the document |
+| `server/src/storage/objectStore.ts` | add `presignPutConditional`, `putJson`, `headObject` |
+| `api/publish.ts` | S3 `PutObject` instead of `@vercel/blob`; RDS index write |
+| `infra/terraform/s3.tf` | prefix-scoped lifecycle, per-prefix cache-control, explicit CORS origins |
+| `infra/terraform/cloudfront.tf` | new — distribution, cache policy, response headers policy |
+
+Each unit answers the three questions cleanly: `artTokens` transforms a string
+and knows nothing about networks; `assetResolver` fetches bytes and knows
+nothing about SVG; `storyDoc` validates shape and knows nothing about storage.
+
+---
+
+## 12. Testing
+
+Consistent with the project's existing posture — pure logic is unit-tested,
+engine and browser-canvas interactions are verified on device.
+
+| Suite | Cases |
+|---|---|
+| `artTokens.test.ts` | token replacement; `xlink:href` form; unknown alias → transparent pixel; **no false positive on the literal text `asset:` in SVG text content**; attribute escaping |
+| `assetHash.test.ts` | known SHA-256 vectors; empty input |
+| `storyDoc.test.ts` | v3 accepted unchanged; v4 validated; non-hex `assetId` rejected; `https://` and `data:` in an `assetId` rejected; unknown `schemaVersion` → fallback |
+| `assetResolver.test.ts` | cache hit serves one fetch for N frames; fetch failure → transparent fallback, never throws |
+| `svgTexture.test.ts` | extend for the blob-URL path; `revokeObjectURL` called |
+| server `publish.test.ts` | S3-before-RDS ordering; RDS failure leaves a usable artifact; uncommitted asset rejected; usage rows replaced not appended |
+| server `assets.test.ts` | dedup hit skips presign; 412 treated as success; 409 retried |
+
+**On device (cannot be unit-tested):** hydrated art renders identically to
+inlined art; a 60 s TTL makes a republish visible; cross-origin asset fetch
+succeeds under the chosen deployment shape.
+
+---
+
+## 13. Dependency-ordered build sequence
+
+Each phase is independently valuable and independently revisable.
+
+| Phase | Work | Depends on | Ships |
+|---|---|---|---|
+| **0** | `storyDoc` v4, `artTokens`, `assetHash` | nothing | Pure logic, green tests, zero AWS. Nothing behaves differently yet. |
+| **1** | Terraform: prefix-scoped lifecycle (**fixes the 90-day deletion bug**), per-prefix cache-control, explicit CORS origins, `S3_FORCE_PATH_STYLE=false` | 0 | Bucket is safe to hold production data. |
+| **2** | Presign/commit endpoints; client upload-on-drop; dedup; `story_assets` + `asset_usage` tables | 1 | Assets live in S3, deduped. Documents unchanged. |
+| **3** | `compose.ts` emits tokens; hydration on read; blob-URL rasterizer | 0, 2 | **The flip.** Documents drop from MB to KB. |
+| **4** | Publish writes the S3 artifact; migrate off Vercel Blob. `stories` table **optional** — see §6 | 2, 3 | All storage on AWS. |
+| **5** | CloudFront distribution and cache policy (or Vercel + split-origin CORS) | 4 | Read path on CDN. |
+| **6** | GC job; verify lifecycle; backfill `asset_usage` | 4 | Steady state. |
+
+Phase 3 is the only irreversible-feeling step, and it is guarded: v3 documents
+stay readable forever (§8.5), so a rollback is a config change, not a data
+migration.
+
+**Anchoring is not in this sequence.** It is the next spec and depends on device
+verification of the four unverified marker items. The `anchor` field is defined
+here (§8.1) purely so that adding it later requires no schema change.
+
+---
+
+## 14. Where this design rests on unverified ground
+
+| Item | Where it bites | Mitigation |
+|---|---|---|
+| `configure({ scale })` may need `'absolute'` | `StoryAnchor` sizing | `widthInMarkers` is a ratio — holds under any scale mode (§8.1) |
+| `scaledWidth`/`scaledHeight` may not be metres | `StoryAnchor` sizing | Same |
+| Marker normal axis may be +Y not +Z | `StoryAnchor.local` values, not its shape | `MARKER_NORMAL_AXIS`, a one-line fix |
+| ~10 simultaneous target cap | Only if one story spans many markers | `story_markers` join table models 1 and N identically (§6) |
+| **Engine accepting a cross-origin absolute `imagePath`** | Marker fingerprints served from S3 | Single-origin deployment (§9) makes it same-origin; otherwise a path rewrite |
+
+The first four are the project's known unverified items. The fifth is introduced
+by this design and is the only new risk it adds. `loadImageTargets(manifestUrl)`
+is already parameterized and `resolveImagePath` already rewrites `imagePath` to
+an absolute URL when given an absolute manifest URL, so **no code change is
+needed** — but whether the engine fetches that URL successfully is untested.
+
+---
+
+## 15. Expected outcome
+
+A 2 MB photo used in three frames:
+
+| | Today | This design |
+|---|---|---|
+| `doc.assets` | 2.66 MB base64 | ~110 bytes |
+| `frame.art` × 3 | 8 MB | ~60 bytes |
+| **Published document** | **~10.6 MB** | **~KB** |
+| vs. 12 MB publish cap | 88% consumed | negligible |
+| vs. ~5 MB `localStorage` | already broken | fits, with 50 undo snapshots ≈ 1 MB |
+| Same image in a second story | stored again | stored once, automatically |
+| Bytes fetched on a repeat visit | all of it | zero — `immutable`, cached |
+| Cost per view | — | CDN GET only; no compute, no DB |

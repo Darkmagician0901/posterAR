@@ -18,78 +18,41 @@ references below point there), `docs/arcade-storage-plan-a.md`,
 
 ---
 
-## 🔴 OPS-0 — DECISION REQUIRED before Plan A Task 5
+## ✅ OPS-0 — RESOLVED: v1 uses no database
 
-**A Vercel serverless function cannot reach the RDS instance as currently
-provisioned, and this was not visible until the plan was written.**
+*Recorded because the reasoning matters, not because anything is outstanding.*
 
-`infra/terraform/rds.tf` puts Postgres behind a security group whose ingress is
-`var.db_allowed_cidrs`, and `variables.tf` refuses `0.0.0.0/0` outright:
+Planning surfaced a structural problem: **a Vercel function cannot reach the
+RDS instance as provisioned.** `rds.tf` gates Postgres behind
+`var.db_allowed_cidrs`, and `variables.tf` refuses `0.0.0.0/0` — correctly —
+but Vercel functions have no stable egress address on non-Enterprise plans, so
+there is no CIDR to allowlist. Meanwhile §2.2 rules out running Fastify on ECS.
 
-```hcl
-validation {
-  condition     = !contains(var.db_allowed_cidrs, "0.0.0.0/0")
-  error_message = "Refusing to open Postgres to the whole internet. List specific CIDRs."
-}
-```
+**Resolution: drop Postgres from v1 entirely** (design §6, §7.3). S3 already
+answers every question the tables were going to:
 
-That validation is correct and should stay. But Vercel functions do not have
-stable egress addresses on non-Enterprise plans, so there is no CIDR to
-allowlist. Meanwhile the deployment decision (§2.2) rules out running the
-Fastify server on ECS — which means **the Fastify routes Plan A builds in Tasks
-5–7 currently have nowhere to run.**
-
-Three ways out. Pick one before Plan A Task 5 begins.
-
-### Option A — Drop Postgres from the asset path *(recommended)*
-
-S3 already answers every question the `story_assets` table was going to answer:
-
-| Question | Postgres answer | S3 answer |
+| Question | Postgres | S3 |
 |---|---|---|
-| Do these exact bytes already exist? | `select … where sha256 = $1` | `HeadObject assets/<sha>/full.webp` → 200 |
+| Do these exact bytes exist? | `select … where sha256` | `HeadObject` → 200 |
 | Did the upload complete? | `committed` flag | the object exists at all |
 | Two uploaders racing | `on conflict do nothing` | `If-None-Match: *` → 412 |
-| Dimensions, filename | row columns | object metadata, or `assets/<sha>/meta.json` |
+| Aspect, filename | row columns | **already in `StoryAssetRef`** |
+| Which assets are still used? | `asset_usage` join | derived from `stories/*.json` |
 
-The `committed` flag exists only because a row could be written before the
-bytes arrived. With S3 as the register that window does not exist — the object
-either is there or is not, and the conditional write makes it atomic.
+The `committed` flag only ever existed to cover a window where a row could
+precede its bytes. With S3 as the register that window does not exist.
 
-**What this deletes:** migration `003_story_assets.sql`, `storyAssetsRepo.ts`,
-the Fastify routes, the RDS connectivity problem, and this entire decision.
-The presign endpoint becomes a small stateless Vercel function that needs AWS
-credentials and nothing else.
+**What this removed:** a migration, a repo, the Fastify routes, the `/commit`
+round trip, the RDS connectivity problem, and an always-on service from the
+bill. **What it costs:** listing an owner's assets becomes `ListObjectsV2`
+rather than an indexed query — at one operator and tens of assets, not a cost.
 
-**What it costs:** listing every asset an owner has uploaded becomes an S3
-`ListObjectsV2` rather than an indexed query, and `asset_usage` refcounting is
-derived by reading `stories/*.json` at GC time instead of being maintained
-incrementally. At this scale — one operator, tens of assets — neither is a real
-cost. §6 of the design already records that three of five tables are not
-load-bearing in v1; this extends that reasoning to the remaining two.
+The RDS instance stays provisioned and unused. The control-plane schema stays
+designed (§6.1) for when a management UI needs it; **the connectivity question
+returns at that point and must be answered then.**
 
-**Effect on the plans:** Plan A Tasks 5 and 7 are rewritten as one Vercel
-function; Task 6 is unchanged. Plan B's GC task reads S3 instead of Postgres.
-
-### Option B — Managed Postgres with a public pooler
-
-Swap RDS for a Postgres that is designed to be reached from serverless
-functions (Neon and Supabase both offer this, and Neon is available through the
-Vercel Marketplace). Keeps the relational model and the code as planned; adds a
-provider and a bill, and leaves the RDS instance in `rds.tf` unused.
-
-### Option C — Keep RDS, run the API somewhere with a stable address
-
-ECS/Fargate behind an ALB, as PR #40's Terraform anticipated. Restores the
-plan as written, but it is the ~$40–75/month path the design weighed and set
-aside, for a workload of a few writes per week.
-
-> **Recommendation: Option A.** It removes a moving part rather than adding
-> one, and the capability being given up is a query nobody currently makes.
-> This is a design amendment, so it needs an explicit decision — it is not
-> mine to make unilaterally.
-
----
+- [x] Decided — no action required
+- [ ] **Optional cleanup:** consider `terraform destroy -target=aws_db_instance.main` to stop paying ~$15/month for an unused instance. Reversible — the schema is in §6.1 and the migration runner still works.
 
 ## 🔴 OPS-1 — Scope the S3 lifecycle rule to `tmp/`
 
@@ -213,9 +176,13 @@ the presign sets `assets/`), or as a CloudFront response-headers policy.
 
 - [ ] `terraform fmt -check` and `terraform validate` pass
 - [ ] `terraform plan -var-file=…` reviewed line by line
-- [ ] Plan does **not** destroy `aws_s3_bucket.assets` or `aws_db_instance.main`
+- [ ] Plan does **not** destroy `aws_s3_bucket.assets`
 - [ ] Applied
-- [ ] `S3_FORCE_PATH_STYLE=false` — `server/src/config.ts` defaults it to `true`, a Supabase legacy. Real AWS S3 treats path-style as deprecated.
+
+`S3_FORCE_PATH_STYLE` is not relevant to the new code paths — the Vercel
+functions use the AWS SDK's default virtual-hosted addressing. The `true`
+default in `server/src/config.ts` is a Supabase legacy affecting only the
+poster path, which this work does not touch.
 
 ---
 
@@ -240,8 +207,10 @@ how `feat/admin-panel-ui`'s `VITE_ADMIN_PASSPHRASE` failed.
 | `STUDIO_PUBLISH_SECRET` | Bearer secret for `POST /api/publish` |
 | `AWS_ROLE_ARN` | If using OIDC (OPS-6) |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Only if **not** using OIDC |
-| `S3_BUCKET`, `S3_REGION` | |
-| `DATABASE_URL` | Only under OPS-0 Option B or C |
+| `S3_BUCKET`, `S3_REGION` | Required — the presign and publish functions both 503 without them |
+| `STORY_PUBLIC_BASE_URL` | Returned in the publish response so the studio can show a link |
+
+No `DATABASE_URL`: v1 uses no database (OPS-0).
 
 - [ ] No secret carries a `VITE_` prefix
 - [ ] `BLOB_READ_WRITE_TOKEN` retained until Plan B Phase 4 completes, then removed
@@ -343,24 +312,11 @@ actually at fault.
 
 ---
 
-## ⚪ OPS-10 — Database migrations
-
-Skip entirely under OPS-0 Option A.
-
-```bash
-cd server && npm run migrate
-```
-
-- [ ] Runs against the chosen database
-- [ ] `_migrations` table lists every applied file
-
----
-
 ## Ordering
 
 ```
-OPS-0  DECIDE ────────────────► unblocks Plan A Tasks 5-7
-   │
+OPS-0  ✅ resolved — no database in v1
+
 OPS-1  lifecycle ─────────────► unblocks Plan A Task 8 (real bucket)
    │
 OPS-2  CORS origins
@@ -373,8 +329,12 @@ OPS-8  vercel rewrite ────────► unblocks Plan B Phase 5
    │
 OPS-6  OIDC          (when convenient)
 OPS-9  fingerprints  (anchoring spec)
-OPS-10 migrations    (only if OPS-0 chose B or C)
 ```
 
-**Only OPS-0 and OPS-1 block anything immediately.** OPS-0 is a decision, not a
-task, and Plan A Tasks 0–4 and 6 can proceed regardless of how it lands.
+**Only OPS-1 blocks anything now**, and only Plan A Task 8 running against a
+real bucket. **Plan A Tasks 0 through 7 need nothing from this list** — that is
+every pure-logic module, the S3 helper, and the presign endpoint, all of which
+are unit-tested against mocks.
+
+The practical reading: OPS-1 is the one thing worth doing today, and it takes
+minutes. Everything else can follow the code.

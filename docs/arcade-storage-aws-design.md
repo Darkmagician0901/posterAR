@@ -112,6 +112,7 @@ concern, listed in §13.
 | Decision | Settled | Where |
 |---|---|---|
 | Deployment shape | **Vercel app + AWS content, split origin.** Unified AWS deferred, not rejected | §2.2, §9.1 |
+| Database in v1 | **None.** S3 is the whole storage layer; the control-plane schema is designed but not created | §4, §6, §7.3 |
 | Marker cardinality | **Schema supports many, v1 runtime resolves one.** `story_markers` join table models both, so enabling multi-marker needs no migration | §6, §8.1 |
 | Build order | **Storage first**, device verification of the four unverified marker items in parallel. Phases 0–4 depend on none of them | §13 |
 | Animated GIFs in composed art | **Rejected**, existing GIF pipeline untouched | §2.1 |
@@ -207,37 +208,43 @@ This produces intermittent, cache-state-dependent CORS failures. §9 handles it.
 
 ## 4. Architecture
 
-Two planes, with one invariant governing their relationship.
+**S3 is the whole storage layer for v1.** The control plane is designed (§6) but
+deferred: nothing in v1 reads or writes Postgres.
 
 ```
                         PUBLISH (operator, a few times a week)
                                      │
-                     ┌───────────────┴────────────────┐
-                     ▼                                ▼
-             RDS  (control plane)            S3  (content plane)
-             ───────────────────             ──────────────────
-             what exists                     the bytes themselves
-             who owns it                     stories/<id>.json
-             which asset is used where       assets/<sha256>/…
-             which markers are registered    markers/<id>/…
-                                                      │
-                                                      ▼
-                                                 CloudFront
-                                                      │
-                                                      ▼
-                                                   VIEWER
-                            (read path never touches RDS or the API)
+                                     ▼
+                     Vercel function ──── HeadObject: do the
+                            │              referenced assets exist?
+                            │
+                            ▼
+                     S3  (content plane)
+                     ──────────────────
+                     stories/<id>.json        mutable, 60 s TTL
+                     assets/<sha256>/…        immutable, cached forever
+                     markers/<id>/…           immutable
+                            │
+                            ▼
+                       CloudFront
+                            │
+                            ▼
+                         VIEWER
+        (read path touches no API, no database, nothing but the CDN)
+
+                     RDS ── provisioned, unused in v1.
+                            Earns its place when a management UI exists (§6).
 ```
 
 > **Invariant — artifact authority.**
-> The S3 artifact is the source of truth for rendering. RDS rows are a derived
-> index for querying. If they diverge, the artifact wins and RDS is rebuilt
-> from it.
+> The S3 artifact is the source of truth for rendering. Anything else is a
+> derived index. If they ever diverge, the artifact wins and the index is
+> rebuilt from it.
 
-This resolves the ambiguity of `anchor` and `assets` appearing in both places:
-they live in the artifact (authoritative, because the viewer reads only S3);
-RDS holds a *copy* of the marker binding and the asset-usage edges, written at
-publish, used only to answer author-time questions.
+That invariant is why `anchor` and `assets` live in the artifact rather than in
+a table: the viewer reads only S3, so anything it needs must be there. With the
+control plane deferred, the artifact is simply the only copy — which is the
+cleanest possible expression of the rule.
 
 **Why frames are not rows.** A frame's dominant payload is `art`, a complete SVG
 document of several KB to tens of KB. The viewer needs all frames, always, in
@@ -246,10 +253,13 @@ would turn every visitor into a Lambda invocation plus a DB connection
 (≈100–800 ms cold) instead of a CDN GET (≈20–50 ms edge-cached), would cost per
 view, and would take the exhibit down whenever the API is down.
 
-**A note on Lambda + RDS.** This pairing is normally an anti-pattern because of
-connection exhaustion. Here it is fine: keeping RDS off the read path leaves the
-API author-time-only — one operator, a handful of writes per week, concurrency
-≈ 1. No RDS Proxy is required.
+**A note on Lambda + RDS.** This pairing is normally an anti-pattern, and here
+the objection turned out to be structural rather than merely a performance
+concern: Vercel functions have no stable egress address, so there is no CIDR to
+allowlist against `rds.tf`'s security group, and opening it to `0.0.0.0/0` is
+refused by `variables.tf` — correctly. Rather than work around that, v1 removes
+the dependency (§6). When a management UI eventually needs the control plane,
+the connectivity question returns and must be answered then, not now.
 
 ---
 
@@ -306,7 +316,46 @@ path (§14.1).
 
 ---
 
-## 6. RDS schema
+## 6. RDS schema — deferred in full for v1
+
+> **Amended 2026-07-28.** v1 does not read or write Postgres at all.
+>
+> This section originally specified five tables and noted that three were not
+> load-bearing. Planning the deployment finished that argument: **the remaining
+> two are not load-bearing either.**
+>
+> Two things forced it. First, the deployment decision (§2.2) puts the API on
+> Vercel functions, which have no stable egress address to allowlist against
+> `rds.tf`'s security group — and `variables.tf` rightly refuses `0.0.0.0/0`.
+> Second, once that was examined, S3 turned out to already answer every
+> question `story_assets` was going to:
+>
+> | Question | Postgres | S3 |
+> |---|---|---|
+> | Do these exact bytes exist? | `select … where sha256 = $1` | `HeadObject assets/<sha>/full.webp` → 200 |
+> | Did the upload complete? | `committed` flag | the object exists at all |
+> | Two uploaders racing | `on conflict do nothing` | `If-None-Match: *` → 412 (§3.4) |
+> | Dimensions, filename, aspect | row columns | **already in the document** — `StoryAssetRef` |
+>
+> The `committed` flag existed only because a row could be written before its
+> bytes arrived. With S3 as the register that window does not exist: the object
+> either is there or is not, and the conditional write that created it was
+> atomic. The metadata columns turned out to duplicate `StoryAssetRef`.
+>
+> `asset_usage` goes the same way — reachability is derived by reading
+> `stories/*.json`, which §4 already names as the source of truth for
+> rendering. Deriving it means it cannot drift from what is actually served.
+>
+> **What this costs:** listing every asset an owner uploaded becomes an S3
+> `ListObjectsV2` rather than an indexed query. At one operator and tens of
+> assets, that is not a cost. **What it buys:** no VPC connectivity problem, no
+> migrations, no ORM, and one fewer always-on service on the bill.
+>
+> The schema below is retained as the design for **when a management UI exists**
+> — a story browser, multi-operator accounts, or audit history would each need
+> it. Nothing in Plan A or Plan B creates these tables.
+
+### 6.1 The deferred schema
 
 Control plane only. Never read by a viewer.
 
@@ -450,31 +499,50 @@ presigned signature makes S3 itself reject the mismatch (§3.5). With a single
 trusted operator this is theoretical; it stops being theoretical the moment the
 `owner_id` column carries real accounts.
 
-### 7.3 The `committed` flag
+### 7.3 S3 is the register — there is no `committed` flag
 
-The `story_assets` row is inserted when the presign is issued, before the bytes
-exist.
-`committed` stays `false` until the client confirms the PUT. Publish rejects any
-document referencing an uncommitted asset, so a failed upload can never produce
-a published story with a missing image — and the check is one indexed query, not
-N `HeadObject` calls.
+This originally described a `committed` boolean covering the window between
+issuing a presigned URL and the bytes arriving. **That window does not exist**,
+because the object itself is the record:
+
+- **Existence** is `HeadObject assets/<sha>/full.webp`. A 200 means those exact
+  bytes are stored — a certainty rather than an inference, because the key *is*
+  the hash.
+- **Atomicity** is `If-None-Match: *`. There is no partially-written state to
+  represent: S3 either accepted the write or answered 412 (§3.4).
+- **Metadata** — aspect, filename — is already in the document's
+  `StoryAssetRef`. The table duplicated it rather than owning it.
+
+Publish still refuses a document referencing an asset that never uploaded. The
+check is N `HeadObject` calls rather than one indexed query; at a handful of
+assets per story, published a few times a week, that is not a cost worth a
+database for.
+
+**The failure this protects against is worth naming.** Without the check, a
+document referencing a missing asset publishes cleanly and then renders a
+silent transparent gap on every visitor's device — discovered long after the
+operator has walked away.
 
 ### 7.4 Garbage collection
 
-```sql
-SELECT a.sha256 FROM story_assets a
-WHERE NOT EXISTS (SELECT 1 FROM asset_usage u WHERE u.sha256 = a.sha256)
-  AND a.created_at < now() - interval '30 days';
+Reachability is **derived from the published documents**, which §4 already names
+as the source of truth for rendering. Deriving it rather than maintaining a
+counter means the answer cannot drift from what is actually being served:
+
+```
+reachable = ⋃ { a.assetId : a ∈ doc.assets }  for every doc in stories/
+stored    = ListObjectsV2 under assets/
+delete    = stored − reachable, minus anything newer than the grace cutoff
 ```
 
-The 30-day grace period exists **because** uploads happen on drop: an asset
-legitimately has no usage rows between being dropped and the story being
-published. Without the grace window, GC would delete work in progress.
+The **30-day grace period** exists because uploads happen on drop: an asset
+legitimately has no references between being added and its story being
+published. Without the window, GC would delete work in progress.
 
-Deleting a story cascades its `asset_usage` rows, which drops the refcount;
-the object survives while any other story still references it. An operator
-therefore cannot delete "their" asset if it is shared — correct behaviour, and
-worth surfacing in the UI.
+An asset shared by two stories survives the deletion of either, because it is
+still reachable from the other. An operator therefore cannot delete "their"
+asset if someone else's story uses it — correct behaviour, and worth surfacing
+in the UI when there is one.
 
 ---
 

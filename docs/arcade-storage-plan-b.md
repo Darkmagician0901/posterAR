@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript (strict), Vercel Functions (Web handler signature), `@aws-sdk/client-s3`, vitest ^4.1.8, Terraform.
 
-**Prerequisites:** Plan A complete and merged. `docs/arcade-storage-ops-checklist.md` **OPS-0 decided**, OPS-1 through OPS-5 applied.
+**Prerequisites:** Plan A complete and merged. `docs/arcade-storage-ops-checklist.md` OPS-1 through OPS-5 applied.
 
 **Design source:** `docs/arcade-storage-aws-design.md`. Section references (§) point there.
 
@@ -36,21 +36,21 @@ either stub the call or invent credentials, and both look like progress.
 
 ---
 
-## Blocking dependency: OPS-0
+## Resolved: no database in v1
 
-Plan A Tasks 5 and 7 built Fastify routes for asset presigning. In the chosen
-deployment (Vercel app + AWS content, §2.2) **there is no host for Fastify**,
-and a Vercel function cannot reach the RDS instance as provisioned — it has no
-stable egress IP to allowlist, and `variables.tf` rightly refuses
-`0.0.0.0/0`.
+Planning surfaced a structural problem and it has been fixed rather than worked
+around. A Vercel function cannot reach the RDS instance as provisioned — no
+stable egress address to allowlist, and `variables.tf` rightly refuses
+`0.0.0.0/0` — while §2.2 rules out running Fastify on ECS.
 
-`docs/arcade-storage-ops-checklist.md` OPS-0 records the three ways out and
-recommends **Option A: drop Postgres from the asset path**, because S3 already
-answers every question the table was going to answer — existence is
-`HeadObject`, atomicity is `If-None-Match: *`, and the `committed` flag exists
-only to cover a window S3 does not have.
+**v1 therefore uses no database at all** (§6). S3 answers existence with
+`HeadObject`, atomicity with `If-None-Match: *`, and the metadata the tables
+would have held was already in the document's `StoryAssetRef`. The
+control-plane schema stays designed, for when a management UI needs it.
 
-**This plan is written for Option A.** Task 5 notes what changes under B or C.
+Consequences for this plan: `api/_s3.ts` is created by **Plan A Task 5**, not
+here, so Task 1 below only extends it with `putJson`. Task 5's garbage
+collection reads `stories/*.json` rather than querying `asset_usage`.
 
 ---
 
@@ -60,8 +60,6 @@ only to cover a window S3 does not have.
 
 | File | Responsibility |
 |---|---|
-| `api/_s3.ts` | Shared S3 client + credential resolution for Vercel functions. |
-| `api/story-assets.ts` | Presign + existence check, replacing Plan A's Fastify routes. |
 | `src/story/assetVariants.ts` | Which variant to request, and the `full` fallback. |
 | `src/story/assetVariants.test.ts` | Tests for the above. |
 | `scripts/gc-assets.ts` | Reclaims assets no published document references. |
@@ -71,6 +69,7 @@ only to cover a window S3 does not have.
 
 | File | Change |
 |---|---|
+| `api/_s3.ts` | Add `putJson` (created in Plan A Task 5). |
 | `api/publish.ts` | S3 `PutObject` instead of `@vercel/blob`; reject unresolvable assets. |
 | `api/publish.test.ts` | New tests for the S3 path. |
 | `src/services/storyApi.ts` | Read `stories/` from `VITE_STORY_BASE_URL`. |
@@ -81,67 +80,71 @@ only to cover a window S3 does not have.
 
 ---
 
-## Task 1: Shared S3 access for Vercel functions
+## Task 1: Extend the S3 helper with `putJson`
+
+`api/_s3.ts` already exists — **Plan A Task 5** created it with `BUCKET`,
+`getS3`, `objectExists`, and `presignPutConditional`. This task adds the one
+function publishing needs.
 
 **Files:**
-- Create: `api/_s3.ts`
+- Modify: `api/_s3.ts`
+- Modify: `api/_s3.test.ts`
 
 **Interfaces:**
-- Consumes: env `S3_BUCKET`, `S3_REGION`, and either `AWS_ROLE_ARN` (OIDC) or the static key pair.
-- Produces:
-  - `getS3(): S3Client`
-  - `BUCKET: string`
-  - `putJson(key: string, body: string, cacheControl: string): Promise<void>`
-  - `objectExists(key: string): Promise<boolean>`
+- Consumes: `getS3`, `BUCKET` (Plan A Task 5).
+- Produces: `putJson(key: string, body: string, cacheControl: string): Promise<void>`
 
-- [ ] **Step 1: Write the module**
+- [ ] **Step 1: Write the failing test**
 
-Vercel functions in `api/` are not covered by the frontend vitest config, and
-this module is a thin credential/transport wrapper with no branching logic
-worth a unit test. It is verified through `api/publish.test.ts` in Task 2.
+Append to `api/_s3.test.ts` — **merge the import into the existing block**
+rather than adding a second one:
 
-Create `api/_s3.ts`:
+```ts
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+
+describe('putJson', () => {
+  it('sends the body, content type, and cache control verbatim', async () => {
+    const sent: PutObjectCommand[] = [];
+    const { putJson, getS3 } = await import('./_s3');
+    // Replace the client's send with a recorder. The helper is a transport
+    // shell, so what matters is exactly what it hands to the SDK.
+    (getS3() as unknown as { send: (c: PutObjectCommand) => Promise<void> }).send = async (c) => {
+      sent.push(c);
+    };
+
+    await putJson('stories/x.json', '{"a":1}', 'public, max-age=60, must-revalidate');
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0].input.Key).toBe('stories/x.json');
+    expect(sent[0].input.Body).toBe('{"a":1}');
+    expect(sent[0].input.ContentType).toBe('application/json');
+    expect(sent[0].input.CacheControl).toBe('public, max-age=60, must-revalidate');
+  });
+});
+```
+
+- [ ] **Step 2: Run it and verify it fails**
+
+Run: `npx vitest run api/_s3.test.ts`
+Expected: FAIL — `putJson is not a function`.
+
+- [ ] **Step 3: Add the function**
+
+Append to `api/_s3.ts`:
 
 ```ts
 /**
- * _s3.ts — S3 access for Vercel functions.
- *
- * The leading underscore keeps this out of Vercel's route table: files in
- * api/ become endpoints, and this is a helper, not one.
- *
- * Credentials come from Vercel OIDC when AWS_ROLE_ARN is set, which is the
- * preferred path — the function exchanges a short-lived Vercel-signed token
- * for AWS credentials, so no static secret is stored anywhere. Falling back to
- * a static key pair keeps things working before that is wired up.
- */
-
-import { HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { awsCredentialsProvider } from '@vercel/functions/oidc';
-
-export const BUCKET = process.env.S3_BUCKET ?? '';
-const REGION = process.env.S3_REGION ?? 'us-east-1';
-const ROLE_ARN = process.env.AWS_ROLE_ARN;
-
-let client: S3Client | null = null;
-
-/** Returns the shared S3 client, constructing it on first use. */
-export function getS3(): S3Client {
-  if (client) return client;
-  client = new S3Client({
-    region: REGION,
-    ...(ROLE_ARN ? { credentials: awsCredentialsProvider({ roleArn: ROLE_ARN }) } : {}),
-  });
-  return client;
-}
-
-/**
  * Writes a JSON object.
+ *
+ * `cacheControl` is a required parameter rather than a default because the two
+ * callers need opposite values and getting it wrong is silent: `stories/` is
+ * mutable at a stable key and needs a short TTL, while content-addressed
+ * objects can be cached forever. A default would make one of them wrong
+ * without anyone noticing.
  *
  * @param key — Object key, e.g. `stories/my-story.json`.
  * @param body — Serialized JSON.
- * @param cacheControl — Sent verbatim as Cache-Control. `stories/` is mutable
- *   at a stable key, so it takes a short TTL; content-addressed objects take
- *   `immutable`.
+ * @param cacheControl — Sent verbatim as the Cache-Control header.
  */
 export async function putJson(key: string, body: string, cacheControl: string): Promise<void> {
   await getS3().send(
@@ -154,61 +157,25 @@ export async function putJson(key: string, body: string, cacheControl: string): 
     }),
   );
 }
-
-/**
- * Whether an object exists.
- *
- * Used to confirm a referenced asset was actually uploaded. Under OPS-0
- * Option A this replaces the `committed` column: the object either is there or
- * is not, and the conditional write that created it was atomic, so there is no
- * half-written state to represent.
- *
- * @param key — Object key to probe.
- * @returns True when the object exists. A 404 returns false; any other error
- *   propagates, because "we could not tell" must not be reported as "missing".
- */
-export async function objectExists(key: string): Promise<boolean> {
-  try {
-    await getS3().send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
-    return true;
-  } catch (err) {
-    const status = (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
-    if (status === 404) return false;
-    throw err;
-  }
-}
 ```
 
-- [ ] **Step 2: Add the dependencies**
+- [ ] **Step 4: Run it and verify it passes**
+
+Run: `npx vitest run api/_s3.test.ts`
+Expected: PASS — the 2 tests from Plan A plus this one.
+
+- [ ] **Step 5: Commit**
 
 ```bash
-npm install @aws-sdk/client-s3 @vercel/functions
+git add api/_s3.ts api/_s3.test.ts
+git commit -m "feat(storage): putJson for publishing story artifacts
+
+cacheControl is a required parameter rather than a default because the two
+callers need opposite values and getting it wrong is silent — stories/ is
+mutable at a stable key and needs a short TTL, while content-addressed objects
+can be cached indefinitely. A default would make one of them wrong without
+anyone noticing."
 ```
-
-- [ ] **Step 3: Verify it compiles**
-
-```bash
-npm run type-check
-```
-
-Expected: pass.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add api/_s3.ts package.json package-lock.json
-git commit -m "feat(storage): S3 access helper for Vercel functions
-
-Credentials come from Vercel OIDC when AWS_ROLE_ARN is set, so no static
-secret is stored; a static key pair remains as a fallback until that is wired
-up.
-
-objectExists treats only a 404 as absent and rethrows anything else — 'we
-could not tell' must never be reported as 'missing', because publish uses it
-to decide whether a document's assets are safe to reference."
-```
-
----
 
 ## Task 2: Publish to S3
 
@@ -560,7 +527,7 @@ unquantified device limit.
 - Produces:
   - `RASTER_LONGEST_AXIS = 1024`
   - `variantKey(assetId: string, variant: 'full' | 'r1024'): string`
-  - `uploadStoryAsset(blob, meta, derivative?: Blob)` — third parameter added
+  - `uploadStoryAsset(blob: Blob, contentType: AssetContentType, derivative?: Blob | null)` — third parameter added to Plan A Task 8's two-parameter signature
 
 - [ ] **Step 1: Write the failing test**
 
@@ -709,7 +676,7 @@ In `src/services/assetApi.ts`, accept and upload the derivative:
 ```ts
 export async function uploadStoryAsset(
   blob: Blob,
-  meta: AssetMeta,
+  contentType: AssetContentType,
   derivative?: Blob | null,
 ): Promise<string> {
   // ... existing hash + presign + PUT of the canonical bytes ...
@@ -760,9 +727,10 @@ than breaking the asset."
 - Consumes: `collectAssetRefs` (Plan A Task 1); `isAssetRef` (Plan A Task 3).
 - Produces: `unreachableAssets(published: StoryDoc[], stored: string[], graceCutoff): string[]`
 
-> **Under OPS-0 Option B or C**, reachability comes from `select … from
-> asset_usage` instead of reading `stories/*.json`. The pure function below is
-> unchanged either way; only its caller differs.
+> Reachability is derived from the published documents, which §4 names as the
+> source of truth for rendering — so it cannot drift from what is actually
+> being served. If a control plane is ever added (§6), the pure function below
+> is unchanged; only its caller would differ.
 
 - [ ] **Step 1: Write the failing test**
 

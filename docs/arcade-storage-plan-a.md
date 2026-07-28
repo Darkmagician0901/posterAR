@@ -52,17 +52,17 @@ both look like progress in a diff.
 | `src/story/assetHash.test.ts` | Tests for the above. |
 | `src/story/assetResolver.ts` | `assetId` → `data:` URL, bounded cache, never throws. |
 | `src/story/assetResolver.test.ts` | Tests for the above. |
-| `src/services/assetApi.ts` | Presign/commit client; dedup, 412 and 409 handling. |
+| `src/services/assetApi.ts` | Presign + upload client; dedup and 412 handling. |
 | `src/services/assetApi.test.ts` | Tests for the above. |
+| `api/_s3.ts` | S3 client, `objectExists`, conditional presign. Vercel function helper. |
+| `api/_s3.test.ts` | Tests for the above. |
+| `api/story-assets.ts` | `POST /api/story-assets` — dedup check + presign. |
+| `api/story-assets.test.ts` | Tests for the above. |
 | `src/studio/assetGuard.ts` | Refuses animated GIFs as composed frame assets (§2.1). |
 | `src/studio/assetGuard.test.ts` | Tests for the above. |
 | `src/studio/composeImages.ts` | Adapter: document assets → `compose()`'s `ImageAsset` map. |
 | `src/studio/composeImages.test.ts` | Tests for the above. |
 | `src/studio/useResolvedAssets.ts` | Supplies resolved bytes to studio previews only. |
-| `server/migrations/003_story_assets.sql` | `story_assets` + `asset_usage` tables. |
-| `server/src/db/storyAssetsRepo.ts` | Row access for `story_assets`. |
-| `server/src/routes/storyAssets.ts` | `POST /api/story-assets/presign`, `POST /api/story-assets/:sha/commit`. |
-| `server/src/routes/storyAssets.test.ts` | Tests for the above. |
 
 **Modified**
 
@@ -77,10 +77,15 @@ both look like progress in a diff.
 | `src/studio/PhonePreview.tsx` | Resolve assets for the preview. |
 | `src/App.tsx` | Hydrate the loaded document before it reaches the content store. |
 | `src/vite-env.d.ts` | Declare `VITE_ASSET_BASE_URL`. |
-| `server/src/storage/objectStore.ts` | Add `presignPutConditional`. |
-| `server/src/app.ts` | Register the new routes. |
-| `infra/terraform/s3.tf` | Scope the lifecycle rule to `tmp/`; per-prefix cache-control; CORS. |
-| `infra/terraform/variables.tf` | Remove the `["*"]` CORS default. |
+| `vitest.config.ts` | Add `api/**/*.test.ts` to `include` so the function tests run. |
+| `package.json` | Add `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, `@vercel/functions`. |
+
+**Deliberately NOT modified**
+
+| Path | Why |
+|---|---|
+| `server/**` | The Fastify server has no deployment target under §2.2, and v1 uses no database (§6). The poster asset path it serves keeps working untouched. Task 6 asserts this with a `git diff` check. |
+| `infra/**` | Not on this branch — it exists only on `feat/marker-spaces-testbed`. Configured by hand: `docs/arcade-storage-ops-checklist.md` OPS-1 to OPS-4. |
 
 ---
 
@@ -773,611 +778,474 @@ Ask the repository owner to confirm the lifecycle rule is scoped to `tmp/`. Unti
 
 ---
 
-## Task 5: Server — `story_assets` schema and repo
+## Task 5: S3 access for Vercel functions
+
+> **Amended.** Tasks 5–7 originally built Fastify routes backed by a
+> `story_assets` Postgres table. In the chosen deployment (§2.2) Fastify has no
+> host, and a Vercel function cannot reach RDS — no stable egress address to
+> allowlist, and `variables.tf` rightly refuses `0.0.0.0/0`. Rather than work
+> around that, **v1 has no database** (§6): S3 answers existence with
+> `HeadObject`, atomicity with `If-None-Match: *`, and the metadata was already
+> in the document. Three tasks became two, and the `/commit` round trip
+> disappeared entirely.
 
 **Files:**
-- Create: `server/migrations/003_story_assets.sql`
-- Create: `server/src/db/storyAssetsRepo.ts`
+- Create: `api/_s3.ts`
+- Test: `api/_s3.test.ts`
 
 **Interfaces:**
-- Consumes: `pg.Pool`.
+- Consumes: env `S3_BUCKET`, `S3_REGION`, and either `AWS_ROLE_ARN` (OIDC) or a static key pair.
 - Produces:
-  - `StoryAssetRow { sha256, owner_id, content_type, byte_size, width, height, is_animated, original_name, committed, created_at }`
-  - `StoryAssetsRepo { findBySha, insertPending, markCommitted }`
+  - `BUCKET: string`
+  - `getS3(): S3Client`
+  - `objectExists(key: string): Promise<boolean>`
+  - `presignPutConditional(key: string, contentType: string, sha256Base64: string): Promise<string>`
 
-- [ ] **Step 1: Write the migration**
-
-Create `server/migrations/003_story_assets.sql`:
-
-```sql
--- Content-addressed assets for authored stories.
---
--- NOT the `assets` table from migration 001. That one serves the poster path:
--- uuid primary key, `<owner>/<uuid>.<ext>` storage keys, no content
--- addressing. It is live and must not be disturbed. Unifying the two is
--- deliberately deferred — it would mean rekeying every existing poster object
--- for no benefit here.
-create table if not exists story_assets (
-  sha256        text primary key,
-  owner_id      text not null,
-  content_type  text not null,
-  byte_size     bigint not null,
-  width         int not null,
-  height        int not null,
-  is_animated   boolean not null default false,
-  original_name text,
-  -- False between issuing a presigned URL and the client confirming the
-  -- upload. Publishing rejects any document referencing an uncommitted asset,
-  -- so a failed upload can never produce a story with a missing image.
-  committed     boolean not null default false,
-  created_at    timestamptz not null default now()
-);
-
-create index if not exists story_assets_owner_idx on story_assets (owner_id, created_at desc);
-```
-
-- [ ] **Step 2: Write the repo**
-
-Create `server/src/db/storyAssetsRepo.ts`:
-
-```ts
-import type pg from 'pg';
-
-export interface StoryAssetRow {
-  sha256: string;
-  owner_id: string;
-  content_type: string;
-  byte_size: number;
-  width: number;
-  height: number;
-  is_animated: boolean;
-  original_name: string | null;
-  committed: boolean;
-  created_at: string;
-}
-
-export interface StoryAssetsRepo {
-  findBySha(sha256: string): Promise<StoryAssetRow | null>;
-  /** Inserts an uncommitted row, or leaves an existing row untouched. */
-  insertPending(row: Omit<StoryAssetRow, 'created_at' | 'committed'>): Promise<void>;
-  markCommitted(sha256: string, ownerId: string): Promise<boolean>;
-}
-
-export function createStoryAssetsRepo(pool: pg.Pool): StoryAssetsRepo {
-  return {
-    async findBySha(sha256) {
-      const res = await pool.query<StoryAssetRow>(
-        'select * from story_assets where sha256 = $1',
-        [sha256],
-      );
-      return res.rows[0] ?? null;
-    },
-
-    async insertPending(row) {
-      // `do nothing` rather than `do update`: the row is keyed by a content
-      // hash, so an existing row already describes these exact bytes. Two
-      // uploaders racing the same image must not overwrite each other's
-      // metadata.
-      await pool.query(
-        `insert into story_assets
-           (sha256, owner_id, content_type, byte_size, width, height, is_animated, original_name)
-         values ($1,$2,$3,$4,$5,$6,$7,$8)
-         on conflict (sha256) do nothing`,
-        [
-          row.sha256,
-          row.owner_id,
-          row.content_type,
-          row.byte_size,
-          row.width,
-          row.height,
-          row.is_animated,
-          row.original_name,
-        ],
-      );
-    },
-
-    async markCommitted(sha256, ownerId) {
-      const res = await pool.query(
-        'update story_assets set committed = true where sha256 = $1 and owner_id = $2',
-        [sha256, ownerId],
-      );
-      return (res.rowCount ?? 0) > 0;
-    },
-  };
-}
-```
-
-- [ ] **Step 3: Verify it compiles**
+- [ ] **Step 1: Add the dependencies**
 
 ```bash
-cd server && npx tsc --noEmit
+npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner @vercel/functions
 ```
 
-Expected: no errors.
+- [ ] **Step 2: Write the failing test**
 
-- [ ] **Step 4: Commit**
-
-```bash
-cd ..
-git add server/migrations/003_story_assets.sql server/src/db/storyAssetsRepo.ts
-git commit -m "feat(storage): story_assets table keyed by content hash
-
-Separate from migration 001's assets table, which serves the poster path with
-uuid keys and is live. Unifying them is deferred; it would mean rekeying every
-existing poster object for no benefit here.
-
-The committed flag closes the window between issuing a presigned URL and the
-bytes actually arriving, so publishing can reject a document that references
-an upload which never completed."
-```
-
----
-
-## Task 6: Server — conditional presign
-
-**Files:**
-- Modify: `server/src/storage/objectStore.ts`
-- Modify: `server/src/storage/objectStore.test.ts`
-
-**Interfaces:**
-- Consumes: `AppConfig['s3']`.
-- Produces: `ObjectStore.presignPutConditional(key, contentType, sha256Base64): Promise<string>`
-
-- [ ] **Step 1: Write the failing test**
-
-Append to `server/src/storage/objectStore.test.ts`:
+Create `api/_s3.test.ts`:
 
 ```ts
-import { describe, expect, it } from 'vitest';
-import { createObjectStore } from './objectStore';
+import { describe, expect, it, beforeEach } from 'vitest';
 
-const cfg = {
-  endpoint: 'https://s3.us-east-1.amazonaws.com',
-  region: 'us-east-1',
-  accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
-  secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
-  bucket: 'test-bucket',
-  publicBaseUrl: 'https://cdn.example',
-  forcePathStyle: false,
-};
+beforeEach(() => {
+  process.env.S3_BUCKET = 'test-bucket';
+  process.env.S3_REGION = 'us-east-1';
+  process.env.AWS_ACCESS_KEY_ID = 'AKIAIOSFODNN7EXAMPLE';
+  process.env.AWS_SECRET_ACCESS_KEY = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY';
+  delete process.env.AWS_ROLE_ARN;
+});
 
 describe('presignPutConditional', () => {
   it('signs both the conditional and the checksum headers', async () => {
-    const url = await createObjectStore(cfg).presignPutConditional(
+    const { presignPutConditional } = await import('./_s3');
+    const url = await presignPutConditional(
       'assets/abc/full.webp',
       'image/webp',
       '47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=',
     );
     const signed = decodeURIComponent(new URL(url).searchParams.get('X-Amz-SignedHeaders') ?? '');
     // Both must be SIGNED, not merely sent: an unsigned header can be dropped
-    // or altered by the client, which would defeat both guarantees.
+    // or altered by the client, which defeats both guarantees.
     expect(signed).toContain('if-none-match');
     expect(signed).toContain('x-amz-checksum-sha256');
+  });
+
+  it('targets the configured bucket', async () => {
+    const { presignPutConditional } = await import('./_s3');
+    const url = await presignPutConditional('assets/abc/full.webp', 'image/webp', 'zz');
+    expect(url).toContain('test-bucket');
   });
 });
 ```
 
-- [ ] **Step 2: Run the test and verify it fails**
+- [ ] **Step 3: Run it and verify it fails**
 
-Run: `cd server && npx vitest run src/storage/objectStore.test.ts`
-Expected: FAIL — `presignPutConditional is not a function`.
+Run: `npx vitest run api/_s3.test.ts`
 
-- [ ] **Step 3: Implement it**
+Expected: FAIL — module not found. If vitest does not collect the file at all,
+add `api/**/*.test.ts` to `include` in `vitest.config.ts`; that is part of this
+step, not a workaround.
 
-In `server/src/storage/objectStore.ts`, extend the interface and the returned object:
+- [ ] **Step 4: Write the module**
+
+Create `api/_s3.ts`:
 
 ```ts
-export interface ObjectStore {
-  presignPut(key: string, contentType: string): Promise<string>;
-  /**
-   * Presigns a PUT that S3 will reject unless the object is new AND the bytes
-   * hash to the expected value.
-   *
-   * `If-None-Match: *` makes the write conditional, so a concurrent upload of
-   * identical bytes cannot clobber a completed object — S3 answers 412, which
-   * the client treats as a successful dedup rather than an error.
-   *
-   * `x-amz-checksum-sha256` closes an integrity hole specific to content
-   * addressing: the client computes the hash, so without this a dishonest
-   * client could store bytes X under the key SHA256(Y). Because dedup is
-   * global, that would poison the address for every story. Both headers are
-   * SIGNED, so the client cannot drop or alter them.
-   *
-   * @param key — Object key, e.g. `assets/<sha256>/full.webp`.
-   * @param contentType — MIME type of the payload.
-   * @param sha256Base64 — The expected digest, base64-encoded.
-   * @returns A presigned URL valid for 5 minutes.
-   */
-  presignPutConditional(key: string, contentType: string, sha256Base64: string): Promise<string>;
-  publicUrl(key: string): string;
+/**
+ * _s3.ts — S3 access for Vercel functions.
+ *
+ * The leading underscore keeps this out of Vercel's route table: files in api/
+ * become endpoints, and this is a helper.
+ *
+ * S3 is the whole storage layer for v1 — there is no database. An object's
+ * existence is the record that it was uploaded, and because the key is the
+ * content hash, existence means those exact bytes are stored.
+ *
+ * Credentials come from Vercel OIDC when AWS_ROLE_ARN is set: the function
+ * exchanges a short-lived Vercel-signed token for AWS credentials, so no static
+ * secret is stored anywhere. A static key pair remains as a fallback until that
+ * is wired up.
+ */
+
+import { HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { awsCredentialsProvider } from '@vercel/functions/oidc';
+
+export const BUCKET = process.env.S3_BUCKET ?? '';
+
+let client: S3Client | null = null;
+
+/** Returns the shared S3 client, constructing it on first use. */
+export function getS3(): S3Client {
+  if (client) return client;
+  const roleArn = process.env.AWS_ROLE_ARN;
+  client = new S3Client({
+    region: process.env.S3_REGION ?? 'us-east-1',
+    ...(roleArn ? { credentials: awsCredentialsProvider({ roleArn }) } : {}),
+  });
+  return client;
+}
+
+/**
+ * Whether an object exists.
+ *
+ * This replaces what a `committed` database column would have tracked. There
+ * is no half-written state to represent: the conditional write that creates an
+ * object is atomic, so the object either is there or is not.
+ *
+ * @param key — Object key to probe.
+ * @returns True when the object exists. A 404 returns false; every other error
+ *   propagates, because "we could not tell" must never be reported as
+ *   "missing" — publish uses this to decide whether a document is safe.
+ */
+export async function objectExists(key: string): Promise<boolean> {
+  try {
+    await getS3().send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
+    return true;
+  } catch (err) {
+    const status = (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+    if (status === 404) return false;
+    throw err;
+  }
+}
+
+/**
+ * Presigns a PUT that S3 rejects unless the object is new AND the bytes hash to
+ * the expected value.
+ *
+ * `If-None-Match: *` makes the write conditional, so a concurrent upload of
+ * identical bytes cannot clobber a completed object — S3 answers 412, which the
+ * client treats as a successful dedup rather than an error.
+ *
+ * `x-amz-checksum-sha256` closes an integrity hole specific to content
+ * addressing: the client computes the hash, so without it a dishonest client
+ * could store bytes X under the key SHA256(Y). Because dedup is global, that
+ * would poison the address for every story.
+ *
+ * Both headers are SIGNED, so a client that drops or alters one gets a
+ * signature mismatch rather than a silent success.
+ *
+ * @param key — Object key, e.g. `assets/<sha256>/full.webp`.
+ * @param contentType — MIME type of the payload.
+ * @param sha256Base64 — Expected digest, base64-encoded.
+ * @returns A presigned URL valid for 5 minutes.
+ */
+export async function presignPutConditional(
+  key: string,
+  contentType: string,
+  sha256Base64: string,
+): Promise<string> {
+  const cmd = new PutObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+    ContentType: contentType,
+    IfNoneMatch: '*',
+    ChecksumSHA256: sha256Base64,
+    // Content-addressed, therefore immutable, therefore cacheable forever.
+    CacheControl: 'public, max-age=31536000, immutable',
+  });
+  return getSignedUrl(getS3(), cmd, {
+    expiresIn: 300,
+    signableHeaders: new Set(['if-none-match', 'x-amz-checksum-sha256']),
+  });
 }
 ```
 
-And in `createObjectStore`'s returned object:
+- [ ] **Step 5: Run it and verify it passes**
 
-```ts
-    async presignPutConditional(key, contentType, sha256Base64) {
-      const cmd = new PutObjectCommand({
-        Bucket: s3.bucket,
-        Key: key,
-        ContentType: contentType,
-        IfNoneMatch: '*',
-        ChecksumSHA256: sha256Base64,
-      });
-      return getSignedUrl(client, cmd, {
-        expiresIn: 300,
-        signableHeaders: new Set(['if-none-match', 'x-amz-checksum-sha256']),
-      });
-    },
-```
+Run: `npx vitest run api/_s3.test.ts`
+Expected: PASS — 2 tests.
 
-- [ ] **Step 4: Run the test and verify it passes**
-
-Run: `cd server && npx vitest run src/storage/objectStore.test.ts`
-Expected: PASS.
-
-- [ ] **Step 5: Fix the fake store in the existing route tests**
-
-`server/src/routes/assets.test.ts` defines a literal `ObjectStore`, which no longer satisfies the interface. Add the new method to that fake:
-
-```ts
-  async presignPutConditional(key: string) {
-    return `https://store.example/${key}?X-Amz-Signature=abc`;
-  },
-```
-
-- [ ] **Step 6: Verify the server suite**
+- [ ] **Step 6: Commit**
 
 ```bash
-cd server && npm test
-```
+git add api/_s3.ts api/_s3.test.ts package.json package-lock.json vitest.config.ts
+git commit -m "feat(storage): S3 access helper for Vercel functions
 
-Expected: all 33 existing tests plus the new one pass.
+S3 is the whole storage layer for v1 — there is no database. An object's
+existence is the record that it uploaded, and because the key is the content
+hash, existence means those exact bytes are stored.
 
-- [ ] **Step 7: Commit**
+If-None-Match: * makes the write conditional so concurrent uploads of identical
+bytes cannot clobber a completed object; S3 answers 412, which the client
+treats as a successful dedup. x-amz-checksum-sha256 stops a dishonest client
+storing bytes X under the key SHA256(Y), which would poison that address for
+every story because dedup is global. Both headers are signed.
 
-```bash
-cd ..
-git add server/src/storage/objectStore.ts server/src/storage/objectStore.test.ts server/src/routes/assets.test.ts
-git commit -m "feat(storage): conditional presigned PUT with SHA-256 checksum
-
-If-None-Match: * makes the upload conditional so concurrent uploads of
-identical bytes cannot clobber a completed object; S3 answers 412, which the
-client treats as a successful dedup.
-
-x-amz-checksum-sha256 closes an integrity hole specific to content
-addressing: the client computes the hash, so without it a dishonest client
-could store bytes X under the key SHA256(Y) and — because dedup is global —
-poison that address for every story. Both headers are signed, so the client
-cannot drop them."
+objectExists treats only a 404 as absent and rethrows everything else: 'we
+could not tell' must never be reported as 'missing'."
 ```
 
 ---
 
-## Task 7: Server — presign and commit routes
+## Task 6: FOLDED INTO TASK 5
+
+**Do not implement this task.** `presignPutConditional` originally lived in
+`server/src/storage/objectStore.ts` and is now part of `api/_s3.ts` (Task 5),
+because the Fastify server has no deployment target under §2.2.
+
+`server/` is otherwise untouched by this plan — the poster asset path continues
+to work exactly as it does today.
+
+- [ ] **Step 1: Confirm no server changes were made**
+
+```bash
+git diff --stat origin/main -- server/
+```
+
+Expected: **empty.** Plan A must not modify `server/`. If it does, work
+intended for Task 5 landed in the wrong place.
+
+---
+
+## Task 7: The presign endpoint
 
 **Files:**
-- Create: `server/src/routes/storyAssets.ts`
-- Create: `server/src/routes/storyAssets.test.ts`
-- Modify: `server/src/app.ts`
+- Create: `api/story-assets.ts`
+- Test: `api/story-assets.test.ts`
 
 **Interfaces:**
-- Consumes: `StoryAssetsRepo`, `ObjectStore.presignPutConditional`.
-- Produces:
-  - `POST /api/story-assets/presign` → `201 { exists: false, uploadUrl, requiredHeaders }` or `200 { exists: true }`
-  - `POST /api/story-assets/:sha256/commit` → `204`
-  - `registerStoryAssetRoutes(app, { repo, store })`
+- Consumes: `objectExists`, `presignPutConditional`, `BUCKET` (Task 5).
+- Produces: `POST /api/story-assets` → `200 { exists: true }` or `201 { exists: false, uploadUrl, requiredHeaders }`
+
+**There is no commit endpoint.** The object's existence *is* the commit.
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `server/src/routes/storyAssets.test.ts`:
+Create `api/story-assets.test.ts`:
 
 ```ts
-import { describe, it, expect, beforeEach } from 'vitest';
-import { buildApp } from '../app';
-import type { StoryAssetRow, StoryAssetsRepo } from '../db/storyAssetsRepo';
-import type { ObjectStore } from '../storage/objectStore';
-import type { AssetsRepo } from '../db/assetsRepo';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+
+const present = new Set<string>();
+const presigned: string[] = [];
+
+vi.mock('./_s3', () => ({
+  BUCKET: 'test-bucket',
+  async objectExists(key: string) {
+    return present.has(key);
+  },
+  async presignPutConditional(key: string) {
+    presigned.push(key);
+    return `https://store.example/${key}?X-Amz-Signature=abc`;
+  },
+}));
 
 const SHA = 'a'.repeat(64);
-const OWNER = 'owner-1';
-
-function fakeStoryRepo(): StoryAssetsRepo & { rows: StoryAssetRow[] } {
-  const rows: StoryAssetRow[] = [];
-  return {
-    rows,
-    async findBySha(sha) {
-      return rows.find((r) => r.sha256 === sha) ?? null;
-    },
-    async insertPending(row) {
-      if (!rows.find((r) => r.sha256 === row.sha256)) {
-        rows.push({ ...row, committed: false, created_at: new Date().toISOString() });
-      }
-    },
-    async markCommitted(sha, owner) {
-      const r = rows.find((x) => x.sha256 === sha && x.owner_id === owner);
-      if (!r) return false;
-      r.committed = true;
-      return true;
-    },
-  };
-}
-
-const store: ObjectStore = {
-  async presignPut(key) {
-    return `https://store.example/${key}`;
-  },
-  async presignPutConditional(key) {
-    return `https://store.example/${key}?conditional=1`;
-  },
-  publicUrl(key) {
-    return `https://cdn.example/${key}`;
-  },
-};
-
-const emptyAssetsRepo: AssetsRepo = {
-  async insert() {},
-  async listByOwner() {
-    return [];
-  },
-  async deleteById() {},
-};
 
 const body = {
   sha256: SHA,
   sha256Base64: 'qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqo=',
   contentType: 'image/webp',
-  byteSize: 1234,
-  width: 100,
-  height: 200,
-  isAnimated: false,
-  originalName: 'logo.webp',
 };
 
-let repo: ReturnType<typeof fakeStoryRepo>;
-const app = () => buildApp({ repo: emptyAssetsRepo, storyAssets: repo, store });
-
-const post = (url: string, payload?: unknown, owner: string | null = OWNER) =>
-  app().inject({
-    method: 'POST',
-    url,
-    payload,
-    headers: owner === null ? {} : { 'x-owner-id': owner },
-  });
+async function post(payload: unknown) {
+  const { default: handler } = await import('./story-assets');
+  return handler(
+    new Request('https://x/api/story-assets', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  );
+}
 
 beforeEach(() => {
-  repo = fakeStoryRepo();
+  present.clear();
+  presigned.length = 0;
+  process.env.S3_BUCKET = 'test-bucket';
+  vi.resetModules();
 });
 
-describe('POST /api/story-assets/presign', () => {
-  it('issues a conditional upload URL for an unseen hash', async () => {
-    const res = await post('/api/story-assets/presign', body);
-    expect(res.statusCode).toBe(201);
-    const json = res.json();
+describe('POST /api/story-assets', () => {
+  it('issues a conditional upload URL for unseen bytes', async () => {
+    const res = await post(body);
+    expect(res.status).toBe(201);
+    const json = await res.json();
     expect(json.exists).toBe(false);
-    expect(json.uploadUrl).toContain('assets/' + SHA + '/full.webp');
+    expect(json.uploadUrl).toContain(`assets/${SHA}/full.webp`);
     expect(json.requiredHeaders['If-None-Match']).toBe('*');
     expect(json.requiredHeaders['x-amz-checksum-sha256']).toBe(body.sha256Base64);
-    expect(repo.rows).toHaveLength(1);
-    expect(repo.rows[0].committed).toBe(false);
   });
 
-  it('reports a dedup hit for an already committed hash, without an upload URL', async () => {
-    await post('/api/story-assets/presign', body);
-    await post(`/api/story-assets/${SHA}/commit`);
-
-    const res = await post('/api/story-assets/presign', body);
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ exists: true });
-  });
-
-  // An abandoned upload must not permanently block the same bytes.
-  it('re-issues an upload URL when a row exists but was never committed', async () => {
-    await post('/api/story-assets/presign', body);
-    const res = await post('/api/story-assets/presign', body);
-    expect(res.statusCode).toBe(201);
-    expect(res.json().exists).toBe(false);
+  // The dedup win: the bytes are already stored, so there is nothing to upload
+  // and — with no database — nothing to record either.
+  it('reports a dedup hit without presigning anything', async () => {
+    present.add(`assets/${SHA}/full.webp`);
+    const res = await post(body);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ exists: true });
+    expect(presigned).toHaveLength(0);
   });
 
   it('rejects a sha256 that is not 64 lowercase hex', async () => {
-    const res = await post('/api/story-assets/presign', { ...body, sha256: 'nope' });
-    expect(res.statusCode).toBe(400);
+    expect((await post({ ...body, sha256: 'nope' })).status).toBe(400);
+    expect((await post({ ...body, sha256: 'A'.repeat(64) })).status).toBe(400);
   });
 
+  // An SVG served from the bucket origin would be active content.
   it('rejects a content type outside the allowlist', async () => {
-    const res = await post('/api/story-assets/presign', { ...body, contentType: 'image/svg+xml' });
-    expect(res.statusCode).toBe(400);
+    expect((await post({ ...body, contentType: 'image/svg+xml' })).status).toBe(400);
+    expect((await post({ ...body, contentType: 'text/html' })).status).toBe(400);
   });
 
-  it('rejects a missing owner header', async () => {
-    const res = await post('/api/story-assets/presign', body, null);
-    expect(res.statusCode).toBe(400);
-  });
-});
-
-describe('POST /api/story-assets/:sha256/commit', () => {
-  it('marks an asset committed', async () => {
-    await post('/api/story-assets/presign', body);
-    const res = await post(`/api/story-assets/${SHA}/commit`);
-    expect(res.statusCode).toBe(204);
-    expect(repo.rows[0].committed).toBe(true);
+  it('rejects a body that is not an object', async () => {
+    expect((await post('nope')).status).toBe(400);
   });
 
-  it('404s for an unknown hash', async () => {
-    const res = await post(`/api/story-assets/${'b'.repeat(64)}/commit`);
-    expect(res.statusCode).toBe(404);
+  it('503s when the bucket is not configured', async () => {
+    delete process.env.S3_BUCKET;
+    vi.resetModules();
+    expect((await post(body)).status).toBe(503);
   });
 
-  it('404s when another owner tries to commit', async () => {
-    await post('/api/story-assets/presign', body);
-    const res = await post(`/api/story-assets/${SHA}/commit`, undefined, 'someone-else');
-    expect(res.statusCode).toBe(404);
+  it('rejects a non-POST method', async () => {
+    const { default: handler } = await import('./story-assets');
+    const res = await handler(new Request('https://x/api/story-assets', { method: 'GET' }));
+    expect(res.status).toBe(405);
   });
 });
 ```
 
 - [ ] **Step 2: Run the tests and verify they fail**
 
-Run: `cd server && npx vitest run src/routes/storyAssets.test.ts`
-Expected: FAIL — cannot resolve `../db/storyAssetsRepo` route registration; `buildApp` rejects the extra dep.
+Run: `npx vitest run api/story-assets.test.ts`
+Expected: FAIL — module not found.
 
-- [ ] **Step 3: Write the routes**
+- [ ] **Step 3: Write the endpoint**
 
-Create `server/src/routes/storyAssets.ts`:
+Create `api/story-assets.ts`:
 
 ```ts
-import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
-import type { StoryAssetsRepo } from '../db/storyAssetsRepo.js';
-import type { ObjectStore } from '../storage/objectStore.js';
+/**
+ * POST /api/story-assets — issue a conditional upload URL for a story asset.
+ *
+ * Assets are content-addressed: the key is the SHA-256 of the bytes. That makes
+ * "have I seen these bytes?" a HeadObject rather than a database query, and
+ * makes the upload idempotent — so this endpoint holds no state of its own and
+ * there is no matching commit endpoint.
+ *
+ * Reads are unauthenticated because published assets are public by design. The
+ * write path is gated by possession of a presigned URL, which only this
+ * endpoint issues.
+ */
+
+import { objectExists, presignPutConditional, BUCKET } from './_s3';
 
 /**
- * Allowed upload types and their storage extensions.
+ * Upload types and their storage extensions.
  *
  * `image/svg+xml` is deliberately absent: an SVG served from the public bucket
- * origin would be active content, which is a stored-XSS vector. This mirrors
- * the allowlist the poster route already enforces.
+ * origin is active content and therefore a stored-XSS vector. Mirrors the
+ * allowlist the poster route already enforces.
  */
-const EXT = {
+const EXT: Record<string, string> = {
   'image/webp': 'webp',
   'image/gif': 'gif',
   'image/png': 'png',
   'image/jpeg': 'jpg',
-} as const;
+};
 
 const SHA256_RE = /^[a-f0-9]{64}$/;
-const OWNER_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
-const presignBody = z.object({
-  sha256: z.string().regex(SHA256_RE),
-  /** Same digest, base64-encoded — the form S3's checksum header takes. */
-  sha256Base64: z.string().min(1).max(64),
-  contentType: z.enum(Object.keys(EXT) as [keyof typeof EXT, ...(keyof typeof EXT)[]]),
-  byteSize: z.number().int().positive(),
-  width: z.number().int().positive(),
-  height: z.number().int().positive(),
-  isAnimated: z.boolean(),
-  originalName: z.string().max(256).nullable().optional(),
-});
-
-function ownerOf(req: { headers: Record<string, unknown> }): string | null {
-  const v = req.headers['x-owner-id'];
-  return typeof v === 'string' && OWNER_ID_RE.test(v) ? v : null;
+function json(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+  });
 }
 
-/** Object key for an asset's canonical bytes. */
-export function assetKey(sha256: string, contentType: keyof typeof EXT): string {
-  return `assets/${sha256}/full.${EXT[contentType]}`;
-}
+export default async function handler(request: Request): Promise<Response> {
+  if (request.method !== 'POST') {
+    return json({ error: 'Use POST.' }, 405);
+  }
+  if (!BUCKET) {
+    return json({ error: 'Uploads are not configured. Set S3_BUCKET.' }, 503);
+  }
 
-/**
- * Registers the content-addressed asset routes.
- *
- * @param app — The Fastify instance to register on.
- * @param deps — The story-asset repository and the object store.
- */
-export function registerStoryAssetRoutes(
-  app: FastifyInstance,
-  deps: { repo: StoryAssetsRepo; store: ObjectStore },
-): void {
-  const { repo, store } = deps;
+  let parsed: unknown;
+  try {
+    parsed = await request.json();
+  } catch {
+    return json({ error: 'Body was not valid JSON.' }, 400);
+  }
+  if (typeof parsed !== 'object' || parsed === null) {
+    return json({ error: 'Body must be an object.' }, 400);
+  }
 
-  app.post('/api/story-assets/presign', async (req, reply) => {
-    const owner = ownerOf(req);
-    if (!owner) return reply.code(400).send({ error: 'missing x-owner-id' });
+  const { sha256, sha256Base64, contentType } = parsed as Record<string, unknown>;
 
-    const parsed = presignBody.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: 'invalid body' });
-    const b = parsed.data;
+  // Lowercase hex only. This value becomes a path segment, so anything that
+  // could express a traversal or a scheme is refused outright.
+  if (typeof sha256 !== 'string' || !SHA256_RE.test(sha256)) {
+    return json({ error: 'sha256 must be 64 lowercase hex characters.' }, 400);
+  }
+  if (typeof sha256Base64 !== 'string' || sha256Base64.length === 0 || sha256Base64.length > 64) {
+    return json({ error: 'sha256Base64 is missing or malformed.' }, 400);
+  }
+  if (typeof contentType !== 'string' || !(contentType in EXT)) {
+    return json({ error: 'Unsupported image type.' }, 400);
+  }
 
-    // A committed row means these exact bytes are already stored. Content
-    // addressing makes that a certainty rather than a guess, so the upload
-    // can be skipped entirely.
-    const existing = await repo.findBySha(b.sha256);
-    if (existing?.committed) return reply.code(200).send({ exists: true });
+  const key = `assets/${sha256}/full.${EXT[contentType]}`;
 
-    await repo.insertPending({
-      sha256: b.sha256,
-      owner_id: owner,
-      content_type: b.contentType,
-      byte_size: b.byteSize,
-      width: b.width,
-      height: b.height,
-      is_animated: b.isAnimated,
-      original_name: b.originalName ?? null,
-    });
+  // Existence is the whole dedup check. Because the key is the content hash,
+  // a hit means these exact bytes are already stored — a certainty, not a
+  // guess — so there is nothing to upload.
+  if (await objectExists(key)) {
+    return json({ exists: true }, 200);
+  }
 
-    const key = assetKey(b.sha256, b.contentType);
-    const uploadUrl = await store.presignPutConditional(key, b.contentType, b.sha256Base64);
+  const uploadUrl = await presignPutConditional(key, contentType, sha256Base64);
 
-    return reply.code(201).send({
+  return json(
+    {
       exists: false,
       uploadUrl,
-      // Returned explicitly because these headers are SIGNED: a client that
-      // omits or changes one gets a signature mismatch, not a silent success.
+      // Returned explicitly because these headers are SIGNED: omitting or
+      // changing one produces a signature mismatch, not a silent success.
       requiredHeaders: {
         'If-None-Match': '*',
-        'x-amz-checksum-sha256': b.sha256Base64,
-        'Content-Type': b.contentType,
+        'x-amz-checksum-sha256': sha256Base64,
+        'Content-Type': contentType,
       },
-    });
-  });
-
-  app.post('/api/story-assets/:sha256/commit', async (req, reply) => {
-    const owner = ownerOf(req);
-    if (!owner) return reply.code(400).send({ error: 'missing x-owner-id' });
-
-    const { sha256 } = req.params as { sha256: string };
-    if (!SHA256_RE.test(sha256)) return reply.code(400).send({ error: 'invalid sha256' });
-
-    const ok = await repo.markCommitted(sha256, owner);
-    if (!ok) return reply.code(404).send({ error: 'unknown asset' });
-    return reply.code(204).send();
-  });
+    },
+    201,
+  );
 }
 ```
 
-- [ ] **Step 4: Register the routes**
+- [ ] **Step 4: Run the tests and verify they pass**
 
-In `server/src/app.ts`, extend the deps and register:
+Run: `npx vitest run api/story-assets.test.ts`
+Expected: PASS — 8 tests.
 
-```ts
-import type { StoryAssetsRepo } from './db/storyAssetsRepo.js';
-import { registerStoryAssetRoutes } from './routes/storyAssets.js';
+- [ ] **Step 5: Verify the whole suite**
 
-export function buildApp(deps: {
-  repo: AssetsRepo;
-  storyAssets: StoryAssetsRepo;
-  store: ObjectStore;
-}): FastifyInstance {
-  // ... existing body ...
-  registerAssetRoutes(app, deps);
-  registerStoryAssetRoutes(app, { repo: deps.storyAssets, store: deps.store });
-  return app;
-}
+```bash
+npm run type-check && npm run lint && npm run test
 ```
-
-Update `server/src/server.ts` to construct and pass `createStoryAssetsRepo(pool)`. Update the existing `assets.test.ts` and `spaces.test.ts` `buildApp(...)` calls to include a `storyAssets` stub — the same `fakeStoryRepo()` shape, or a minimal literal.
-
-- [ ] **Step 5: Run the tests and verify they pass**
-
-Run: `cd server && npm test`
-Expected: all pass — 33 existing plus 10 new.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd ..
-git add server/src/routes/storyAssets.ts server/src/routes/storyAssets.test.ts server/src/app.ts server/src/server.ts server/src/routes/assets.test.ts server/src/routes/spaces.test.ts
-git commit -m "feat(storage): presign and commit routes for content-addressed assets
+git add api/story-assets.ts api/story-assets.test.ts
+git commit -m "feat(storage): presign endpoint for content-addressed assets
 
-A committed row proves the exact bytes are already stored, so the upload is
-skipped entirely — dedup is a certainty rather than a heuristic. An
-uncommitted row re-issues the URL, so an abandoned upload never permanently
-blocks those bytes.
+Because the key is the SHA-256 of the bytes, 'have I seen these bytes?' is a
+HeadObject rather than a database query — a certainty rather than a heuristic.
+The endpoint holds no state of its own, so there is no commit endpoint and no
+row to reconcile.
 
-Signed headers are returned to the client explicitly: omitting one produces a
-signature mismatch rather than a silent success."
+image/svg+xml stays off the allowlist: an SVG served from the public bucket
+origin is active content and therefore a stored-XSS vector."
 ```
 
 ---
@@ -1389,53 +1257,45 @@ signature mismatch rather than a silent success."
 - Test: `src/services/assetApi.test.ts`
 
 **Interfaces:**
-- Consumes: `sha256Hex`, `hexToBase64` (Task 2); `getDeviceToken`; `API_BASE_URL`.
-- Produces: `uploadStoryAsset(blob: Blob, meta: AssetMeta): Promise<string>` — resolves to the `assetId`.
+- Consumes: `sha256Hex`, `hexToBase64` (Task 2); `API_BASE_URL`.
+- Produces:
+  - `AssetContentType = 'image/webp' | 'image/gif' | 'image/png' | 'image/jpeg'`
+  - `uploadStoryAsset(blob: Blob, contentType: AssetContentType): Promise<string>` — resolves to the assetId
+
+Note the shape: **no owner header and no metadata**. With no database there is
+nothing to attribute a row to, and the dimensions and filename the old design
+sent were already carried in the document's `StoryAssetRef`.
 
 - [ ] **Step 1: Write the failing test**
 
 Create `src/services/assetApi.test.ts`:
 
 ```ts
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import { uploadStoryAsset } from './assetApi';
 
-const meta = { contentType: 'image/webp' as const, width: 10, height: 20, isAnimated: false, originalName: 'a.webp' };
 const blob = () => new Blob([new Uint8Array([1, 2, 3])], { type: 'image/webp' });
-
-beforeEach(() => {
-  vi.stubGlobal('localStorage', {
-    getItem: () => 'owner-1',
-    setItem: () => {},
-  });
-});
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  vi.restoreAllMocks();
 });
 
 describe('uploadStoryAsset', () => {
-  it('skips the upload on a dedup hit', async () => {
-    const fetchMock = vi.fn(async (url: string) => {
-      if (String(url).endsWith('/presign')) {
-        return new Response(JSON.stringify({ exists: true }), { status: 200 });
-      }
-      throw new Error(`unexpected fetch: ${url}`);
-    });
+  it('returns the content address without uploading on a dedup hit', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ exists: true }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    const id = await uploadStoryAsset(blob(), meta);
+    const id = await uploadStoryAsset(blob(), 'image/webp');
     expect(id).toMatch(/^[a-f0-9]{64}$/);
+    // One call only: the presign request. Nothing is uploaded, and there is no
+    // commit step to follow it.
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('uploads then commits when the asset is new', async () => {
-    const calls: string[] = [];
+  it('uploads with the exact headers the server requires', async () => {
+    let putInit: RequestInit | undefined;
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
-      const u = String(url);
-      calls.push(`${init?.method ?? 'GET'} ${u.replace(/^https?:\/\/[^/]+/, '')}`);
-      if (u.endsWith('/presign')) {
+      if (String(url).includes('/api/story-assets')) {
         return new Response(
           JSON.stringify({
             exists: false,
@@ -1445,41 +1305,37 @@ describe('uploadStoryAsset', () => {
           { status: 201 },
         );
       }
-      if (u.startsWith('https://store.example')) return new Response(null, { status: 200 });
-      return new Response(null, { status: 204 });
+      putInit = init;
+      return new Response(null, { status: 200 });
     }));
 
-    await uploadStoryAsset(blob(), meta);
-    expect(calls[0]).toContain('/presign');
-    expect(calls[1]).toContain('PUT');
-    expect(calls[2]).toContain('/commit');
+    await uploadStoryAsset(blob(), 'image/webp');
+    expect(putInit?.method).toBe('PUT');
+    // The headers are SIGNED, so dropping one produces a signature mismatch.
+    expect((putInit?.headers as Record<string, string>)['If-None-Match']).toBe('*');
+    expect((putInit?.headers as Record<string, string>)['x-amz-checksum-sha256']).toBe('zz');
   });
 
-  // S3 answers 412 when the object already exists. That is a dedup win, not
-  // a failure, and must still be committed.
-  it('treats a 412 from S3 as success and still commits', async () => {
-    const calls: string[] = [];
+  // S3 answers 412 when If-None-Match rejects the write because the object
+  // already exists — a race with another uploader of identical bytes. The
+  // bytes we wanted are there, so this is success.
+  it('treats a 412 from S3 as success', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      const u = String(url);
-      calls.push(u);
-      if (u.endsWith('/presign')) {
+      if (String(url).includes('/api/story-assets')) {
         return new Response(
           JSON.stringify({ exists: false, uploadUrl: 'https://store.example/x', requiredHeaders: {} }),
           { status: 201 },
         );
       }
-      if (u.startsWith('https://store.example')) return new Response(null, { status: 412 });
-      return new Response(null, { status: 204 });
+      return new Response(null, { status: 412 });
     }));
 
-    await expect(uploadStoryAsset(blob(), meta)).resolves.toMatch(/^[a-f0-9]{64}$/);
-    expect(calls.some((c) => c.includes('/commit'))).toBe(true);
+    await expect(uploadStoryAsset(blob(), 'image/webp')).resolves.toMatch(/^[a-f0-9]{64}$/);
   });
 
-  it('throws with a useful message when the upload genuinely fails', async () => {
+  it('throws with the status when the upload genuinely fails', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      const u = String(url);
-      if (u.endsWith('/presign')) {
+      if (String(url).includes('/api/story-assets')) {
         return new Response(
           JSON.stringify({ exists: false, uploadUrl: 'https://store.example/x', requiredHeaders: {} }),
           { status: 201 },
@@ -1488,7 +1344,19 @@ describe('uploadStoryAsset', () => {
       return new Response(null, { status: 500 });
     }));
 
-    await expect(uploadStoryAsset(blob(), meta)).rejects.toThrow(/500/);
+    await expect(uploadStoryAsset(blob(), 'image/webp')).rejects.toThrow(/500/);
+  });
+
+  it('throws when the presign request is refused', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 400 })));
+    await expect(uploadStoryAsset(blob(), 'image/webp')).rejects.toThrow(/400/);
+  });
+
+  it('produces the same id for identical bytes', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ exists: true }), { status: 200 })));
+    const a = await uploadStoryAsset(blob(), 'image/webp');
+    const b = await uploadStoryAsset(blob(), 'image/webp');
+    expect(a).toBe(b);
   });
 });
 ```
@@ -1510,24 +1378,16 @@ Create `src/services/assetApi.ts`:
  * what keeps the draft free of base64: from the first instant, the document
  * holds only an assetId.
  *
- * The asset's identity is the SHA-256 of the bytes being stored, so uploading
- * the same image twice is a no-op the second time.
+ * There is no commit step and no owner header. The asset's identity is the
+ * SHA-256 of its bytes, so storing it is idempotent and the stored object is
+ * itself the record that it happened — no row to write, nothing to reconcile.
  */
 
 import { API_BASE_URL } from '@/utils/constants';
-import { getDeviceToken } from '@/utils/deviceToken';
 import { hexToBase64, sha256Hex } from '@/story/assetHash';
 
 /** Upload types the server accepts. Mirrors the server-side allowlist. */
 export type AssetContentType = 'image/webp' | 'image/gif' | 'image/png' | 'image/jpeg';
-
-export interface AssetMeta {
-  contentType: AssetContentType;
-  width: number;
-  height: number;
-  isAnimated: boolean;
-  originalName: string;
-}
 
 interface PresignResponse {
   exists: boolean;
@@ -1535,65 +1395,49 @@ interface PresignResponse {
   requiredHeaders?: Record<string, string>;
 }
 
-function authHeaders(): Record<string, string> {
-  return { 'x-owner-id': getDeviceToken(), 'content-type': 'application/json' };
-}
-
 /**
  * Stores an asset and returns its content address.
  *
  * @param blob — The canonical bytes to store, after compression.
- * @param meta — Dimensions and type, recorded server-side for the studio.
+ * @param contentType — MIME type of those bytes.
  * @returns The assetId (SHA-256 hex) to record in the document.
- * @throws When the presign, upload, or commit fails for any reason other than
- *   the object already existing.
+ * @throws When the presign or upload fails for any reason other than the
+ *   object already existing.
  */
-export async function uploadStoryAsset(blob: Blob, meta: AssetMeta): Promise<string> {
-  const buffer = await blob.arrayBuffer();
-  const sha256 = await sha256Hex(buffer);
-  const sha256Base64 = hexToBase64(sha256);
+export async function uploadStoryAsset(
+  blob: Blob,
+  contentType: AssetContentType,
+): Promise<string> {
+  const sha256 = await sha256Hex(await blob.arrayBuffer());
 
-  const presignRes = await fetch(`${API_BASE_URL}/api/story-assets/presign`, {
+  const presignRes = await fetch(`${API_BASE_URL}/api/story-assets`, {
     method: 'POST',
-    headers: authHeaders(),
-    body: JSON.stringify({
-      sha256,
-      sha256Base64,
-      contentType: meta.contentType,
-      byteSize: blob.size,
-      width: meta.width,
-      height: meta.height,
-      isAnimated: meta.isAnimated,
-      originalName: meta.originalName,
-    }),
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sha256, sha256Base64: hexToBase64(sha256), contentType }),
   });
   if (!presignRes.ok) throw new Error(`presign failed: ${presignRes.status}`);
 
   const presign = (await presignRes.json()) as PresignResponse;
-  // Already stored. Content addressing makes this a certainty, so there is
-  // nothing to upload and nothing to commit.
+  // Already stored. Content addressing makes this a certainty rather than a
+  // guess, so there is nothing to upload.
   if (presign.exists) return sha256;
 
   if (!presign.uploadUrl) throw new Error('presign returned no upload URL');
 
   const put = await fetch(presign.uploadUrl, {
     method: 'PUT',
+    // Sent verbatim: these headers are part of the signature, so altering or
+    // dropping one produces a mismatch rather than a silent success.
     headers: presign.requiredHeaders ?? {},
     body: blob,
   });
 
-  // 412 Precondition Failed means If-None-Match: * rejected the write because
-  // the object already exists — a race with another uploader of identical
-  // bytes. The bytes we wanted are there, so this is success.
+  // 412 Precondition Failed means If-None-Match rejected the write because the
+  // object already exists — a race with another uploader of identical bytes.
+  // The bytes we wanted are stored, so this is success.
   if (!put.ok && put.status !== 412) {
     throw new Error(`upload failed: ${put.status}`);
   }
-
-  const commit = await fetch(`${API_BASE_URL}/api/story-assets/${sha256}/commit`, {
-    method: 'POST',
-    headers: authHeaders(),
-  });
-  if (!commit.ok) throw new Error(`commit failed: ${commit.status}`);
 
   return sha256;
 }
@@ -1602,7 +1446,7 @@ export async function uploadStoryAsset(blob: Blob, meta: AssetMeta): Promise<str
 - [ ] **Step 4: Run the test and verify it passes**
 
 Run: `npx vitest run src/services/assetApi.test.ts`
-Expected: PASS — 4 tests.
+Expected: PASS — 6 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -1614,12 +1458,11 @@ Uploads happen when a file lands, not at publish time, which is what keeps
 base64 out of the draft — the document holds only an assetId from the first
 instant.
 
-A 412 from S3 means If-None-Match rejected the write because the object
-already exists. The bytes are there, so that path commits and succeeds rather
-than surfacing an error."
+No commit step and no owner header: the asset's identity is the hash of its
+bytes, so storing it is idempotent and the stored object is itself the record
+that it happened. A 412 means If-None-Match rejected the write because the
+object already exists, so those bytes are stored and that path succeeds."
 ```
-
----
 
 ## Task 8b: Refuse animated GIFs as composed frame assets
 
@@ -1777,13 +1620,7 @@ if (!check.ok) {
 
 let assetId: string;
 try {
-  assetId = await uploadStoryAsset(blob, {
-    contentType: processed.mimeType as AssetContentType,
-    width: processed.width,
-    height: processed.height,
-    isAnimated: false, // animated GIFs were refused above
-    originalName: processed.originalName,
-  });
+  assetId = await uploadStoryAsset(blob, processed.mimeType as AssetContentType);
 } catch (err) {
   setUploadError(err instanceof Error ? err.message : 'Upload failed. Check your connection.');
   return;
@@ -2669,7 +2506,7 @@ Explicitly **not** in this plan, so nothing here should attempt them:
 - CloudFront, the three CORS requirements and their cold-cache acceptance test (§9), and per-prefix cache-control.
 - The `/image-targets/*` Vercel rewrite (§14.1).
 - Replacing the IAM user with Vercel OIDC federation (§2.2).
-- The `asset_usage` table and reference-counted garbage collection (§7.4).
+- Garbage collection (§7.4) — reachability derived by reading `stories/*.json`.
 - The `r1024` display derivative (§5) — Plan A stores and reads `full.webp` only.
 - **The `StoryAnchor` field (§8.1).** The design defines its shape so that adding
   it needs no migration, but nothing in Plan A or Plan B reads it — anchoring is
@@ -2687,7 +2524,7 @@ Every section of `docs/arcade-storage-aws-design.md`, and where it lands:
 | §2.2 deployment shape | — | Plan B (CORS, rewrite, OIDC) |
 | §5 S3 layout, `assets/` prefix | Task 4, Task 7 | `stories/`, `markers/`, `r1024` |
 | §5.1 base URLs | `VITE_ASSET_BASE_URL`, Task 9 | `VITE_STORY_BASE_URL` |
-| §6 schema | `story_assets`, Task 5 | `stories`, `asset_usage`, `markers` |
+| §6 schema | **No database in v1** — S3 is the register (§7.3) | Whole schema, when a management UI exists |
 | §7.1 upload on drop | Task 8 | — |
 | §7.2 conditional + checksum | Task 6 | — |
 | §7.3 `committed` flag | Tasks 5, 7 | publish-time enforcement |

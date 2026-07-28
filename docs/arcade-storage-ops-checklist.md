@@ -4,9 +4,12 @@ Everything in the storage migration that a person configures by hand: AWS
 provisioning, Vercel project settings, secrets, and the marker CLI. No agent
 performs any of these.
 
-Companion documents: `docs/arcade-storage-aws-design.md` (the design, §
-references below point there), `docs/arcade-storage-plan-a.md`,
-`docs/arcade-storage-plan-b.md`.
+| Companion | Contents |
+|---|---|
+| `docs/arcade-architecture.md` | **The architecture. Start here.** |
+| `docs/arcade-storage-aws-design.md` | Design reasoning and its evolution; § references below point here |
+| `docs/arcade-storage-plan-a.md` | Implementation, phases 0–3 |
+| `docs/arcade-storage-plan-b.md` | Implementation, phases 4–6 |
 
 **Conventions**
 
@@ -15,6 +18,20 @@ references below point there), `docs/arcade-storage-plan-a.md`,
 | 🔴 **BLOCKING** | Code cannot proceed past a named task until this is done |
 | 🟡 **GATING** | Needed before a phase can be verified end to end |
 | ⚪ **WHEN CONVENIENT** | Improves posture; nothing waits on it |
+| ✅ **RESOLVED** | Recorded for the reasoning; nothing outstanding |
+
+## Do this first
+
+**One item blocks anything today: OPS-1**, and only because it protects a
+bucket that will otherwise delete published exhibits after 90 days. It is a
+few minutes of Terraform.
+
+**Plan A Tasks 0–7 need nothing from this list.** That is every pure-logic
+module, the S3 helper, and the presign endpoint — all unit-tested against
+mocks. Roughly half the implementation can proceed while this checklist sits
+untouched.
+
+Everything else can follow the code rather than precede it.
 
 ---
 
@@ -68,6 +85,11 @@ the two events.
 (PR #40) — not on `main`, not on `feat/story-composition`. Apply this there, or
 move `infra/` to `main` first.
 
+If you would rather not run Terraform for this, the same fix in the console:
+**S3 → your bucket → Management → Lifecycle rules** → edit the existing rule →
+change its scope from the whole bucket to the prefix `tmp/`. Verify afterwards
+that the rule's scope reads `tmp/` and not "Apply to all objects".
+
 Replace `aws_s3_bucket_lifecycle_configuration.assets`:
 
 ```hcl
@@ -112,9 +134,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "assets" {
 
 ---
 
-## 🔴 OPS-2 — Replace the wildcard CORS origin
+## 🟡 OPS-2 — Replace the wildcard CORS origin
 
-**Blocks: Plan B Phase 5 verification.**
+**Gates Plan B phase 5 verification.** Nothing before that waits on it.
 
 `infra/terraform/variables.tf` defaults `cors_allowed_origins` to `["*"]`. The
 viewer now fetches asset bytes cross-origin in order to convert them to `data:`

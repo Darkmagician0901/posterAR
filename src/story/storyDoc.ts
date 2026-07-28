@@ -53,6 +53,11 @@ export interface StoryFrame {
    * preserved and composition never blanks it. Absent until then.
    */
   backdrop?: string;
+  /** Author-attached audio for this frame, as a data:audio/* URL. Plays alongside
+   *  the narration in preview/play. Absent = silent. */
+  audio?: string;
+  /** Original filename of the attached audio, shown in the studio. */
+  audioName?: string;
 }
 
 /** An author-uploaded image available to any frame. */
@@ -145,6 +150,15 @@ function sanitizeFrame(raw: unknown): StoryFrame | null {
   // compose into a broken layer.
   const backdrop = str(r.backdrop, '');
   if (backdrop.includes('<svg')) frame.backdrop = backdrop;
+
+  // Author audio, kept only as inline data (never an external URL), matching the
+  // images-are-data:-only rule that keeps a published doc from reaching off-origin.
+  const audio = str(r.audio, '');
+  if (/^data:audio\//i.test(audio)) {
+    frame.audio = audio;
+    const audioName = str(r.audioName, '');
+    if (audioName) frame.audioName = audioName;
+  }
   return frame;
 }
 

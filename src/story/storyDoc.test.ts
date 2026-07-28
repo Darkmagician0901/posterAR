@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { validateStoryDoc, StoryDoc } from './storyDoc';
+import { DEFAULT_STORY } from './defaultStory';
 
 const FB: StoryDoc = {
   schemaVersion: 3,
@@ -163,5 +164,43 @@ describe('validateStoryDoc', () => {
   it('omits the asset map entirely when there are none', () => {
     expect(validateStoryDoc({ assets: {} }, FB).assets).toBeUndefined();
     expect(validateStoryDoc({}, FB).assets).toBeUndefined();
+  });
+
+  it('keeps a data:audio URL and its filename on a frame', () => {
+    const doc = validateStoryDoc(
+      {
+        frames: [
+          {
+            art: '<svg viewBox="0 0 1 1"></svg>',
+            audio: 'data:audio/mpeg;base64,AAA',
+            audioName: 'voice.mp3',
+          },
+        ],
+      },
+      DEFAULT_STORY,
+    );
+    expect(doc.frames[0].audio).toBe('data:audio/mpeg;base64,AAA');
+    expect(doc.frames[0].audioName).toBe('voice.mp3');
+  });
+
+  it('drops a non-data:audio source and its name', () => {
+    const doc = validateStoryDoc(
+      {
+        frames: [
+          { art: '<svg viewBox="0 0 1 1"></svg>', audio: 'https://evil.example/a.mp3', audioName: 'x' },
+        ],
+      },
+      DEFAULT_STORY,
+    );
+    expect(doc.frames[0].audio).toBeUndefined();
+    expect(doc.frames[0].audioName).toBeUndefined();
+  });
+
+  it('leaves an audioless frame audioless', () => {
+    const doc = validateStoryDoc(
+      { frames: [{ art: '<svg viewBox="0 0 1 1"></svg>' }] },
+      DEFAULT_STORY,
+    );
+    expect(doc.frames[0].audio).toBeUndefined();
   });
 });

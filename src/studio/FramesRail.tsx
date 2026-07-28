@@ -136,18 +136,6 @@ export const FramesRail: React.FC = () => {
       <button className="st-addframe" onClick={addFrame}>
         + ADD FRAME
       </button>
-
-      <div className="st-buddy">
-        <div className="st-cube" aria-hidden="true">
-          <i className="t" />
-          <i className="l" />
-          <i className="r" />
-        </div>
-        <div className="st-tip">
-          Every frame is one stop on the timeline. What you stage here is what a visitor sees on
-          the ground in front of them.
-        </div>
-      </div>
     </div>
   );
 };

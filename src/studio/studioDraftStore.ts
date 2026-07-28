@@ -15,7 +15,14 @@
  */
 
 import { create } from 'zustand';
-import { StoryAsset, StoryDoc, StoryFrame, StoryProp, validateStoryDoc } from '@/story/storyDoc';
+import {
+  StoryAsset,
+  StoryDoc,
+  StoryFrame,
+  StoryProp,
+  STORY_SCHEMA_VERSION,
+  validateStoryDoc,
+} from '@/story/storyDoc';
 import { DEFAULT_STORY } from '@/story/defaultStory';
 import { LOCAL_DRAFT_KEY } from '@/services/storyApi';
 
@@ -33,6 +40,20 @@ export function blankFrame(index: number): StoryFrame {
     washColor: 'rgba(150,150,150,0.25)',
     art: '<svg viewBox="0 0 330 175" xmlns="http://www.w3.org/2000/svg"></svg>',
     props: [],
+  };
+}
+
+/** A pristine story to build from scratch. Copy carries light placeholders
+ *  rather than empty strings so it survives the per-field validator on reload. */
+function blankStory(): StoryDoc {
+  return {
+    schemaVersion: STORY_SCHEMA_VERSION,
+    id: '',
+    title: 'Untitled story',
+    loc: '',
+    intro: { title: 'Welcome', subtitle: 'Step in to begin' },
+    outro: { title: 'The end', subtitle: 'Thanks for visiting' },
+    frames: [blankFrame(0)],
   };
 }
 
@@ -70,6 +91,8 @@ interface StudioState {
   undo: () => void;
   /** Discards the draft and starts again from the bundled story. */
   reset: () => void;
+  /** Discards the draft and starts a fresh blank story. */
+  newStory: () => void;
 }
 
 /** Serialized snapshots for undo. */
@@ -187,6 +210,19 @@ export const useStudioDraft = create<StudioState>((set, get) => {
       const persistError = persist(DEFAULT_STORY);
       set({
         doc: DEFAULT_STORY,
+        selected: 0,
+        dirty: false,
+        persistError,
+        canUndo: false,
+      });
+    },
+
+    newStory: () => {
+      history.length = 0;
+      const doc = blankStory();
+      const persistError = persist(doc);
+      set({
+        doc,
         selected: 0,
         dirty: false,
         persistError,

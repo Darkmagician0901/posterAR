@@ -25,7 +25,7 @@ export const StudioApp: React.FC = () => {
   const title = useStudioDraft((s) => s.doc.title);
   const canUndo = useStudioDraft((s) => s.canUndo);
   const selected = useStudioDraft((s) => s.selected);
-  const { patchDoc, undo, reset } = useStudioDraft.getState();
+  const { patchDoc, undo, newStory } = useStudioDraft.getState();
   const [stageOpen, setStageOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
@@ -66,12 +66,13 @@ export const StudioApp: React.FC = () => {
           <button
             className="st-btn ghost"
             onClick={() => {
-              if (window.confirm('Discard this draft and start again from the bundled story?')) {
-                reset();
+              if (window.confirm('Start a new blank story? This discards the current draft.')) {
+                newStory();
               }
             }}
+            title="Start a fresh story from scratch"
           >
-            ⟲ RESET
+            ✦ NEW
           </button>
           <button
             className="st-btn green"

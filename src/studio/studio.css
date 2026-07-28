@@ -197,7 +197,7 @@
 .st-rail-head {
   padding: 12px 12px 8px;
   font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 2px;
   color: #7a6f58;
   display: flex;
@@ -205,7 +205,7 @@
   align-items: center;
 }
 .st-rail-head span {
-  font-size: 7px;
+  font-size: 9px;
   color: #a89a78;
 }
 .st-frames {
@@ -253,7 +253,7 @@
 }
 .st-fcard .st-fy {
   font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
+  font-size: 10px;
   color: var(--orange-deep);
   margin-top: 7px;
 }
@@ -276,7 +276,7 @@
   color: #fff;
   border: 2.5px solid var(--ink);
   font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
+  font-size: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -307,36 +307,15 @@
   border: 3px dashed #b8ab8c;
   background: transparent;
   border-radius: 11px;
-  padding: 12px;
-  font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
-  color: #8a7f66;
+  padding: 10px 12px;
+  font-family: 'VT323', monospace;
+  font-size: 17px;
+  color: var(--green-deep);
   letter-spacing: 1px;
 }
 .st-addframe:hover {
   border-color: var(--green);
-  color: var(--green-deep);
-}
-.st-buddy {
-  padding: 10px 12px 14px;
-  border-top: 3px solid var(--line);
-  display: flex;
-  gap: 9px;
-  align-items: flex-start;
-}
-.st-buddy .st-cube {
-  transform: scale(0.9);
-}
-.st-tip {
-  font-size: 10.5px;
-  line-height: 1.5;
-  color: #6a604c;
-  background: #fff;
-  border: 2px solid var(--ink);
-  border-radius: 9px;
-  padding: 7px 9px;
-  flex: 1;
-  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.12);
+  color: var(--green);
 }
 
 /* ===== centre preview ===== */
@@ -358,7 +337,7 @@
 }
 .st-mode-pill {
   font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 1px;
   color: #7a6f58;
   background: #fff;
@@ -486,7 +465,7 @@ svg.drift {
 }
 .st-era-title {
   font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 3px;
   color: var(--orange-light);
   text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
@@ -611,7 +590,7 @@ svg.drift {
 .st-sec h3 {
   margin: 0 0 10px;
   font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 2px;
   color: var(--green-deep);
   display: flex;
@@ -680,7 +659,7 @@ svg.drift {
   color: #fff;
   padding: 10px;
   font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 1px;
   box-shadow: 0 3px 0 var(--green-deep);
 }
@@ -798,7 +777,7 @@ svg.drift {
 }
 .st-viewttl {
   font-family: 'Press Start 2P', monospace;
-  font-size: 7px;
+  font-size: 9px;
   letter-spacing: 1px;
   color: #7a6f58;
   margin: 0 0 6px;
@@ -910,7 +889,7 @@ svg.drift {
 }
 .st-pp-name {
   font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
+  font-size: 10px;
   color: var(--green-deep);
   letter-spacing: 1px;
 }
@@ -935,7 +914,7 @@ svg.drift {
 }
 .st-pp-field .st-val {
   font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
+  font-size: 10px;
   color: var(--ink);
   min-width: 52px;
 }
@@ -945,7 +924,7 @@ svg.drift {
   border-radius: 9px;
   padding: 8px 10px;
   font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
+  font-size: 10px;
   box-shadow: 0 2px 0 #cfc8ba;
 }
 .st-ppb.on {
@@ -985,7 +964,7 @@ svg.drift {
 }
 .st-pcard .st-k {
   font-family: 'Press Start 2P', monospace;
-  font-size: 7px;
+  font-size: 9px;
   letter-spacing: 3px;
   color: var(--green-light);
   margin-bottom: 14px;
@@ -1021,7 +1000,7 @@ svg.drift {
   background: #3a342c;
   box-shadow: 0 4px 0 #241f18;
   text-shadow: none;
-  font-size: 8px;
+  font-size: 10px;
   padding: 10px 16px;
 }
 .st-pbtn:active {
@@ -1030,7 +1009,7 @@ svg.drift {
 }
 .st-scan {
   font-family: 'Press Start 2P', monospace;
-  font-size: 7px;
+  font-size: 9px;
   letter-spacing: 1px;
   color: #fff;
   background: rgba(14, 12, 8, 0.55);
@@ -1143,7 +1122,7 @@ svg.drift {
   border-radius: 9px;
   padding: 10px;
   font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
+  font-size: 10px;
   background: #fff;
   color: var(--green-deep);
 }

@@ -73,11 +73,64 @@ rendered on the existing GIF path. That is a second render path, not a storage
 change, so **this decision does not constrain the storage design**. The
 `story_assets` table already carries `is_animated`.
 
-### 2.2 Frontend hosting is not decided here
+### 2.2 Deployment shape — Vercel app, AWS content (decided)
 
-Whether the app is served from Vercel or from S3+CloudFront changes exactly one
-thing in this design: whether asset fetches are same-origin. §9 specifies both
-configurations. Nothing else in the storage contract depends on it.
+**The app and the publish function stay on Vercel. All storage moves to AWS.**
+The frontend is served from the existing `postarr` project; `stories/`,
+`assets/`, and `markers/` are served from S3 behind CloudFront.
+
+This is a **split-origin** deployment, which is the consequential part: asset
+bytes are fetched cross-origin, so the CORS configuration in §9 is **mandatory,
+not optional**, and the marker-fingerprint rewrite in §14.1 is **required, not
+one of two alternatives**. Treat §9 as the highest-risk configuration in the
+build — its failure mode is intermittent and cache-dependent.
+
+*Why this rather than unified AWS.* Migration cost and workflow, not
+architecture. Production is live on Vercel today, `api/publish.ts` already
+exists in Vercel-function form, and the build pipeline is wired. Per-branch
+preview URLs are part of the project's stated review workflow (`CLAUDE.md`:
+ship so work "can be reviewed by just opening the URL").
+
+*What was weighed against it.* Vercel does nothing here AWS could not —
+[Amplify Hosting](https://docs.aws.amazon.com/amplify/latest/userguide/pr-previews.html)
+provides the same per-branch PR preview URLs, so "unified AWS" would not have
+cost the review workflow. Unified would also eliminate CORS entirely and remove
+the fingerprint rewrite. That option is **deferred, not rejected** — see §9.1
+for what changes if it is taken later. The word in the decision is *first*.
+
+*Consequence for credentials.* Because Vercel functions now hold AWS access,
+`infra/terraform/iam.tf`'s IAM **user with long-lived keys** should be replaced
+by [Vercel OIDC federation](https://vercel.com/docs/oidc/aws): the function
+exchanges a short-lived Vercel-signed token for AWS credentials via
+`AssumeRoleWithWebIdentity`, so no static secret is stored. This is a Phase 4
+concern, listed in §13.
+
+---
+
+## 2.3 Decisions record
+
+| Decision | Settled | Where |
+|---|---|---|
+| Deployment shape | **Vercel app + AWS content, split origin.** Unified AWS deferred, not rejected | §2.2, §9.1 |
+| Marker cardinality | **Schema supports many, v1 runtime resolves one.** `story_markers` join table models both, so enabling multi-marker needs no migration | §6, §8.1 |
+| Build order | **Storage first**, device verification of the four unverified marker items in parallel. Phases 0–4 depend on none of them | §13 |
+| Animated GIFs in composed art | **Rejected**, existing GIF pipeline untouched | §2.1 |
+| Undo | **Snapshots retained.** Event sourcing solves a problem this design deletes | — |
+
+### The one question that would invalidate rather than extend this design
+
+**Could an exhibit ever need to be private, unlisted, or view-tracked?**
+
+Everything above rests on the read path being a public CDN GET with no backend
+(§4). If a published story must be access-controlled, the read path moves behind
+the API, and the central claim — *the viewer never touches RDS or the API* —
+stops being true. That is a different architecture, not an extension of this
+one.
+
+Currently answered **no**: `arcade-studio-plan.md` states "the public read path
+(`/?s=<id>`) stays unauthenticated by design." This design inherits that and
+depends on it. **It is only load-bearing from Phase 3 onward**, so Phases 0–2
+can proceed while it is confirmed.
 
 ---
 
@@ -563,25 +616,44 @@ CSP already permits `blob:` in `img-src`.
 FileReader.readAsDataURL`. That is an XHR-class request and needs
 `Access-Control-Allow-Origin` on the **response** unless it is same-origin.
 
-**Preferred — single origin.** One CloudFront distribution, two behaviours:
-`/` → frontend origin, `/assets/*` `/stories/*` `/markers/*` → bucket origin.
-Asset fetches become same-origin and CORS never enters the picture. This also
-makes the marker fingerprint's `imagePath` same-origin, which sidesteps the
-open question in §13.
+The chosen deployment (§2.2) is **split-origin**, so this section is required
+configuration rather than background. **All three parts are mandatory. Any one
+of them missing produces a failure that depends on cache state — it will pass a
+casual test and break for a real visitor.**
 
-**If the frontend stays on Vercel (split origin), all three are required:**
+1. **S3 CORS with explicit origins.** `cors_allowed_origins` in `variables.tf`
+   currently defaults to `["*"]`; it must list the actual Vercel production and
+   preview origins. Note that preview deployments get generated hostnames, so
+   either enumerate them or accept that asset loading is production-only —
+   decide this deliberately rather than discovering it.
+2. **A CloudFront cache policy that includes `Origin` in the cache key.** This
+   is the trap. Without it, a first request lacking `Origin` caches a CORS-less
+   response, which CloudFront then serves to cross-origin callers until it
+   expires (§3.6).
+3. **The managed `CORS-S3Origin` origin request policy**, so `Origin` reaches
+   the bucket at all — otherwise S3 does not treat the request as cross-origin
+   and returns no CORS headers regardless of its own configuration.
 
-1. S3 CORS with explicit origins (not `*`) — `cors_allowed_origins` in
-   `variables.tf` currently defaults to `["*"]`.
-2. A CloudFront **cache policy that includes `Origin` in the cache key**.
-   Without it, a first request lacking `Origin` caches a CORS-less response that
-   is then served to cross-origin callers, producing intermittent failures that
-   depend on cache state (§3.6).
-3. The managed **`CORS-S3Origin`** origin request policy, so `Origin` reaches
-   the bucket at all.
+**Acceptance test for this phase:** with a cold CloudFront cache, request an
+asset *without* an `Origin` header, then immediately fetch the same asset from
+the app origin via `fetch()`. The second request must succeed. Testing only the
+warm path hides exactly the defect this section exists to prevent.
 
-The storage contract is identical either way. This is a deployment concern, not
-a schema concern, which is why §2.2 defers it without blocking.
+### 9.1 If unified AWS is adopted later
+
+Deferred, not rejected (§2.2). Should the app move to Amplify or a single
+CloudFront distribution serving both the frontend and the buckets, the changes
+are subtractive and none of them touch the storage contract:
+
+- §9's three CORS requirements become unnecessary — fetches are same-origin.
+- §14.1's Vercel rewrite becomes unnecessary — `/markers/*` is a behaviour on
+  the same domain.
+- `VITE_STORY_BASE_URL` and `VITE_ASSET_BASE_URL` (§5.1) go back to empty,
+  which is what they already default to.
+- Vercel OIDC federation is replaced by an IAM role attached to the compute.
+
+That every one of those is a deletion is the point: this design does not have to
+be redone to change hosting, only trimmed.
 
 ---
 
@@ -687,8 +759,8 @@ Each phase is independently valuable and independently revisable.
 | **1** | Terraform: prefix-scoped lifecycle (**fixes the 90-day deletion bug**), per-prefix cache-control, explicit CORS origins, `S3_FORCE_PATH_STYLE=false` | 0 | Bucket is safe to hold production data. |
 | **2** | Presign/commit endpoints; client upload-on-drop; dedup; `story_assets` + `asset_usage` tables | 1 | Assets live in S3, deduped. Documents unchanged. |
 | **3** | `compose.ts` emits tokens; hydration on read; blob-URL rasterizer | 0, 2 | **The flip.** Documents drop from MB to KB. |
-| **4** | Publish writes the S3 artifact; migrate off Vercel Blob. `stories` table **optional** — see §6 | 2, 3 | All storage on AWS. |
-| **5** | CloudFront distribution and cache policy (or Vercel + split-origin CORS) | 4 | Read path on CDN. |
+| **4** | Publish writes the S3 artifact; migrate off Vercel Blob; swap the IAM user for Vercel OIDC federation (§2.2). `stories` table **optional** — see §6 | 2, 3 | All storage on AWS. |
+| **5** | CloudFront distribution, per-prefix cache policy, **the three CORS requirements and their cold-cache acceptance test (§9)**, and the `/image-targets/*` rewrite (§14.1) | 4 | Read path on CDN. |
 | **6** | GC job; verify lifecycle; backfill `asset_usage` | 4 | Steady state. |
 
 Phase 3 is the only irreversible-feeling step, and it is guarded: v3 documents
@@ -724,22 +796,29 @@ guidance at all, only local `require()` examples. Absolute URLs are neither
 documented as supported nor as forbidden.
 
 Undocumented behaviour is not a foundation. **The design therefore never asks
-the engine to resolve a cross-origin path**, in either deployment shape:
+the engine to resolve a cross-origin path.**
 
-| Shape | How fingerprints stay same-origin |
-|---|---|
-| Single CloudFront distribution | `/markers/*` is a behaviour on the same domain as the app. Naturally same-origin. |
-| Frontend on Vercel | A Vercel rewrite maps `/image-targets/:path*` to the S3 origin. The page requests a same-origin path; the engine resolves it page-relative exactly as documented. |
+Under the chosen split-origin deployment (§2.2) this is a **required Vercel
+rewrite**, not an option:
 
-Either way the engine sees a path rooted at the page origin, which is the only
-form the documentation describes. `loadImageTargets(manifestUrl)` is already
-parameterized and `resolveImagePath` already roots `imagePath` in the manifest's
-directory, so **no application code changes** — this is entirely a routing
-concern.
+```jsonc
+// vercel.json — note this must precede the SPA catch-all rewrite,
+// which currently matches /((?!api/).*) and would otherwise swallow it
+{ "source": "/image-targets/:path*",
+  "destination": "https://<cdn-domain>/markers/:path*" }
+```
 
-This converts the design's one novel risk into a configuration requirement.
-Recorded here so nobody later "simplifies" it by pointing the manifest straight
-at a bucket URL.
+The page then requests a same-origin `/image-targets/…` path, and the engine
+resolves `imagePath` page-relative exactly as documented.
+`loadImageTargets(manifestUrl)` is already parameterized and `resolveImagePath`
+already roots `imagePath` in the manifest's directory, so **no application code
+changes** — this is entirely routing.
+
+Recorded explicitly because the "simplification" of pointing the manifest
+straight at the CloudFront domain looks obviously correct, would appear to work
+in any test where the engine happens to tolerate it, and rests on behaviour no
+documentation promises. If a future change makes fingerprints load from an
+absolute URL, that is a deliberate bet and should be verified on device first.
 
 ### 14.2 Risks that remain open
 

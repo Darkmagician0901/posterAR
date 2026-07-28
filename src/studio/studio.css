@@ -34,8 +34,11 @@
 .st-root *::after {
   box-sizing: border-box;
 }
+/* Buttons keep whatever face each rule sets (Press Start 2P / VT323). Do NOT
+   add `font-family: inherit` here: a button-element selector (0,1,1) outranks
+   the single-class rules like .st-btn / .st-bubble (0,1,0) and would silently
+   drop every button back to the body font. */
 .st-root button {
-  font-family: inherit;
   cursor: pointer;
 }
 
@@ -139,12 +142,6 @@
   align-items: center;
   gap: 8px;
   text-decoration: none;
-}
-/* `.st-root button { font-family: inherit }` (above) outranks `.st-btn`, so the
-   real <button> actions ignored .st-btn's font. Pin the terminal font with
-   matching specificity so every top-bar action matches the story-card fields. */
-.st-actions .st-btn {
-  font-family: 'VT323', monospace;
 }
 .st-btn.ghost {
   background: #3a342c;

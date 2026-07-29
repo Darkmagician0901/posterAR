@@ -8,6 +8,33 @@ implementation, which uses the **8th Wall (XR8)** WebAR engine driving a plain
 
 ---
 
+## 0. Where to start reading
+
+The app has two halves that meet at one file.
+
+**Viewing** — a visitor opens `/`, the camera starts, they tap the ground, and
+walk a story. Read §3 (startup), §5 (the AR pipeline), §6 (the 8th Wall layer).
+
+**Authoring** — someone opens `/studio` on a desktop, builds a story, and
+publishes it. Read §9a (the content layer), §9b (composition), §9c (publishing).
+
+**The file where they meet is `src/story/storyDoc.ts`.** It defines `StoryDoc`,
+the document the studio writes and the viewer reads. If you only read one file
+to understand this codebase, read that one.
+
+If you are here because someone said the app is hard-coded, read **§12a**, which
+maps exactly what is data, what is code, and why the line falls where it does.
+
+A five-minute orientation:
+
+1. `src/story/storyDoc.ts` — the contract between authoring and viewing
+2. `src/store/contentStore.ts` — where the active story lives at runtime
+3. `src/components/story/StoryOverlay.tsx` — everything a visitor reads
+4. `src/story/props/compose.ts` — how staged props become a picture
+5. `src/studio/StudioApp.tsx` — the authoring shell
+
+---
+
 ## 1. Goals & constraints
 
 - **No app install** — AR runs in the mobile browser.
@@ -35,6 +62,9 @@ implementation, which uses the **8th Wall (XR8)** WebAR engine driving a plain
 │   └─ <script type=module> /src/main.tsx                                    │
 │                                                                            │
 │  React app (src/)                                                          │
+│   main.tsx ── path === '/studio' ? <StudioApp> : <App>                     │
+│     └─ StudioApp is a lazy chunk: 0 bytes in the visitor bundle            │
+│                                                                            │
 │   App.tsx ── detectXRSupport() ──▶ one of 3 branches                       │
 │     ├─ hasAR8  → <StoryARExperience>          (8th Wall owns the canvas)    │
 │     ├─ desktop → <DesktopMockMode>            (raw three.js + webcam)       │
@@ -258,8 +288,120 @@ Zustand stores, no Provider:
   `StoryARExperience` reads/writes it directly (not via React props); the 2D
   `StoryOverlay` HUD reads it to drive the title card, narration, and
   timeline.
+- **`store/contentStore.ts`** — holds the `StoryDoc` currently being rendered.
+  Owns *what the story is*; `storyStore` owns *where in it the visitor stands*.
+  Starts as the bundled default; `load()` swaps in a fetched or drafted
+  document after validation.
+- **`studio/studioDraftStore.ts`** — the document being *authored*, plus the
+  selected frame and an undo history. Separate from `contentStore` so editing
+  never disturbs a live preview. Mirrors every change to `localStorage`.
 - **`hooks/useUIState.ts`** — overlay visibility, active modal, and the toast
   queue (auto-dismiss after `duration` ms).
+
+---
+
+## 9a. The content layer
+
+The story is **data**, not constants. This is the seam that makes authoring
+possible, and it is worth understanding before changing anything above it.
+
+```
+                    ┌──────────────── authoring (/studio) ────────────────┐
+                    │  studioDraftStore ──▶ localStorage  (?draft=1)      │
+                    │        │                                            │
+                    │        ├─ StageEditor ──▶ composeFrame(props) ─┐    │
+                    │        └─ Inspector (copy, wash, cards)        │    │
+                    │                                    frame.art ◀─┘    │
+                    │        │                                            │
+                    │        └─ PublishDialog ──▶ POST /api/publish       │
+                    └─────────────────────────────────┬───────────────────┘
+                                                      ▼
+                                          Blob: stories/<id>.json
+                                                      │
+                    ┌───────────────── viewing (/) ────┼───────────────────┐
+                    │  storyApi.loadStoryForLocation() ◀┘                  │
+                    │        │  ?s=<id>   published                        │
+                    │        │  ?draft=1  local draft                      │
+                    │        │  neither   bundled default                  │
+                    │        ▼                                            │
+                    │  validateStoryDoc(raw, DEFAULT_STORY)  per-field     │
+                    │        ▼                                            │
+                    │  contentStore.doc                                    │
+                    │    ├─▶ StoryOverlay   copy, timeline, wash           │
+                    │    ├─▶ storyStore     frame count, bounds            │
+                    │    └─▶ StoryARExperience ─▶ svgToTexture ─▶ StoryTile│
+                    └──────────────────────────────────────────────────────┘
+```
+
+**`StoryDoc` (`story/storyDoc.ts`)** is the contract between the two halves.
+A document holds its copy, an ordered list of frames, and an optional map of
+uploaded assets. Each frame carries:
+
+- `art` — a complete SVG document string. **This is the only thing the viewer
+  reads.** It is what gets rasterized onto the diorama tile.
+- `props` — the staged composition `art` was generated from. The viewer ignores
+  it; it exists so a published story stays re-editable.
+
+That split is deliberate. Derived output is stored alongside its source, so the
+renderer stays dumb (it never runs a builder) and the editor stays lossless.
+
+**Validation is per-field, never all-or-nothing.** `validateStoryDoc` falls back
+to the bundled default one field at a time, drops frames with unusable art, and
+restricts asset URLs to `data:image/`. A malformed document degrades to a
+working experience rather than a blank one — every load path in this app is
+written so a visitor cannot end up staring at nothing.
+
+**Uploaded images must be `data:` URLs.** An SVG loaded through `<img>` — which
+is how `svgTexture` rasterizes — runs in restricted mode and will not fetch
+external references. An `https://` source renders blank with no error. Publish
+inlines asset bytes for this reason, which is also why documents can get large.
+
+---
+
+## 9b. Composition (`story/props/`)
+
+`composeFrame(props, options)` turns staged props into one SVG document, using
+the perspective model ported from the design prototype: props further back are
+drawn smaller and higher up the frame, painted far-to-near so nearer props
+overlap, each with a contact shadow that fades as it is lifted.
+
+- **`builders.ts`** — 13 pure functions returning SVG fragments, drawn in a
+  330×200 space with the ground line at y=141. No DOM, no measurement.
+- **`library.ts`** — pairs each builder with a display name, a default height in
+  metres, and its **measured bounding box**. Those boxes were obtained once by
+  running every builder in a real browser and calling `getBBox()`. They are
+  baked in as constants so composition stays pure and unit-testable. **If a
+  builder's geometry changes, the box must be re-measured** — nothing detects
+  this automatically.
+- **`compose.ts`** — the composer itself, plus `backdropImage()` for full-bleed
+  uploaded backgrounds.
+
+Metres here are **scene-fiction metres**, not AR metres. The diorama tile is
+rendered at a fixed real-world width (`TILE_WIDTH_M`), so `ppm` is an artistic
+framing choice, not a physical scale.
+
+---
+
+## 9c. Publishing (`api/publish.ts`)
+
+The only authenticated endpoint. It exists because two things require a server:
+the Blob write token must never reach a browser, and the live exhibit needs a
+gate so that finding `/studio` is not the same as being able to overwrite what
+visitors see.
+
+- Auth is a shared secret compared with `timingSafeEqual` against
+  `STUDIO_PUBLISH_SECRET`, rate-limited per instance.
+- The document is validated **against an empty document, not the bundled
+  default** — otherwise a malformed payload would silently publish the demo
+  story over the exhibit.
+- Written to a deterministic path (`stories/<id>.json`) so `/?s=<id>` resolves
+  without a lookup table and republishing replaces rather than orphaning.
+- Reads are unauthenticated and bypass the function entirely — visitors fetch
+  from Blob's CDN. The gate is on the write, where the asset is.
+
+Required environment: `BLOB_READ_WRITE_TOKEN` (set by connecting a Blob store),
+`STUDIO_PUBLISH_SECRET`, and client-side `VITE_STORY_BASE_URL`. Missing any of
+these produces a 503 naming the specific one rather than a vague failure.
 
 ---
 
@@ -318,6 +460,77 @@ stored as an uploaded poster.
   /api/assets` (metadata) followed by a `PUT` to a signed upload URL, and
   `App.tsx` hydrates previously-uploaded posters from that server API on load.
 - HTTPS enforced in production; HSTS preload.
+
+---
+
+## 12a. What is data, what is code, and why
+
+A fair question about this codebase is "how much of it is hard-coded?" The
+honest answer is that **content is data and the system is code**, and the line
+between them was drawn deliberately. This section says where that line is, so
+the next person can tell a value they are meant to change from one they are not.
+
+### Data — changeable without a deploy
+
+| What | Where | Changed by |
+|---|---|---|
+| Story copy: title, intro/outro cards, per-frame year, label, title, narration | `StoryDoc` | The studio, then publish |
+| Frame count and order | `StoryDoc.frames` | The studio |
+| Era mood colour | `StoryDoc.frames[].washColor` | The studio |
+| Diorama art | `StoryDoc.frames[].art` | Composed from props, or uploaded |
+| Uploaded images | `StoryDoc.assets` | The studio |
+
+Everything above travels in one JSON document, is fetched at runtime, and is
+edited without touching the repo. **This was not true before**: until recently
+the whole story was a TypeScript constant (`STORY_ERAS`) and the art was five
+SVG files inlined at build time. That migration is what most of the recent work
+was for.
+
+### Code — changeable only by editing and deploying
+
+| What | Where | Why it is code |
+|---|---|---|
+| Diorama physical size | `TILE_WIDTH_M`, `xr8/storyTile.ts` | One value that defines how the experience feels in a room. Belongs in a settings surface eventually; not yet built. |
+| Composition frame + perspective | `COMPOSE_DEFAULTS`, depth coefficient `0.16` | The visual language of the diorama. Changing it changes every story at once, which is a design decision, not an authoring one. |
+| Prop library and its geometry | `story/props/builders.ts`, `library.ts` | Each prop is drawing code. Authors extend the vocabulary by uploading art, not by editing builders. |
+| Texture raster size | `RASTER_MAX`, `story/svgTexture.ts` | Memory/quality tradeoff on mobile. |
+| Narration typing speed | `CHAR_INTERVAL_MS`, `useStoryTypewriter.ts` | Pacing, shared by the viewer and the studio preview. |
+| Wash colour presets | `WASHES`, `studio/Inspector.tsx` | An arbitrary wash is far easier to get wrong than right; the palette is the guardrail. |
+| Scan prompts, button labels, HUD chrome | JSX literals in `StoryOverlay.tsx` | Interface vocabulary, not story content. Deliberately excluded — see below. |
+| Studio chrome and layout | `studio/studio.css` | It is a tool, not a product surface. |
+
+### Where the line was drawn, and why
+
+**Story content is data because non-developers need to change it.** That is the
+entire premise of the studio.
+
+**Interface copy is code because it is not story content.** "TAP THE GROUND TO
+PLACE" belongs to the app, not to any one story, and making it editable would
+let an author break the instructions that get a visitor into the experience.
+
+**The prop library is code because props are drawings.** Making them data would
+mean inventing a drawing format — a large project with no clear payoff, given
+authors can already upload arbitrary artwork.
+
+**The tile size and composition constants are the weakest part of this line.**
+They are genuinely tuning values that a designer might want to adjust, and they
+currently require a code change. A settings surface for them was planned and
+deferred. If you are looking for the next useful thing to build, it is that.
+
+### Values that must be changed in more than one place
+
+These are the traps. Nothing enforces them; they are documented here because
+they will be missed otherwise.
+
+- **Narration typography** is duplicated between `StoryOverlay.css`
+  (`.story-narration`) and `studio/studio.css` (`.st-bubble`). Both carry a
+  comment saying so. If they drift, the studio preview stops telling the truth.
+- **The depth model** (`0.16` coefficient, ground rise) exists in both
+  `story/props/compose.ts` and `studio/stageGeometry.ts`. A test in
+  `stageGeometry.test.ts` asserts they agree — if you change one, that test
+  fails, which is the intended safety net.
+- **Prop bounding boxes** in `library.ts` are measured constants. Editing a
+  builder's geometry invalidates them silently.
 
 ---
 

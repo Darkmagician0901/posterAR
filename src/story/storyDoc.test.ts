@@ -121,4 +121,47 @@ describe('validateStoryDoc', () => {
   it('always stamps the current schema version', () => {
     expect(validateStoryDoc({ schemaVersion: 99 }, FB).schemaVersion).toBe(3);
   });
+
+  it('keeps uploaded assets that are inline image data', () => {
+    const out = validateStoryDoc(
+      { assets: { a1: { href: 'data:image/webp;base64,AA', aspect: 1.5, name: 'sky.webp' } } },
+      FB,
+    );
+    expect(out.assets).toEqual({
+      a1: { href: 'data:image/webp;base64,AA', aspect: 1.5, name: 'sky.webp' },
+    });
+  });
+
+  it('drops assets pointing anywhere other than inline image data', () => {
+    const out = validateStoryDoc(
+      {
+        assets: {
+          remote: { href: 'https://evil.example/x.png', aspect: 1 },
+          script: { href: 'javascript:alert(1)', aspect: 1 },
+          nonImage: { href: 'data:text/html,<script>', aspect: 1 },
+          ok: { href: 'data:image/png;base64,BB', aspect: 1 },
+        },
+      },
+      FB,
+    );
+    expect(Object.keys(out.assets ?? {})).toEqual(['ok']);
+  });
+
+  it('drops assets with a nonsensical aspect', () => {
+    const out = validateStoryDoc(
+      {
+        assets: {
+          zero: { href: 'data:image/png;base64,AA', aspect: 0 },
+          negative: { href: 'data:image/png;base64,AA', aspect: -2 },
+        },
+      },
+      FB,
+    );
+    expect(out.assets).toBeUndefined();
+  });
+
+  it('omits the asset map entirely when there are none', () => {
+    expect(validateStoryDoc({ assets: {} }, FB).assets).toBeUndefined();
+    expect(validateStoryDoc({}, FB).assets).toBeUndefined();
+  });
 });

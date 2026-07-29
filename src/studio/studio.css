@@ -1,0 +1,1160 @@
+/**
+ * studio.css — ARCADE STUDIO chrome.
+ *
+ * Ported from the design prototype (docs/prototypes/arcade-studio-v4.html)
+ * with the class names namespaced under `st-` so nothing collides with the
+ * viewer's styles. Loaded only inside the /studio lazy chunk, so none of this
+ * reaches the visitor bundle.
+ */
+
+.st-root {
+  --ink: #120e0e;
+  --green: #5e9e33;
+  --green-deep: #3c6b1f;
+  --green-light: #86c24e;
+  --orange: #f08a1e;
+  --orange-deep: #c25e0c;
+  --orange-light: #fbb04c;
+  --paper: #f4efe2;
+  --paper2: #eae2ce;
+  --line: #d9cba0;
+  --ubc: #002145;
+  --purple: #b14be0;
+  --purple-deep: #6f2ba0;
+
+  position: fixed;
+  inset: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+.st-root *,
+.st-root *::before,
+.st-root *::after {
+  box-sizing: border-box;
+}
+/* Buttons keep whatever face each rule sets (Press Start 2P / VT323). Do NOT
+   add `font-family: inherit` here: a button-element selector (0,1,1) outranks
+   the single-class rules like .st-btn / .st-bubble (0,1,0) and would silently
+   drop every button back to the body font. */
+.st-root button {
+  cursor: pointer;
+}
+
+/* ===== top bar ===== */
+.st-topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 62px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: var(--ink);
+  border-bottom: 4px solid var(--green);
+}
+.st-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+}
+.st-logo .st-word {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 17px;
+  line-height: 1;
+  letter-spacing: 2px;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+}
+.st-logo .st-word b {
+  color: var(--purple);
+  text-shadow: 2px 2px 0 var(--purple-deep);
+}
+.st-logo .st-sub {
+  font-family: 'VT323', monospace;
+  font-size: 13px;
+  color: #9aa78a;
+  letter-spacing: 1px;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+/* EML badge — UBC Emerging Media Lab spine, set sideways bottom-to-top */
+.st-eml {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 46px;
+  background: var(--ubc);
+  border-radius: 5px;
+}
+.st-eml span {
+  transform: rotate(-90deg);
+  font-family: 'VT323', monospace;
+  font-size: 22px;
+  letter-spacing: 1px;
+  line-height: 1;
+  color: var(--paper);
+  white-space: nowrap;
+}
+
+.st-title-field {
+  flex: 1;
+  max-width: 380px;
+  margin-left: 6px;
+}
+.st-title-field input {
+  width: 100%;
+  background: #241f18;
+  border: 2px solid #4a4438;
+  border-radius: 9px;
+  color: #fff;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  padding: 11px 12px;
+  letter-spacing: 1px;
+}
+.st-title-field input:focus {
+  outline: none;
+  border-color: var(--green-light);
+}
+
+.st-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 9px;
+}
+.st-btn {
+  border: 3px solid var(--ink);
+  border-radius: 11px;
+  padding: 10px 14px;
+  font-family: 'VT323', monospace;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+}
+.st-btn.ghost {
+  background: #3a342c;
+  box-shadow: 0 3px 0 #241f18;
+}
+.st-btn.green {
+  background: var(--green);
+  box-shadow: 0 3px 0 var(--green-deep);
+  text-shadow: 1px 1px 0 var(--green-deep);
+}
+.st-btn.orange {
+  background: var(--orange);
+  box-shadow: 0 3px 0 var(--orange-deep);
+  text-shadow: 1px 1px 0 var(--orange-deep);
+}
+.st-btn.paper {
+  background: #fff;
+  color: var(--green-deep);
+  box-shadow: 0 3px 0 #cfc8ba;
+}
+.st-btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+.st-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  transform: none;
+}
+
+/* ===== layout ===== */
+.st-wrap {
+  position: absolute;
+  top: 62px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+}
+
+/* ===== frames rail ===== */
+.st-rail {
+  width: 212px;
+  background: var(--paper2);
+  border-right: 3px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+}
+.st-rail-head {
+  padding: 12px 12px 8px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #7a6f58;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.st-rail-head span {
+  font-size: 9px;
+  color: #a89a78;
+}
+.st-frames {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.st-fcard {
+  background: #fff;
+  border: 3px solid var(--ink);
+  border-radius: 11px;
+  padding: 8px;
+  cursor: grab;
+  position: relative;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.14);
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+}
+.st-fcard.sel {
+  border-color: var(--orange);
+  box-shadow: 3px 3px 0 rgba(240, 138, 30, 0.45);
+}
+.st-fcard.dragover {
+  outline: 3px dashed var(--green);
+  outline-offset: 3px;
+}
+.st-fthumb {
+  width: 100%;
+  height: 58px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #9db8cb, #7e9a6b 70%, #4a6238);
+  overflow: hidden;
+  pointer-events: none;
+}
+.st-fthumb img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.st-fcard .st-fy {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  color: var(--orange-deep);
+  margin-top: 7px;
+}
+.st-fcard .st-ft {
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.st-fnum {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  border: 2.5px solid var(--ink);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.st-fops {
+  display: flex;
+  gap: 5px;
+  margin-top: 7px;
+}
+.st-fop {
+  flex: 1;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  border-radius: 6px;
+  font-size: 11px;
+  padding: 3px 0;
+  line-height: 1.2;
+}
+.st-fop:hover:not(:disabled) {
+  background: var(--paper2);
+}
+.st-fop:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.st-addframe {
+  margin: 0 10px 12px;
+  border: 3px dashed #b8ab8c;
+  background: transparent;
+  border-radius: 11px;
+  padding: 10px 12px;
+  font-family: 'VT323', monospace;
+  font-size: 17px;
+  color: var(--green-deep);
+  letter-spacing: 1px;
+}
+.st-addframe:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+/* ===== centre preview ===== */
+.st-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-width: 390px;
+  overflow-y: auto;
+  padding: 18px 0;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(0, 0, 0, 0.025) 0 12px,
+    transparent 12px 24px
+  );
+}
+.st-mode-pill {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #7a6f58;
+  background: #fff;
+  border: 2.5px solid var(--ink);
+  border-radius: 999px;
+  padding: 8px 14px;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.12);
+  flex: 0 0 auto;
+}
+.st-mode-pill b {
+  color: var(--green-deep);
+}
+.st-phone {
+  position: relative;
+  width: 318px;
+  height: 648px;
+  background: #000;
+  border-radius: 38px;
+  border: 4px solid var(--ink);
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 3px #2a2620;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.st-notch {
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 110px;
+  height: 19px;
+  background: #000;
+  border-radius: 12px;
+  z-index: 60;
+  border: 2px solid #2a2620;
+}
+.st-screen {
+  position: absolute;
+  inset: 8px;
+  border-radius: 29px;
+  overflow: hidden;
+  background: #1a2416;
+}
+.st-stage {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #9db8cb, #7e9a6b 70%, #4a6238);
+}
+.st-stage img {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 22%;
+  width: 100%;
+  display: block;
+}
+
+/* Perspective preview: the SVG scene fills the phone; idle prop sway and gentle
+   camera drift are dropped under reduced motion (.st-still). */
+.st-stage {
+  cursor: grab;
+  touch-action: none;
+}
+.st-stage:active {
+  cursor: grabbing;
+}
+.st-stage > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+@keyframes st-sway {
+  0%,
+  100% {
+    transform: rotate(-0.5deg);
+  }
+  50% {
+    transform: rotate(0.5deg);
+  }
+}
+@keyframes st-drift {
+  0%,
+  100% {
+    transform: translateX(-1px);
+  }
+  50% {
+    transform: translateX(1px);
+  }
+}
+.sway-prop {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: st-sway 4s ease-in-out infinite;
+}
+svg.drift {
+  animation: st-drift 9s ease-in-out infinite;
+}
+.st-still .sway-prop,
+.st-still svg.drift {
+  animation: none;
+}
+.st-wash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.st-era-head {
+  position: absolute;
+  top: 44px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  z-index: 40;
+  pointer-events: none;
+}
+.st-era-year {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 20px;
+  color: #fff;
+  letter-spacing: 2px;
+  text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
+}
+.st-era-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--orange-light);
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+  margin-top: 7px;
+}
+.st-narr {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  /* Clears the timeline track below; keeps that row evenly spaced between the
+     narration and the NEXT button. */
+  bottom: 99px;
+  z-index: 45;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.st-narr .st-cube {
+  transform: scale(1.05);
+  filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.4));
+}
+/* Matches .story-narration in the viewer — keep the two in step. */
+.st-bubble {
+  flex: 1;
+  text-align: left;
+  background: rgba(20, 18, 14, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  padding: 11px 12px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8.5px;
+  line-height: 1.85;
+  color: #ffffff;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.85);
+  min-height: 58px;
+  backdrop-filter: blur(3px);
+}
+.st-bubble .st-empty {
+  color: rgba(255, 255, 255, 0.55);
+  font-style: italic;
+}
+/* Sits clear of the NEXT button below it: the button's top edge lands at about
+   50px, so anything under ~58px here collides with it once the current dot
+   scales up. 63px leaves an even ~12px on both sides of the row.
+
+   The rounded track matches .story-timeline in the viewer — keep the two in
+   step. Without it the dots float loose on the scene and no longer read as
+   stops on one timeline. Its padding also contains the current dot's 1.3x
+   scale. */
+.st-mini-tl {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 63px;
+  z-index: 44;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 7px 12px;
+  background: rgba(20, 18, 14, 0.7);
+  border-radius: 999px;
+}
+.st-mtl {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #4a4640;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  padding: 0;
+  flex: 0 0 auto;
+  /* Eases the colour and scale change as the story advances, matching
+     .story-stop-dot in the viewer. Without it the dots snap. The global
+     reduced-motion rule in index.css already neutralises this. */
+  transition: all 0.25s ease;
+}
+.st-mtl.done {
+  background: var(--green-light);
+}
+.st-mtl.cur {
+  background: var(--orange);
+  transform: scale(1.3);
+  box-shadow: 0 0 8px rgba(240, 138, 30, 0.9);
+}
+/* Sized to its label and centred rather than spanning the full width: a
+   full-bleed slab dominated the bottom of the phone and read as a toolbar
+   rather than the one thing to press. The label carries the weight instead —
+   larger and wider-tracked — so the button reads louder while taking less room.
+   text-indent offsets the trailing letter-space so the label sits truly centred. */
+.st-pnext {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  margin: 0 auto;
+  width: fit-content;
+  min-width: 132px;
+  z-index: 46;
+  background: var(--orange);
+  color: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  padding: 11px 24px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-indent: 2px;
+  box-shadow: 0 3px 0 var(--orange-deep);
+  text-shadow: 1px 1px 0 var(--orange-deep);
+}
+.st-pnext:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+/* The last frame disables it — without this it still looked pressable. */
+.st-pnext:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ===== inspector ===== */
+.st-insp {
+  width: 330px;
+  background: var(--paper2);
+  border-left: 3px solid var(--line);
+  overflow-y: auto;
+  padding: 14px 14px 30px;
+  flex: 0 0 auto;
+  /* VT323 — the readable CRT-terminal companion to the pixel display face —
+     is the right panel's body font, so labels and typed copy read clearly
+     while still belonging to the retro theme. Section headings and buttons
+     keep 'Press Start 2P' via their own explicit rules. */
+  font-family: 'VT323', 'Segoe UI', monospace;
+}
+/* VT323 is a single-weight terminal face and reads small at the old sans
+   sizes, so bump the label and field sizes and drop the faux-bold. */
+.st-insp .st-lbl {
+  font-size: 12.5px;
+  font-weight: 400;
+  letter-spacing: 0.6px;
+}
+.st-insp .st-in,
+.st-insp .st-ta {
+  font-size: 16px;
+}
+.st-sec {
+  background: #fff;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  padding: 13px;
+  margin-bottom: 13px;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.12);
+}
+.st-sec h3 {
+  margin: 0 0 10px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--green-deep);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.st-sec h3 em {
+  font-style: normal;
+  font-family: 'VT323', monospace;
+  font-size: 13px;
+  color: #9a8f74;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.st-lbl {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: #7a6f58;
+  margin: 9px 0 4px;
+  text-transform: uppercase;
+}
+.st-in,
+.st-ta {
+  width: 100%;
+  border: 2.5px solid var(--ink);
+  border-radius: 8px;
+  background: var(--paper);
+  padding: 8px 9px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.st-ta {
+  min-height: 86px;
+  resize: vertical;
+  line-height: 1.5;
+}
+.st-in:focus,
+.st-ta:focus {
+  outline: none;
+  border-color: var(--green);
+}
+.st-cnt {
+  font-size: 9px;
+  color: #9a8f74;
+  margin-top: 3px;
+  display: flex;
+  justify-content: space-between;
+}
+.st-row {
+  display: flex;
+  gap: 9px;
+}
+.st-row > * {
+  flex: 1;
+  min-width: 0;
+}
+.st-abtn {
+  width: 100%;
+  margin-top: 10px;
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+  background: var(--green);
+  color: #fff;
+  padding: 10px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  box-shadow: 0 3px 0 var(--green-deep);
+}
+.st-abtn.orange {
+  background: var(--orange);
+  box-shadow: 0 3px 0 var(--orange-deep);
+}
+.st-abtn:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+.st-hintline {
+  font-size: 10px;
+  color: #8a7f66;
+  line-height: 1.5;
+  margin-top: 8px;
+}
+.st-swatches {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.st-swatch {
+  width: 30px;
+  height: 30px;
+  border: 2.5px solid var(--ink);
+  border-radius: 7px;
+  padding: 0;
+  box-shadow: 0 2px 0 #cfc8ba;
+}
+.st-swatch.sel {
+  outline: 3px solid var(--orange);
+  outline-offset: 2px;
+}
+.st-warn {
+  background: #ffe9e4;
+  border: 2px solid #b33a2b;
+  color: #8a2a1e;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.45;
+  margin-bottom: 13px;
+}
+
+@media (max-width: 1100px) {
+  .st-rail {
+    width: 180px;
+  }
+  .st-insp {
+    width: 292px;
+  }
+}
+
+/* ===== stage editor modal ===== */
+.st-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(14, 12, 8, 0.82);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+.st-modal.on {
+  display: flex;
+}
+.st-modalbox {
+  background: var(--paper);
+  border: 4px solid var(--ink);
+  border-radius: 16px;
+  box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.4);
+  width: min(97vw, 1120px);
+  max-height: 96vh;
+  overflow-y: auto;
+  padding: 16px;
+}
+.st-modalhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.st-modalhead h2 {
+  margin: 0;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 11px;
+  color: var(--green-deep);
+  letter-spacing: 1px;
+}
+.st-modalhead .st-sub {
+  font-size: 11px;
+  color: #7a6f58;
+}
+.st-closex {
+  margin-left: auto;
+  border: 2.5px solid var(--ink);
+  background: #fff;
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  font-weight: 800;
+}
+.st-views {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.st-viewcol {
+  flex: 1 1 440px;
+  min-width: 340px;
+}
+.st-viewttl {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #7a6f58;
+  margin: 0 0 6px;
+}
+.st-frontwrap,
+.st-topwrap {
+  border: 4px solid var(--ink);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.st-frontwrap {
+  background: linear-gradient(180deg, #9db8cb 0%, #a9c4b8 38%, #7e9a6b 58%, #4a6238 100%);
+}
+.st-topwrap {
+  background: #20301a;
+}
+.st-stagesvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+}
+.st-handle {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 2;
+  cursor: grab;
+}
+.st-handle:hover {
+  stroke: rgba(240, 138, 30, 0.6);
+}
+.st-handle.sel {
+  fill: rgba(240, 138, 30, 0.12);
+  stroke: var(--orange);
+  stroke-dasharray: 5 4;
+}
+.st-dot {
+  fill: var(--green-light);
+  stroke: #120e0e;
+  stroke-width: 2.5;
+  cursor: grab;
+}
+.st-dot.sel {
+  fill: var(--orange);
+}
+.st-palette {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 11px 2px 6px;
+}
+.st-pal {
+  flex: 0 0 auto;
+  width: 76px;
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+  background: #fff;
+  padding: 5px;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.15);
+}
+.st-pal:hover:not(:disabled) {
+  border-color: var(--green);
+}
+.st-pal:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.st-palimg {
+  width: 100%;
+  height: 40px;
+  background: #e8e0cc;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-size: 18px;
+  color: #8a7f66;
+}
+.st-palimg img {
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+}
+.st-pal span:last-child {
+  display: block;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 5.5px;
+  letter-spacing: 0.5px;
+  text-align: center;
+  margin-top: 5px;
+  color: #4a4438;
+}
+.st-pal.upload {
+  border-style: dashed;
+  background: var(--paper);
+}
+.st-proppanel {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  background: #fff;
+  border: 3px solid var(--ink);
+  border-radius: 11px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  min-height: 56px;
+}
+.st-pp-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  color: var(--green-deep);
+  letter-spacing: 1px;
+}
+.st-pp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.st-pp-field > span:first-child {
+  font-size: 9px;
+  font-weight: 700;
+  color: #7a6f58;
+  text-transform: uppercase;
+}
+.st-pp-field .st-fr {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.st-pp-field input[type='range'] {
+  width: 110px;
+}
+.st-pp-field .st-val {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  color: var(--ink);
+  min-width: 52px;
+}
+.st-ppb {
+  border: 3px solid var(--ink);
+  background: #fff;
+  border-radius: 9px;
+  padding: 8px 10px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  box-shadow: 0 2px 0 #cfc8ba;
+}
+.st-ppb.on {
+  background: var(--orange);
+  color: #fff;
+  box-shadow: 0 2px 0 var(--orange-deep);
+}
+.st-ppb:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+.st-pp-empty {
+  font-size: 11.5px;
+  color: #8a7f66;
+}
+.st-modalfoot {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+/* ===== playthrough cards ===== */
+.st-pcard {
+  position: absolute;
+  inset: 0;
+  z-index: 52;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 26px;
+  background: rgba(14, 12, 8, 0.78);
+  backdrop-filter: blur(2px);
+}
+.st-pcard .st-k {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--green-light);
+  margin-bottom: 14px;
+}
+.st-pcard .st-t {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 17px;
+  line-height: 1.5;
+  color: #fff;
+  text-shadow: 3px 3px 0 var(--green-deep);
+  margin-bottom: 14px;
+}
+.st-pcard .st-s {
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.88);
+  max-width: 240px;
+  margin-bottom: 24px;
+}
+.st-pbtn {
+  background: var(--green);
+  color: #fff;
+  border: 3px solid var(--ink);
+  border-radius: 13px;
+  padding: 13px 22px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  box-shadow: 0 4px 0 var(--green-deep);
+  text-shadow: 1px 1px 0 var(--green-deep);
+  margin-top: 8px;
+}
+.st-pbtn.ghost {
+  background: #3a342c;
+  box-shadow: 0 4px 0 #241f18;
+  text-shadow: none;
+  font-size: 10px;
+  padding: 10px 16px;
+}
+.st-pbtn:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+.st-scan {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #fff;
+  background: rgba(14, 12, 8, 0.55);
+  border-radius: 999px;
+  padding: 9px 14px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 6px;
+}
+.st-scan.ready {
+  color: var(--orange-light);
+}
+.st-scan-ring {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--green-light);
+  animation: st-scan-pulse 1.4s ease-out infinite;
+}
+.st-scan.ready .st-scan-ring {
+  border-color: var(--orange);
+}
+@keyframes st-scan-pulse {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0.15;
+  }
+}
+.st-caret {
+  display: inline-block;
+  width: 7px;
+  height: 13px;
+  background: var(--green);
+  margin-left: 1px;
+  vertical-align: -2px;
+  animation: st-blink 1s steps(2) infinite;
+}
+@keyframes st-blink {
+  50% {
+    opacity: 0;
+  }
+}
+/*
+ * No `font: inherit` reset here: .st-bubble is a <button>, but its typography
+ * is set explicitly above to match the viewer's .story-narration. A reset at
+ * this point in the file would silently override it.
+ */
+
+/* ===== publish dialog ===== */
+.st-modalbox.st-narrow {
+  width: min(94vw, 560px);
+}
+.st-msub {
+  font-size: 12px;
+  color: #7a6f58;
+  margin: 0 0 14px;
+  line-height: 1.5;
+}
+.st-checks {
+  margin: 10px 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.st-checks li {
+  font-size: 12.5px;
+  padding: 5px 0;
+  display: flex;
+  gap: 9px;
+  align-items: center;
+}
+.st-ok {
+  color: var(--green-deep);
+  font-weight: 700;
+}
+.st-bad {
+  color: #b33a2b;
+  font-weight: 700;
+}
+.st-statline {
+  font-size: 11px;
+  color: #7a6f58;
+  background: var(--paper2);
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 8px;
+  line-height: 1.6;
+}
+.st-statline code {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 11px;
+}
+.st-linkrow {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+.st-linkrow input {
+  flex: 1;
+  min-width: 0;
+  border: 3px solid var(--ink);
+  border-radius: 9px;
+  padding: 10px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  background: #fff;
+  color: var(--green-deep);
+}
+.st-mt {
+  margin-top: 12px;
+}

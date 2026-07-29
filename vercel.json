@@ -68,12 +68,11 @@
   ],
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ],
   "trailingSlash": false,
-  "cleanUrls": true,
   "github": {
     "silent": true
   }

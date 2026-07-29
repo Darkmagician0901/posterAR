@@ -14,7 +14,7 @@
  * Pure string logic (no DOM).
  */
 
-import type { StoryFrame, StoryAsset } from '@/story/storyDoc';
+import { isAssetRef, type StoryFrame, type StoryAsset } from '@/story/storyDoc';
 import { PROP_LIBRARY } from '@/story/props/library';
 import { MESH_DEF } from '@/story/props/builders';
 import { deriveBackdrop, parseSvgDoc, scaledBackdrop } from './backdrop';
@@ -115,7 +115,12 @@ function props(frame: StoryFrame, pan: number, images: Record<string, StoryAsset
     s += `<ellipse cx="${n(G.x)}" cy="${n(G.y)}" rx="${n(wpx * 0.34)}" ry="${n(wpx * 0.07)}" fill="#101408" opacity="${(0.2 * fade).toFixed(2)}"/>`;
     let mark: string;
     if (p.t === 'img') {
-      mark = `<image href="${escapeAttr(images[p.k].href)}" x="${n(-wpx / 2)}" y="${n(-hpx)}" width="${n(wpx)}" height="${n(hpx)}"/>`;
+      // Task 11 resolves v4 (assetId) references to actual bytes; until then
+      // this falls back to blank rather than reading .href off a ref. Safe
+      // for now — nothing writes an assetId yet.
+      const asset = images[p.k];
+      const src = isAssetRef(asset) ? '' : asset.href;
+      mark = `<image href="${escapeAttr(src)}" x="${n(-wpx / 2)}" y="${n(-hpx)}" width="${n(wpx)}" height="${n(hpx)}"/>`;
     } else {
       const { bbox, make } = PROP_LIBRARY[p.k];
       const sxk = wpx / bbox.w;

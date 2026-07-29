@@ -17,7 +17,7 @@
  * measured constants in library.ts.
  */
 
-import { StoryProp } from '../storyDoc';
+import { StoryProp, StoryAsset, isAssetRef } from '../storyDoc';
 import { MESH_DEF } from './builders';
 import { PROP_LIBRARY } from './library';
 
@@ -32,20 +32,6 @@ export const COMPOSE_DEFAULTS = {
   /** Pixels per scene-metre at z = 0. */
   ppm: 30,
 } as const;
-
-/** An uploaded image available to composition. */
-export interface ImageAsset {
-  /**
-   * Image source. MUST be a `data:` URL for anything that will be rasterized
-   * by svgTexture: an SVG loaded through `<img>` runs in restricted mode and
-   * will not fetch external references, so an https URL renders blank. Publish
-   * inlines assets; the studio's live preview may use blob: URLs because it
-   * renders the fragment as live DOM rather than through an Image.
-   */
-  href: string;
-  /** Natural width / height, used to size the placement box. */
-  aspect: number;
-}
 
 export interface ComposeOptions {
   width?: number;
@@ -63,13 +49,13 @@ export interface ComposeOptions {
    * Uploaded assets keyed by the `k` of any `t: 'img'` prop. Props whose key is
    * missing here are skipped rather than emitted as a broken reference.
    */
-  images?: Record<string, ImageAsset>;
+  images?: Record<string, StoryAsset>;
 }
 
 /**
  * Builds a full-bleed backdrop fragment from an uploaded image.
  *
- * @param href — Image source, subject to the same data:-URL rule as ImageAsset.
+ * @param href — Image source, subject to the same data:-URL rule as StoryAssetLegacy.
  * @param width — Document width.
  * @param height — Document height.
  * @returns An SVG fragment suitable for ComposeOptions.backdrop.
@@ -156,9 +142,14 @@ export function composeFrame(props: StoryProp[], options: ComposeOptions = {}): 
     if (p.t === 'img') {
       // Uploaded art is placed directly into the target box, bottom-centre
       // anchored, so it needs no bbox mapping.
+      // Task 11 resolves v4 (assetId) references to actual bytes; until then
+      // this falls back to blank rather than reading .href off a ref. Safe
+      // for now — nothing writes an assetId yet.
+      const asset = images[p.k];
+      const src = isAssetRef(asset) ? '' : asset.href;
       parts.push(
         `<g transform="translate(${n(bx)},${n(by)}) scale(${mirror},1)">` +
-          `<image href="${escapeAttr(images[p.k].href)}" x="${n(-wpx / 2)}" y="${n(-hpx)}" width="${n(wpx)}" height="${n(hpx)}"/>` +
+          `<image href="${escapeAttr(src)}" x="${n(-wpx / 2)}" y="${n(-hpx)}" width="${n(wpx)}" height="${n(hpx)}"/>` +
           `</g>`,
       );
     } else {

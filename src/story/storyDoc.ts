@@ -11,6 +11,9 @@
  * to import anywhere and cheap to unit-test.
  */
 
+import { ASSET_ID_RE } from './assetHash';
+import { ASSET_ALIAS_RE } from './artTokens';
+
 /** One staged element within a frame. Positions are in metres. */
 export interface StoryProp {
   /** 'lib' = built-in builder keyed by `k`; 'img' = uploaded asset id `k`. */
@@ -55,23 +58,50 @@ export interface StoryFrame {
   backdrop?: string;
 }
 
-/** An author-uploaded image available to any frame. */
-export interface StoryAsset {
-  /**
-   * Image source. Must be a `data:` URL: composed art is rasterized through an
-   * `<img>`, which runs SVG in restricted mode and will not fetch external
-   * references — an http(s) source renders blank rather than erroring.
-   */
-  href: string;
+/**
+ * A v4 asset reference: an opaque content address, never a URL.
+ *
+ * The document deliberately cannot name a host. `assetId` is 64 hex characters
+ * and the base URL comes from build configuration, so a published document —
+ * which is untrusted input — has no way to point a viewer's browser anywhere.
+ * v3 achieved the same property by permitting only `data:`; this is the same
+ * guarantee carried across the move to remote bytes.
+ */
+export interface StoryAssetRef {
+  /** SHA-256 of the stored bytes, 64 lowercase hex characters. */
+  assetId: string;
   /** Natural width / height, used to size placements. */
   aspect: number;
   /** Original filename, shown in the studio. */
   name?: string;
 }
 
+/**
+ * A v3 inline asset. Retained so documents published before the move keep
+ * rendering unchanged and forever; nothing new is written in this shape.
+ */
+export interface StoryAssetLegacy {
+  /** Must be a `data:` URL — see the restricted-mode note in artTokens.ts. */
+  href: string;
+  aspect: number;
+  name?: string;
+}
+
+export type StoryAsset = StoryAssetRef | StoryAssetLegacy;
+
+/**
+ * Narrows an asset to the v4 reference form.
+ *
+ * @param a — Either asset shape.
+ * @returns True when `a` carries an `assetId` and must be resolved remotely.
+ */
+export function isAssetRef(a: StoryAsset): a is StoryAssetRef {
+  return typeof (a as StoryAssetRef).assetId === 'string';
+}
+
 /** A complete authored experience. */
 export interface StoryDoc {
-  schemaVersion: 3;
+  schemaVersion: 4;
   /** Published identity; also the `?s=` value. */
   id: string;
   title: string;
@@ -85,7 +115,7 @@ export interface StoryDoc {
 }
 
 /** Current schema version. Bump only on a breaking shape change. */
-export const STORY_SCHEMA_VERSION = 3;
+export const STORY_SCHEMA_VERSION = 4;
 
 /** Returns `v` when it is a non-blank string, else `fb`. */
 function str(v: unknown, fb: string): string {
@@ -149,26 +179,43 @@ function sanitizeFrame(raw: unknown): StoryFrame | null {
 }
 
 /**
- * Sanitizes the asset map.
+ * Sanitizes the asset map, accepting both schema versions.
  *
- * Only `data:image/...` sources are kept. A published document is untrusted
- * input, and an `<image href>` is a place a hostile author could try to point
- * at something else; restricting to inline image data means a composed frame
- * can never reach off-origin, and matches the only form that actually renders
- * once rasterized.
+ * A published document is untrusted input, so each entry must prove its shape:
+ * a v4 entry's `assetId` must be exactly 64 lowercase hex characters — which
+ * cannot express a scheme, a host, or a traversal — and a v3 entry's `href`
+ * must still be a `data:` URL. The alias (the map key) is checked too, because
+ * it is interpolated into an SVG attribute as `asset:<alias>`.
+ *
+ * Entries are dropped individually rather than failing the map, matching the
+ * per-field fallback the rest of this validator uses.
  */
 function sanitizeAssets(raw: unknown): Record<string, StoryAsset> | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined;
   const out: Record<string, StoryAsset> = {};
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+
+  for (const [alias, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!ASSET_ALIAS_RE.test(alias)) continue;
+
     const v = bag(value);
-    const href = str(v.href, '');
-    if (!/^data:image\//i.test(href)) continue;
-    const aspect = num(v.aspect, 1);
+    const aspect = num(v.aspect, 0);
     if (aspect <= 0) continue;
+
     const name = str(v.name, '');
-    out[key] = name === '' ? { href, aspect } : { href, aspect, name };
+    const assetId = str(v.assetId, '');
+    const href = str(v.href, '');
+
+    if (assetId !== '') {
+      if (!ASSET_ID_RE.test(assetId)) continue;
+      out[alias] = name === '' ? { assetId, aspect } : { assetId, aspect, name };
+      continue;
+    }
+
+    if (/^data:image\//i.test(href)) {
+      out[alias] = name === '' ? { href, aspect } : { href, aspect, name };
+    }
   }
+
   return Object.keys(out).length > 0 ? out : undefined;
 }
 

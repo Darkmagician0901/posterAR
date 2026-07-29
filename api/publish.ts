@@ -126,7 +126,7 @@ export default async function handler(request: Request): Promise<Response> {
   // publishing a story that silently fell back to the demo content would be
   // worse than refusing.
   const empty: StoryDoc = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     id: 'unpublished',
     title: '',
     loc: '',

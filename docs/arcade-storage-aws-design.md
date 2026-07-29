@@ -1,10 +1,15 @@
 # ARCADE STUDIO — AWS-native storage design
 
 **Date:** 2026-07-28
-**Status:** Design, awaiting approval. No implementation code until approved.
+**Status:** Approved. All decisions settled (§2.3).
 **Scope:** The storage layer only — where story documents, image assets, and
 marker fingerprints live, and how they move between the studio, AWS, and the
 viewer.
+
+> **This document is the reasoning, and a record of how it changed.** For the
+> current state of the system as a whole, read `docs/arcade-architecture.md`.
+> Where the two differ, the architecture document is current and this one is
+> history. Sections amended after the initial pass say so inline.
 
 ---
 
@@ -13,7 +18,7 @@ viewer.
 **In scope**
 
 - S3 object layout and the caching/lifecycle rules per prefix
-- RDS schema for the control plane
+- The control-plane schema — designed, then deferred in full for v1 (§6)
 - Content-addressed asset pipeline (upload, dedup, integrity, garbage collection)
 - `StoryDoc` schema v4 — asset tokens instead of inlined bytes
 - The token → `data:` URL hydration path that keeps SVG rasterization working
@@ -45,7 +50,8 @@ carried forward unchanged.
   path exists. See §12.
 - **Multi-operator auth.** The schema carries `owner_id` throughout so real
   identity replaces a value, not a column. See §10.
-- **The frontend hosting decision.** Deliberately factored out; see §2.2.
+- **The frontend hosting decision.** Factored out in the first pass, then
+  settled — see §2.2.
 
 ---
 
@@ -70,8 +76,9 @@ to serve the poster path.
 **Growth path if this is wrong:** animated assets bypass composition entirely —
 a GIF becomes a sibling plane with its own animator, positioned like a prop but
 rendered on the existing GIF path. That is a second render path, not a storage
-change, so **this decision does not constrain the storage design**. The
-`story_assets` table already carries `is_animated`.
+change, so **this decision does not constrain the storage design**. Nothing in
+the storage layer distinguishes an animated asset from a still one — both are
+just bytes at a content address.
 
 ### 2.2 Deployment shape — Vercel app, AWS content (decided)
 
@@ -422,22 +429,22 @@ asset-to-marker placements). Neither is touched. `markers` here is a *registry* 
 which fingerprints exist and who owns them — which is a different concern from
 `marker_bindings`, and the two can coexist.
 
-> **Only two of these five tables are load-bearing in v1.**
+> **None of these five tables is created in v1.**
 >
-> `story_assets` and `asset_usage` are needed from day one: the first carries the
-> `committed` flag and the dedup index, the second is the refcount that makes
-> garbage collection safe (§7.4). Build them in Phase 2.
+> An earlier pass argued three of the five were not load-bearing; the amendment
+> at the head of §6 finished the argument for the remaining two. `story_assets`
+> was carrying a `committed` flag and a dedup index that S3 answers directly,
+> and `asset_usage` a refcount that is better derived than maintained (§7.4).
 >
-> `stories`, `markers`, and `story_markers` are forward-looking.
+> `stories`, `markers`, and `story_markers` were always forward-looking:
 > `arcade-studio-plan.md` resolved that v1 ships **one story at a time**, with no
 > browser, list, or management UI — publishing overwrites the current story. An
-> index nobody queries earns nothing yet. They are specified here so the shape is
-> settled and adding them is additive, but **Phase 4 can ship without them**, with
-> the artifact in S3 as the only record of a published story. Create them when a
-> story browser or a marker manager actually exists.
+> index nobody queries earns nothing.
 >
-> This is the one place the design deliberately specifies more than v1 needs, and
-> it is called out rather than hidden.
+> The schema stays here so the shape is settled and adding it later is additive.
+> Create it when a story browser, multi-operator accounts, or audit history
+> actually exist — **and answer the Vercel-to-RDS connectivity question at that
+> point**, because deferring the tables deferred that too.
 
 No `users` table yet. `owner_id` is the existing device token
 (`src/utils/deviceToken.ts`); introducing real accounts replaces the *value* in
@@ -631,7 +638,7 @@ document.
 ```
 GET ${STORY_BASE}/stories/<id>.json          ← CloudFront, 60 s TTL
       │
-      ▼  validateStoryDoc()  — dispatches on schemaVersion
+      ▼  validateStoryDoc()  — discriminates assets by shape
    StoryDoc v4
       │
       ▼  collectAssetRefs over every frame → unique assetIds
@@ -655,8 +662,11 @@ existing guarantee that no failure path leaves a visitor with a broken exhibit.
 ### 8.5 Backward compatibility
 
 v3 documents (`assets[k].href` = `data:` URL, art with inlined data URLs) remain
-readable **unchanged and forever**. The validator dispatches on
-`schemaVersion`; v3 needs no hydration because its bytes are already inline.
+readable **unchanged and forever**. The validator discriminates by SHAPE, not
+by `schemaVersion` — an entry carrying `assetId` is a v4 reference, one carrying
+a `data:` `href` is v3 legacy. `schemaVersion` is untrusted input like the rest
+of a published document, so a missing or wrong value must not decide how assets
+are read. v3 needs no hydration because its bytes are already inline.
 Only newly published documents are v4. The studio migrates a v3 draft on open by
 uploading each inline asset and rewriting the references.
 
@@ -781,7 +791,7 @@ extend it.
 
 | Module | Change |
 |---|---|
-| `src/story/storyDoc.ts` | v4 types; validator dispatches on `schemaVersion`; `assetId` regex |
+| `src/story/storyDoc.ts` | v4 types; validator discriminates assets by shape; `assetId` regex |
 | `src/story/props/compose.ts` | emit `asset:<alias>` at the two `<image href>` sites |
 | `src/story/svgTexture.ts` | blob URL instead of percent-encoded data URL (§8.6) |
 | `src/services/storyApi.ts` | resolve + hydrate assets after fetching the document |
@@ -824,12 +834,12 @@ Each phase is independently valuable and independently revisable.
 | Phase | Work | Depends on | Ships |
 |---|---|---|---|
 | **0** | `storyDoc` v4, `artTokens`, `assetHash` | nothing | Pure logic, green tests, zero AWS. Nothing behaves differently yet. |
-| **1** | Terraform: prefix-scoped lifecycle (**fixes the 90-day deletion bug**), per-prefix cache-control, explicit CORS origins, `S3_FORCE_PATH_STYLE=false` | 0 | Bucket is safe to hold production data. |
-| **2** | Presign/commit endpoints; client upload-on-drop; dedup; `story_assets` + `asset_usage` tables | 1 | Assets live in S3, deduped. Documents unchanged. |
+| **1** | Infrastructure: prefix-scoped lifecycle (**fixes the 90-day deletion bug**), per-prefix cache-control, explicit CORS origins. **Performed by hand** — see the ops checklist | 0 | Bucket is safe to hold production data. |
+| **2** | `api/_s3.ts` and the presign endpoint; client upload-on-drop; dedup via `HeadObject`. No database | 1 | Assets live in S3, deduped. Documents unchanged. |
 | **3** | `compose.ts` emits tokens; hydration on read; blob-URL rasterizer | 0, 2 | **The flip.** Documents drop from MB to KB. |
-| **4** | Publish writes the S3 artifact; migrate off Vercel Blob; swap the IAM user for Vercel OIDC federation (§2.2). `stories` table **optional** — see §6 | 2, 3 | All storage on AWS. |
+| **4** | Publish writes the S3 artifact; migrate off Vercel Blob; swap the IAM user for Vercel OIDC federation (§2.2) | 2, 3 | All storage on AWS. |
 | **5** | CloudFront distribution, per-prefix cache policy, **the three CORS requirements and their cold-cache acceptance test (§9)**, and the `/image-targets/*` rewrite (§14.1) | 4 | Read path on CDN. |
-| **6** | GC job; verify lifecycle; backfill `asset_usage` | 4 | Steady state. |
+| **6** | GC job — reachability derived from `stories/*.json`; verify lifecycle | 4 | Steady state. |
 
 Phase 3 is the only irreversible-feeling step, and it is guarded: v3 documents
 stay readable forever (§8.5), so a rollback is a config change, not a data

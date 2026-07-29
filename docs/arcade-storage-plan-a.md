@@ -68,7 +68,7 @@ both look like progress in a diff.
 
 | File | Change |
 |---|---|
-| `src/story/storyDoc.ts` | v4 types; validator dispatches on `schemaVersion`; `StoryAssetRef`. |
+| `src/story/storyDoc.ts` | v4 types; validator discriminates assets **by shape**, not by `schemaVersion`; `StoryAssetRef`. |
 | `src/story/storyDoc.test.ts` | v3-still-works and v4 validation cases. |
 | `src/story/svgTexture.ts` | Blob URL instead of percent-encoded data URL. |
 | `src/story/props/compose.ts` | Doc comments only — the code already takes hrefs from the caller. |
@@ -2455,7 +2455,10 @@ npm run test
 cd server && npm test && cd ..
 ```
 
-Expected: all pass. Frontend test count should be 131 + ~44 new.
+Expected: all pass, and **no pre-existing test regresses**. Roughly 65 tests
+are added across this plan; the exact figure is not a target — a count that
+drifts becomes a false failure signal. What matters is that nothing that passed
+before now fails.
 
 - [ ] **Step 2: Confirm the hand-drawn eras are untouched**
 

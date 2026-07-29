@@ -326,10 +326,16 @@ forces a schema change.
 
 ### 6.5 Version compatibility
 
-v3 documents remain readable **unchanged and forever**. The validator dispatches
-on `schemaVersion`; v3 needs no hydration because its bytes are already inline.
-The studio migrates a v3 draft on open by uploading each inline asset and
-rewriting the references.
+v3 documents remain readable **unchanged and forever**. v3 needs no hydration
+because its bytes are already inline. The studio migrates a v3 draft on open by
+uploading each inline asset and rewriting the references.
+
+The validator discriminates **by shape, not by `schemaVersion`** — an entry
+carrying `assetId` is a v4 reference, one carrying a `data:` `href` is v3
+legacy. This is deliberate: `schemaVersion` is untrusted input like everything
+else in a published document, so a missing or wrong value must not decide how
+the assets are read. Shape discrimination degrades correctly where version
+dispatch would not.
 
 ---
 

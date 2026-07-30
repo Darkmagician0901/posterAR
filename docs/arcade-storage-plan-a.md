@@ -953,7 +953,20 @@ export async function presignPutConditional(
   });
   return getSignedUrl(getS3(), cmd, {
     expiresIn: 300,
-    signableHeaders: new Set(['if-none-match', 'x-amz-checksum-sha256']),
+    // The two headers go in DIFFERENT sets, and this is not interchangeable.
+    //
+    // `moveHeadersToQuery` runs before `getCanonicalHeaders` and unconditionally
+    // hoists every `x-amz-*` header into the query string unless it is listed in
+    // `unhoistableHeaders`. A hoisted header never reaches the canonicalizer, so
+    // it never appears in X-Amz-SignedHeaders — `signableHeaders` cannot rescue
+    // it, because that list only re-admits headers excluded by the
+    // ALWAYS_UNSIGNABLE set, which is a different mechanism entirely.
+    //
+    // Leaving the checksum unsigned would let a client drop it and store bytes X
+    // under the key SHA256(Y). Dedup is global, so that poisons the address for
+    // every story. See aws/aws-sdk-js-v3#3906.
+    signableHeaders: new Set(['if-none-match']),
+    unhoistableHeaders: new Set(['x-amz-checksum-sha256']),
   });
 }
 ```

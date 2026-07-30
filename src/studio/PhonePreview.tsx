@@ -109,6 +109,35 @@ export const PhonePreview: React.FC<PhonePreviewProps> = ({ playing, onExitPlay 
   // Stop audio if the preview unmounts mid-play.
   useEffect(() => () => audioRef.current?.pause(), []);
 
+  // Editing read-out: type the narration out when a frame is OPENED (keyed on
+  // frame.key), then hand back to the live text. Editing the copy must not
+  // restart it, so `frame.line` is deliberately not a dependency.
+  const [editRead, setEditRead] = useState<string | null>(null);
+  const frameKey = frame?.key;
+  useEffect(() => {
+    if (playing || reduce) {
+      setEditRead(null);
+      return;
+    }
+    const line = frame?.line ?? '';
+    if (!line) {
+      setEditRead(null);
+      return;
+    }
+    let i = 0;
+    setEditRead('');
+    const id = window.setInterval(() => {
+      i += 1;
+      setEditRead(line.slice(0, i));
+      if (i >= line.length) {
+        window.clearInterval(id);
+        setEditRead(null); // live text takes over
+      }
+    }, 22);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frameKey, playing, reduce]);
+
   const showingFrame = !playing || stage === 'placed';
   const { shown, done, skip } = useStoryTypewriter(
     frame?.line ?? '',
@@ -203,6 +232,11 @@ export const PhonePreview: React.FC<PhonePreviewProps> = ({ playing, onExitPlay 
                     <>
                       {shown}
                       {!done && <span className="st-caret">▍</span>}
+                    </>
+                  ) : editRead !== null ? (
+                    <>
+                      {editRead}
+                      <span className="st-caret">▍</span>
                     </>
                   ) : frame?.line.trim() ? (
                     frame.line

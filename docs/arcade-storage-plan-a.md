@@ -1041,7 +1041,12 @@ const present = new Set<string>();
 const presigned: string[] = [];
 
 vi.mock('./_s3', () => ({
-  BUCKET: 'test-bucket',
+  // A getter, not a literal: the endpoint's 503 guard reads BUCKET, so a
+  // hardcoded value makes the "not configured" case impossible to test.
+  // Mirrors how the real module derives it, and matches _s3.test.ts.
+  get BUCKET() {
+    return process.env.S3_BUCKET ?? '';
+  },
   async objectExists(key: string) {
     return present.has(key);
   },

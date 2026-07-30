@@ -105,3 +105,28 @@ export async function presignPutConditional(
     unhoistableHeaders: new Set(['x-amz-checksum-sha256']),
   });
 }
+
+/**
+ * Writes a JSON object.
+ *
+ * `cacheControl` is a required parameter rather than a default because the two
+ * callers need opposite values and getting it wrong is silent: `stories/` is
+ * mutable at a stable key and needs a short TTL, while content-addressed
+ * objects can be cached forever. A default would make one of them wrong
+ * without anyone noticing.
+ *
+ * @param key — Object key, e.g. `stories/my-story.json`.
+ * @param body — Serialized JSON.
+ * @param cacheControl — Sent verbatim as the Cache-Control header.
+ */
+export async function putJson(key: string, body: string, cacheControl: string): Promise<void> {
+  await getS3().send(
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+      Body: body,
+      ContentType: 'application/json',
+      CacheControl: cacheControl,
+    }),
+  );
+}

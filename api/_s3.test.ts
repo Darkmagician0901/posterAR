@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 
 beforeEach(() => {
   process.env.S3_BUCKET = 'test-bucket';
@@ -27,5 +28,25 @@ describe('presignPutConditional', () => {
     const { presignPutConditional } = await import('./_s3');
     const url = await presignPutConditional('assets/abc/full.webp', 'image/webp', 'zz');
     expect(url).toContain('test-bucket');
+  });
+});
+
+describe('putJson', () => {
+  it('sends the body, content type, and cache control verbatim', async () => {
+    const sent: PutObjectCommand[] = [];
+    const { putJson, getS3 } = await import('./_s3');
+    // Replace the client's send with a recorder. The helper is a transport
+    // shell, so what matters is exactly what it hands to the SDK.
+    (getS3() as unknown as { send: (c: PutObjectCommand) => Promise<void> }).send = async (c) => {
+      sent.push(c);
+    };
+
+    await putJson('stories/x.json', '{"a":1}', 'public, max-age=60, must-revalidate');
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0].input.Key).toBe('stories/x.json');
+    expect(sent[0].input.Body).toBe('{"a":1}');
+    expect(sent[0].input.ContentType).toBe('application/json');
+    expect(sent[0].input.CacheControl).toBe('public, max-age=60, must-revalidate');
   });
 });

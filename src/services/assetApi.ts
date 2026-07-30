@@ -13,8 +13,13 @@
 import { API_BASE_URL } from '@/utils/constants';
 import { hexToBase64, sha256Hex } from '@/story/assetHash';
 
-/** Upload types the server accepts. Mirrors the server-side allowlist. */
-export type AssetContentType = 'image/webp' | 'image/gif' | 'image/png' | 'image/jpeg';
+/**
+ * Upload types the server accepts. Mirrors the server-side allowlist in
+ * `api/story-assets.ts`, which is webp-only — the read path
+ * (`src/story/assetResolver.ts`) fetches a hardcoded `full.webp`, so any other
+ * extension would write a key nothing ever reads.
+ */
+export type AssetContentType = 'image/webp';
 
 interface PresignResponse {
   exists: boolean;

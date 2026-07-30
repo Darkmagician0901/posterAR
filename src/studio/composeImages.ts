@@ -38,3 +38,33 @@ export function toComposeImages(
   }
   return out;
 }
+
+/**
+ * Guards the PERSISTED path against re-inlining bytes into `frame.art`.
+ *
+ * A v3 legacy asset's `href` is already a `data:` URL (see `toComposeImages`
+ * above), and that function passes it through unchanged regardless of whether
+ * it was called for a preview or for persistence — there is no v3 draft
+ * migration yet, so a document can still hold one. If that map reaches
+ * `composeFrame`/`phoneScene` on the persist path, the full base64 payload
+ * gets baked into `frame.art` — exactly the ballooning the v4 content-address
+ * migration removed, and silently, since nothing else would catch it.
+ *
+ * Call this on the map built with no `resolved` argument, right before it is
+ * composed into art that gets saved. Building an actual v3->v4 migration is
+ * deliberate future work; this only makes the alternative (silent re-inlining)
+ * loud instead.
+ *
+ * @param images — The map about to be composed into persisted art.
+ * @throws When any entry's href is a `data:` URL.
+ */
+export function assertPersistable(images: Record<string, ComposedImage>): void {
+  for (const [alias, { href }] of Object.entries(images)) {
+    if (href.startsWith('data:')) {
+      throw new Error(
+        `"${alias}" is stored in an older format that cannot be saved without embedding its full ` +
+          'bytes into the story. Remove it from the stage and re-upload the image, then place it again.',
+      );
+    }
+  }
+}

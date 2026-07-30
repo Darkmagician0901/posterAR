@@ -28,7 +28,7 @@ import { deriveBackdrop, parseSvgDoc, scaledBackdrop } from './backdrop';
 import { PROP_LIMITS, duplicateProp } from './propEdit';
 import { checkComposable } from './assetGuard';
 import { uploadStoryAsset, type AssetContentType } from '@/services/assetApi';
-import { toComposeImages } from './composeImages';
+import { toComposeImages, assertPersistable } from './composeImages';
 import { useResolvedAssets } from './useResolvedAssets';
 import {
   FRONT,
@@ -124,22 +124,21 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
     try {
       const processed = await validateAndProcessImage(file);
 
-      // The processed payload is what gets stored and hashed — not the
-      // original file — so the guard and the upload must both see the same
-      // bytes.
-      const blob = await (await fetch(processed.dataUrl)).blob();
-      const buffer = await blob.arrayBuffer();
-
-      const check = checkComposable(processed.mimeType, buffer);
+      const check = checkComposable(processed.mimeType);
       if (!check.ok) {
         setUploadError(check.reason);
         return;
       }
 
+      // The processed payload is what gets stored and hashed — not the
+      // original file.
+      const blob = await (await fetch(processed.dataUrl)).blob();
+
       let assetId: string;
       try {
-        // processed.mimeType is always 'image/webp' or 'image/gif' (see
-        // processImage), both members of AssetContentType.
+        // checkComposable above refuses every GIF, so processed.mimeType is
+        // always 'image/webp' (see processImage) by the time we get here —
+        // the only member of AssetContentType.
         assetId = await uploadStoryAsset(blob, processed.mimeType as AssetContentType);
       } catch (err) {
         setUploadError(err instanceof Error ? err.message : 'Upload failed. Check your connection.');
@@ -199,6 +198,16 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
   };
 
   const save = (): void => {
+    // Refuse rather than silently re-inline a v3 legacy asset's bytes into
+    // `frame.art` — see assertPersistable's doc comment. Surfaced through the
+    // same uploadError banner the upload flow already uses.
+    try {
+      assertPersistable(persistImages);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Could not save this stage.');
+      return;
+    }
+
     // Compose at the backdrop's native size so its inner markup drops in
     // unscaled — the saved art stays byte-faithful to the original scene — with
     // the props' ground line and scale following the same proportion. The
@@ -365,7 +374,10 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
           <input
             ref={fileRef}
             type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
+            // GIF omitted: assetGuard refuses every GIF outright (frame art is
+            // rasterized to a single still), so listing it here would only
+            // invite a selection that is guaranteed to fail.
+            accept="image/png,image/jpeg,image/webp"
             style={{ display: 'none' }}
             onChange={(e) => void onUpload(e.target.files?.[0])}
           />

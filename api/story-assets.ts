@@ -16,15 +16,20 @@ import { objectExists, presignPutConditional, BUCKET } from './_s3';
 /**
  * Upload types and their storage extensions.
  *
+ * Narrowed to webp only: the read path (`src/story/assetResolver.ts`) fetches
+ * a hardcoded `full.webp`, so a key written under any other extension is one
+ * nothing ever reads — a 404 that resolves to a silent transparent pixel, and
+ * because the address is content-derived, unfixable by re-uploading. Plan A
+ * is "store and read `full.webp` only"; this allowlist is what makes that
+ * true by construction instead of by convention. Widening it later is a
+ * deliberate edit here, paired with widening the reader.
+ *
  * `image/svg+xml` is deliberately absent: an SVG served from the public bucket
  * origin is active content and therefore a stored-XSS vector. Mirrors the
  * allowlist the poster route already enforces.
  */
 const EXT: Record<string, string> = {
   'image/webp': 'webp',
-  'image/gif': 'gif',
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
 };
 
 const SHA256_RE = /^[a-f0-9]{64}$/;
@@ -65,7 +70,10 @@ export default async function handler(request: Request): Promise<Response> {
     return json({ error: 'sha256Base64 is missing or malformed.' }, 400);
   }
   if (typeof contentType !== 'string' || !(contentType in EXT)) {
-    return json({ error: 'Unsupported image type.' }, 400);
+    return json(
+      { error: `Unsupported image type${typeof contentType === 'string' ? `: ${contentType}` : ''}. Only image/webp is accepted.` },
+      400,
+    );
   }
 
   const key = `assets/${sha256}/full.${EXT[contentType]}`;

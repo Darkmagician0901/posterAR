@@ -43,7 +43,8 @@ export function getS3(): S3Client {
  * @param key — Object key to probe.
  * @returns True when the object exists. A 404 returns false; every other error
  *   propagates, because "we could not tell" must never be reported as
- *   "missing" — publish uses this to decide whether a document is safe.
+ *   "missing" — its one caller, POST /api/story-assets, uses that to decide
+ *   whether an upload can be skipped as a dedup hit.
  */
 export async function objectExists(key: string): Promise<boolean> {
   try {

@@ -22,6 +22,15 @@ import { TRANSPARENT_PIXEL } from './artTokens';
 const ASSET_BASE_URL: string = import.meta.env.VITE_ASSET_BASE_URL || '';
 
 /**
+ * Whether the one-time "unset asset base URL" warning has already fired.
+ *
+ * Module-scope, not per-call: an unset base URL affects every v4 asset in
+ * every document a session resolves, so warning once is a signal an operator
+ * can act on; warning per asset would just be noise that gets ignored.
+ */
+let warnedUnsetBaseUrl = false;
+
+/**
  * Resolved `data:` URLs keyed by assetId.
  *
  * Bounded because a data: URL holds the whole payload as a string; an
@@ -34,6 +43,11 @@ const cache = new Map<string, string>();
 /** Drops every cached asset. For teardown and tests. */
 export function clearAssetCache(): void {
   cache.clear();
+}
+
+/** Re-arms the one-time unset-base-URL warning. For tests only. */
+export function resetAssetResolverWarnings(): void {
+  warnedUnsetBaseUrl = false;
 }
 
 /** Records a resolved asset, evicting the oldest entry when over budget. */
@@ -65,6 +79,17 @@ function blobToDataUrl(blob: Blob): Promise<string> {
  *   failure.
  */
 async function fetchAsDataUrl(assetId: string): Promise<string> {
+  if (ASSET_BASE_URL === '' && !warnedUnsetBaseUrl) {
+    warnedUnsetBaseUrl = true;
+    // Not fatal — the fetch below still runs same-origin — but it will 404 in
+    // any environment that doesn't also serve assets/ itself, and that 404
+    // resolves to a silent transparent pixel with no other signal. See
+    // .env.example for VITE_ASSET_BASE_URL.
+    console.warn(
+      'VITE_ASSET_BASE_URL is unset — story assets resolve same-origin and will silently render as ' +
+        'transparent pixels unless this origin also serves assets/.',
+    );
+  }
   const base = ASSET_BASE_URL.replace(/\/$/, '');
   try {
     const res = await fetch(`${base}/assets/${assetId}/full.webp`, { credentials: 'omit' });

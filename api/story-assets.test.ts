@@ -79,6 +79,29 @@ describe('POST /api/story-assets', () => {
     expect((await post({ ...body, contentType: 'text/html' })).status).toBe(400);
   });
 
+  // Narrowed to webp end to end (finding 1): the read path
+  // (src/story/assetResolver.ts) fetches a hardcoded `full.webp`, so any other
+  // extension would write a key nothing ever reads. These were accepted
+  // before that narrowing and must not be again.
+  it('rejects every non-webp type that used to have its own extension', async () => {
+    for (const contentType of ['image/gif', 'image/png', 'image/jpeg']) {
+      const res = await post({ ...body, contentType });
+      expect(res.status).toBe(400);
+    }
+  });
+
+  // Pins the key<->URL contract from both sides in one place: the presigned
+  // URL must target exactly the key the reader will later request. A
+  // divergence here (e.g. a reintroduced per-type extension) fails this
+  // assertion instead of going silent behind a 404 -> transparent pixel.
+  it('presigns a key at exactly assets/<sha256>/full.webp', async () => {
+    const res = await post(body);
+    const json = await res.json();
+    const expectedKey = `assets/${SHA}/full.webp`;
+    expect(presigned).toEqual([expectedKey]);
+    expect(json.uploadUrl).toBe(`https://store.example/${expectedKey}?X-Amz-Signature=abc`);
+  });
+
   it('rejects a body that is not an object', async () => {
     expect((await post('nope')).status).toBe(400);
   });

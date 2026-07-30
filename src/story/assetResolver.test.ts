@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { clearAssetCache, resolveAssets } from './assetResolver';
+import { clearAssetCache, resetAssetResolverWarnings, resolveAssets } from './assetResolver';
 import { TRANSPARENT_PIXEL } from './artTokens';
 
 const SHA = 'a'.repeat(64);
@@ -11,6 +11,7 @@ function okResponse(): Response {
 
 beforeEach(() => {
   clearAssetCache();
+  resetAssetResolverWarnings();
 });
 
 afterEach(() => {
@@ -22,6 +23,17 @@ describe('resolveAssets', () => {
     vi.stubGlobal('fetch', vi.fn(async () => okResponse()));
     const map = await resolveAssets({ logo: { assetId: SHA, aspect: 1 } });
     expect(map.get('logo')).toMatch(/^data:/);
+  });
+
+  // Pins the key<->URL contract from the read side, mirroring the write side
+  // pinned in api/story-assets.test.ts — the write key must be exactly what
+  // this fetch requests, or the upload lands somewhere nothing ever reads
+  // (see finding 1: a divergence here is a silent, unfixable 404).
+  it('fetches exactly assets/<assetId>/full.webp, credentials omitted', async () => {
+    const fetchMock = vi.fn(async () => okResponse());
+    vi.stubGlobal('fetch', fetchMock);
+    await resolveAssets({ logo: { assetId: SHA, aspect: 1 } });
+    expect(fetchMock).toHaveBeenCalledWith(`/assets/${SHA}/full.webp`, { credentials: 'omit' });
   });
 
   it('passes a v3 inline href through without fetching', async () => {
@@ -67,5 +79,22 @@ describe('resolveAssets', () => {
 
   it('returns an empty map for a document with no assets', async () => {
     await expect(resolveAssets({})).resolves.toEqual(new Map());
+  });
+
+  // VITE_ASSET_BASE_URL is unset in the test env, so every resolution below
+  // exercises the "unset" branch — this is what would otherwise silently
+  // resolve every asset same-origin with no signal (see .env.example).
+  it('warns once per session, not once per asset, when the base URL is unset', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal('fetch', vi.fn(async () => okResponse()));
+
+    await resolveAssets({ a: { assetId: SHA, aspect: 1 }, b: { assetId: SHA2, aspect: 1 } });
+    await resolveAssets({ a: { assetId: SHA, aspect: 1 } });
+
+    const unsetWarnings = warn.mock.calls.filter(([msg]) =>
+      String(msg).includes('VITE_ASSET_BASE_URL'),
+    );
+    expect(unsetWarnings).toHaveLength(1);
+    warn.mockRestore();
   });
 });

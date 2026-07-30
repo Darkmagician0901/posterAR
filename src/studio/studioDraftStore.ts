@@ -79,12 +79,13 @@ interface StudioState {
   /** Replaces one frame's staged props. */
   setProps: (index: number, props: StoryProp[]) => void;
   /**
-   * Stores an uploaded image under a caller-chosen alias — the id `t:'img'`
-   * props should reference. The alias is chosen by the caller (see
-   * StageEditor's `aliasFor`) so it can be collision-checked against existing
-   * assets before the write happens.
+   * Stores an uploaded image under an alias derived from `filename`, and
+   * returns the alias actually used — the id `t:'img'` props should
+   * reference. Collision resolution happens here, against the store's own
+   * current state, so the store can never be misused into overwriting an
+   * existing asset no matter what the caller does or doesn't check first.
    */
-  addAsset: (alias: string, asset: StoryAsset) => void;
+  addAsset: (filename: string, asset: StoryAsset) => string;
   /** Appends a blank frame and selects it. */
   addFrame: () => void;
   /** Removes a frame. Refuses to remove the last one. */
@@ -138,6 +139,25 @@ function clamp(index: number, length: number): number {
   return Math.min(Math.max(0, index), Math.max(0, length - 1));
 }
 
+/**
+ * Derives a collision-free, document-local alias from a filename.
+ *
+ * Must satisfy ASSET_ALIAS_RE, because it is interpolated into art as
+ * `asset:<alias>`. A collision is resolved by suffixing, so two uploads named
+ * `logo.png` become `logo` and `logo-2` rather than one overwriting the
+ * other. `addAsset` is the only caller, and calls this synchronously against
+ * its own freshly-read state, so this is the single place the suffixing rule
+ * lives — nothing duplicates it, and nothing can race it.
+ */
+function aliasFor(filename: string, taken: Set<string>): string {
+  const base = filename.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_-]+/g, '-').slice(0, 56) || 'image';
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n++) {
+    const candidate = `${base}-${n}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+}
+
 export const useStudioDraft = create<StudioState>((set, get) => {
   /** Commits a new document: pushes undo history, persists, updates state. */
   const commit = (doc: StoryDoc, selected?: number): void => {
@@ -173,9 +193,11 @@ export const useStudioDraft = create<StudioState>((set, get) => {
 
     setProps: (index, props) => get().patchFrame(index, { props }),
 
-    addAsset: (alias, asset) => {
+    addAsset: (filename, asset) => {
       const { doc } = get();
+      const alias = aliasFor(filename, new Set(Object.keys(doc.assets ?? {})));
       commit({ ...doc, assets: { ...(doc.assets ?? {}), [alias]: asset } });
+      return alias;
     },
 
     addFrame: () => {

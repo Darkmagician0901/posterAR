@@ -134,6 +134,26 @@ describe('studioDraftStore', () => {
     expect(s.persistError).toContain('QuotaExceeded');
   });
 
+  it('resolves an asset alias collision instead of overwriting', () => {
+    const { addAsset } = useStudioDraft.getState();
+    const first = addAsset('logo.png', {
+      assetId: '1'.repeat(64),
+      aspect: 1,
+      name: 'logo.png',
+    });
+    const second = addAsset('logo.png', {
+      assetId: '2'.repeat(64),
+      aspect: 2,
+      name: 'logo.png',
+    });
+
+    // Both survive under distinct keys — neither overwrote the other.
+    expect(first).not.toBe(second);
+    const { assets } = useStudioDraft.getState().doc;
+    expect(assets?.[first]).toMatchObject({ assetId: '1'.repeat(64) });
+    expect(assets?.[second]).toMatchObject({ assetId: '2'.repeat(64) });
+  });
+
   it('blankFrame produces something the validator accepts', async () => {
     const { validateStoryDoc } = await import('@/story/storyDoc');
     const doc = validateStoryDoc(

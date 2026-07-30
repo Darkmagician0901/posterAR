@@ -41,22 +41,6 @@ import {
 /** Where a newly added prop lands. */
 const DROP_IN = { x: 0, z: 1.5 };
 
-/**
- * Derives a document-local alias from a filename.
- *
- * Must satisfy ASSET_ALIAS_RE, because it is interpolated into art as
- * `asset:<alias>`. A collision is resolved by suffixing, so two files named
- * `logo.png` become `logo` and `logo-2`.
- */
-function aliasFor(filename: string, taken: Set<string>): string {
-  const base = filename.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_-]+/g, '-').slice(0, 56) || 'image';
-  if (!taken.has(base)) return base;
-  for (let n = 2; ; n++) {
-    const candidate = `${base}-${n}`;
-    if (!taken.has(candidate)) return candidate;
-  }
-}
-
 interface StageEditorProps {
   /** Index of the frame being staged. */
   frameIndex: number;
@@ -149,8 +133,9 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
 
       // The document records only the content address. No bytes ever reach
       // the draft, which is what keeps it inside the localStorage budget.
-      const alias = aliasFor(processed.originalName, new Set(Object.keys(doc.assets ?? {})));
-      addAsset(alias, {
+      // addAsset resolves any filename collision itself and returns the
+      // alias it actually used.
+      const alias = addAsset(processed.originalName, {
         assetId,
         aspect: processed.width / processed.height,
         name: processed.originalName,

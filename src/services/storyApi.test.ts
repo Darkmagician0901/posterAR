@@ -7,7 +7,6 @@ import {
   publishStory,
   hydrateStoryDoc,
   publishedStoryUrl,
-  fetchPublishedStory,
   LOCAL_DRAFT_KEY,
 } from './storyApi';
 import { clearAssetCache } from '@/story/assetResolver';
@@ -279,15 +278,43 @@ describe('publishedStoryUrl', () => {
 });
 
 describe('fetchPublishedStory', () => {
+  // fetchPublishedStory early-returns null whenever isStoryHostConfigured()
+  // is false, and VITE_STORY_BASE_URL is unset in the test environment — so
+  // these tests must configure a host and force storyApi to be re-evaluated
+  // with it, or the stubbed fetch below is never reached and the assertions
+  // pass for the wrong reason. STORY_BASE_URL is a module-level constant read
+  // once from import.meta.env, so stubbing the env after import does nothing;
+  // vi.resetModules() + a dynamic import (same pattern as api/_s3.test.ts)
+  // forces a fresh module read with the env in place.
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
   it('returns null rather than throwing when the document is missing', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 404 })));
-    await expect(fetchPublishedStory('gone')).resolves.toBeNull();
+    vi.stubEnv('VITE_STORY_BASE_URL', 'https://story.example');
+    const fetchMock = vi.fn(async () => new Response(null, { status: 404 }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.resetModules();
+
+    const { fetchPublishedStory: fetchWithHostConfigured } = await import('./storyApi');
+    await expect(fetchWithHostConfigured('gone')).resolves.toBeNull();
+    // Proves the null came from the `!res.ok` branch, not the
+    // unconfigured-host early return: if fetch were never called, this
+    // would be 0 and the assertion above would be passing vacuously.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('returns null rather than throwing when the network fails', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => {
+    vi.stubEnv('VITE_STORY_BASE_URL', 'https://story.example');
+    const fetchMock = vi.fn(async () => {
       throw new Error('offline');
-    }));
-    await expect(fetchPublishedStory('x')).resolves.toBeNull();
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.resetModules();
+
+    const { fetchPublishedStory: fetchWithHostConfigured } = await import('./storyApi');
+    await expect(fetchWithHostConfigured('x')).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

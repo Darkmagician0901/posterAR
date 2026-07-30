@@ -16,6 +16,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { objectExists, putJson } from './_s3';
 import { collectAssetRefs } from '../src/story/artTokens';
+import { assetKey } from '../src/story/assetStorage';
 import { isAssetRef, validateStoryDoc, type StoryDoc } from '../src/story/storyDoc';
 
 /** Shape returned on success. */
@@ -155,14 +156,28 @@ export default async function handler(request: Request): Promise<Response> {
     }
   }
 
-  for (const [alias, asset] of Object.entries(declared)) {
-    if (!isAssetRef(asset)) continue; // v3 inline asset: bytes are in the document
-    if (!(await objectExists(`assets/${asset.assetId}/full.webp`))) {
-      return json({ error: `The image "${alias}" did not finish uploading. Re-add it and try again.` }, 422);
-    }
-  }
-
   try {
+    // Inside the try on purpose: objectExists rethrows every non-404 (an S3
+    // outage, missing credentials, a wrong S3_REGION), and outside it those
+    // escaped the handler as a bare 500 instead of the designed 502 that names
+    // what went wrong.
+    for (const [alias, asset] of Object.entries(declared)) {
+      if (!isAssetRef(asset)) continue; // v3 inline asset: bytes are in the document
+      // Both ids, because both are read: the resolver prefers r1024Id and only
+      // falls back to assetId. A declared derivative whose bytes never landed
+      // costs an extra round trip on every viewer's device — and would go
+      // unnoticed, since the fallback hides it.
+      const required = asset.r1024Id === undefined ? [asset.assetId] : [asset.assetId, asset.r1024Id];
+      for (const storedId of required) {
+        if (!(await objectExists(assetKey(storedId)))) {
+          return json(
+            { error: `The image "${alias}" did not finish uploading. Re-add it and try again.` },
+            422,
+          );
+        }
+      }
+    }
+
     const key = `stories/${id}.json`;
     // 60 seconds, because this is the one object that is mutable at a stable
     // key — that is how /?s=<id> resolves without a lookup table. A longer TTL

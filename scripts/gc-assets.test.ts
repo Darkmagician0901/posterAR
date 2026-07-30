@@ -60,4 +60,19 @@ describe('unreachableAssets', () => {
   it('reclaims nothing when there is nothing stored', () => {
     expect(unreachableAssets([], [], 0)).toEqual([]);
   });
+
+  // The display derivative is an ordinary asset at its OWN address, so it
+  // shows up in `stored` on its own and is reachable only through the
+  // `r1024Id` naming it. Missing that would reclaim exactly the bytes every
+  // viewer of this story actually reads — and the fallback would hide the
+  // damage as a slower load rather than a broken one.
+  it('keeps a derivative its story names in r1024Id', () => {
+    const doc = story({ logo: { assetId: A, r1024Id: B, aspect: 1 } });
+    expect(unreachableAssets([doc], [A, B], 0)).toEqual([]);
+  });
+
+  it('reclaims a derivative once no story names it', () => {
+    const doc = story({ logo: { assetId: A, aspect: 1 } });
+    expect(unreachableAssets([doc], [A, B], 0)).toEqual([B]);
+  });
 });

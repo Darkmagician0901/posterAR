@@ -232,6 +232,39 @@ describe('validateStoryDoc — v4 assets', () => {
   });
 });
 
+// The display derivative is an ordinary asset with its own content address, so
+// r1024Id is a second id in the document and gets exactly the same scrutiny as
+// assetId — it is interpolated into a path too. The difference is what a
+// failure costs: a bad assetId means no image, a bad r1024Id means the same
+// image resolved from the canonical bytes.
+describe('validateStoryDoc — r1024Id', () => {
+  const R1024 = 'b'.repeat(64);
+
+  it('keeps a well-formed r1024Id alongside the assetId', () => {
+    const out = validateStoryDoc(
+      docWith({ logo: { assetId: SHA, r1024Id: R1024, aspect: 1.5 } }),
+      FALLBACK,
+    );
+    expect(out.assets?.logo).toEqual({ assetId: SHA, r1024Id: R1024, aspect: 1.5 });
+  });
+
+  it('drops an invalid r1024Id while keeping the rest of the entry', () => {
+    for (const bad of ['nope', 'B'.repeat(64), '../../secret', 'https://evil.example/x', 42, null]) {
+      const out = validateStoryDoc(
+        docWith({ logo: { assetId: SHA, r1024Id: bad, aspect: 1.5, name: 'sky.webp' } }),
+        FALLBACK,
+      );
+      // The image still resolves — from assetId — and its metadata survives.
+      expect(out.assets?.logo).toEqual({ assetId: SHA, aspect: 1.5, name: 'sky.webp' });
+    }
+  });
+
+  it('omits r1024Id entirely when absent, rather than emitting undefined', () => {
+    const out = validateStoryDoc(docWith({ logo: { assetId: SHA, aspect: 1 } }), FALLBACK);
+    expect(Object.keys(out.assets?.logo ?? {})).toEqual(['assetId', 'aspect']);
+  });
+});
+
 describe('isAssetRef', () => {
   it('discriminates a v4 reference from a v3 inline asset', () => {
     expect(isAssetRef({ assetId: SHA, aspect: 1 })).toBe(true);

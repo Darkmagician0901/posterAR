@@ -5,7 +5,7 @@ import { StageEditor, buildDisplayDerivative } from './StageEditor';
 import { useStudioDraft } from './studioDraftStore';
 import { PROP_LIBRARY } from '@/story/props/library';
 import { downscaleToWebp } from '@/utils/imageUpload';
-import { RASTER_LONGEST_AXIS } from '@/story/assetVariants';
+import { RASTER_LONGEST_AXIS } from '@/story/assetStorage';
 
 // downscaleToWebp does real canvas encoding — not available in happy-dom, and
 // not what these tests are pinning. What matters here is the WIRING: that

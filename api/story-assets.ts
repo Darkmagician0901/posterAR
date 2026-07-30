@@ -6,24 +6,37 @@
  * makes the upload idempotent — so this endpoint holds no state of its own and
  * there is no matching commit endpoint.
  *
- * Reads are unauthenticated because published assets are public by design. The
- * write path is gated by possession of a presigned URL, which only this
- * endpoint issues.
+ * Reads are unauthenticated because published assets are public by design.
+ * The write path is unauthenticated too, and is safe only because of one check
+ * below: the checksum S3 will enforce on the upload must equal the digest named
+ * by the key. An address can therefore only ever be presigned for bytes that
+ * genuinely hash to it, so a caller cannot claim an address for content that
+ * does not belong to it — and because `If-None-Match: '*'` makes a taken
+ * address permanent, that is the difference between "someone wastes their own
+ * bandwidth" and "someone permanently defaces a published exhibit".
+ *
+ * That check is why this endpoint has no `variant` parameter. A variant wrote a
+ * second key beside the parent's (`assets/<parentSha>/r1024.webp`) whose bytes
+ * were, by construction, NOT the parent's hash — an unverifiable address, and
+ * usually an empty one, which anyone could read out of a public story document
+ * and fill with their own image. Derivatives are now ordinary assets stored
+ * under their own hash; see src/story/assetStorage.ts.
  */
 
 import { objectExists, presignPutConditional, BUCKET } from './_s3';
-import { ASSET_VARIANTS, variantKey, type AssetVariant } from '../src/story/assetVariants';
+import { assetKey } from '../src/story/assetStorage';
+import { hexToBase64 } from '../src/story/assetHash';
 
 /**
- * Upload types accepted for either variant.
+ * Upload types accepted.
  *
  * Narrowed to webp only: the read path (`src/story/assetResolver.ts`) fetches
- * `r1024.webp`, falling back to `full.webp`, so a key written under any other
- * extension is one nothing ever reads — a 404 that resolves to a silent
- * transparent pixel, and because the address is content-derived, unfixable by
- * re-uploading. This allowlist is what makes "store and read `.webp` only"
- * true by construction instead of by convention. Widening it later is a
- * deliberate edit here, paired with widening the reader.
+ * `full.webp`, so a key written under any other extension is one nothing ever
+ * reads — a 404 that resolves to a silent transparent pixel, and because the
+ * address is content-derived, unfixable by re-uploading. This allowlist is what
+ * makes "store and read `.webp` only" true by construction instead of by
+ * convention. Widening it later is a deliberate edit here, paired with widening
+ * the reader.
  *
  * `image/svg+xml` is deliberately absent: an SVG served from the public bucket
  * origin is active content and therefore a stored-XSS vector. Mirrors the
@@ -60,20 +73,24 @@ export default async function handler(request: Request): Promise<Response> {
     return json({ error: 'Body must be an object.' }, 400);
   }
 
-  const { sha256, sha256Base64, contentType, variant } = parsed as Record<string, unknown>;
+  const { sha256, sha256Base64, contentType } = parsed as Record<string, unknown>;
 
   // Lowercase hex only. This value becomes a path segment, so anything that
-  // could express a traversal or a scheme is refused outright. It stays the
-  // PARENT content address for both variants — the derivative is never
-  // addressed by its own hash — so both live under one stable directory.
+  // could express a traversal or a scheme is refused outright.
   if (typeof sha256 !== 'string' || !SHA256_RE.test(sha256)) {
     return json({ error: 'sha256 must be 64 lowercase hex characters.' }, 400);
   }
-  // The digest of the bytes actually being uploaded: for `full` that is the
-  // parent's own hash; for `r1024` it is the derivative's, so this can differ
-  // from `sha256` above.
-  if (typeof sha256Base64 !== 'string' || sha256Base64.length === 0 || sha256Base64.length > 64) {
+  if (typeof sha256Base64 !== 'string' || sha256Base64.length === 0) {
     return json({ error: 'sha256Base64 is missing or malformed.' }, 400);
+  }
+  // The load-bearing check. `sha256Base64` is signed into the URL as
+  // `x-amz-checksum-sha256`, which S3 verifies against the bytes actually
+  // uploaded; `sha256` is the address those bytes are written to. Requiring
+  // them to be the same digest is what makes the address self-enforcing —
+  // without it, possession of any published assetId is possession of a write
+  // token for arbitrary bytes at that address.
+  if (sha256Base64 !== hexToBase64(sha256)) {
+    return json({ error: 'sha256Base64 must be the base64 form of sha256.' }, 400);
   }
   if (typeof contentType !== 'string' || !(contentType in EXT)) {
     return json(
@@ -81,15 +98,8 @@ export default async function handler(request: Request): Promise<Response> {
       400,
     );
   }
-  // Optional, defaulting to 'full' so pre-existing callers are unaffected.
-  // Validated against the allowed set because it becomes a path segment.
-  const resolvedVariant: unknown = variant === undefined ? 'full' : variant;
-  if (!ASSET_VARIANTS.includes(resolvedVariant as AssetVariant)) {
-    return json({ error: `variant must be one of: ${ASSET_VARIANTS.join(', ')}.` }, 400);
-  }
-  const variantValue = resolvedVariant as AssetVariant;
 
-  const key = variantKey(sha256, variantValue);
+  const key = assetKey(sha256);
 
   // Existence is the whole dedup check. Because the key is the content hash,
   // a hit means these exact bytes are already stored — a certainty, not a

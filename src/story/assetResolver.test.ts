@@ -1,6 +1,12 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { clearAssetCache, resetAssetResolverWarnings, resolveAssets } from './assetResolver';
+import {
+  clearAssetCache,
+  isAssetHostConfigured,
+  resetAssetResolverWarnings,
+  resolveAssets,
+} from './assetResolver';
 import { TRANSPARENT_PIXEL } from './artTokens';
+import { assetKey } from './assetStorage';
 
 const SHA = 'a'.repeat(64);
 const SHA2 = 'b'.repeat(64);
@@ -28,37 +34,46 @@ describe('resolveAssets', () => {
   // Pins the key<->URL contract from the read side, mirroring the write side
   // pinned in api/story-assets.test.ts — the write key must be exactly what
   // this fetch requests, or the upload lands somewhere nothing ever reads
-  // (see finding 1: a divergence here is a silent, unfixable 404). Pins BOTH
-  // variants so a future divergence between the written key and the read URL
-  // — the exact defect this note exists to prevent — fails a test instead of
-  // going silent.
-  it('fetches the r1024 derivative first, credentials omitted', async () => {
+  // (a divergence here is a silent, unfixable 404). The key comes from the one
+  // shared builder on both sides, so a change to it moves both at once.
+  it('fetches assets/<assetId>/full.webp, credentials omitted', async () => {
     const fetchMock = vi.fn(async () => okResponse());
     vi.stubGlobal('fetch', fetchMock);
     await resolveAssets({ logo: { assetId: SHA, aspect: 1 } });
-    expect(fetchMock).toHaveBeenCalledWith(`/assets/${SHA}/r1024.webp`, { credentials: 'omit' });
+    expect(fetchMock).toHaveBeenCalledWith(`/${assetKey(SHA)}`, { credentials: 'omit' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  // The derivative is preferred, but full.webp is what pre-derivative assets
-  // have — so a miss on r1024 must fall through to it, at the exact key the
-  // presign endpoint writes.
-  it('falls back to assets/<assetId>/full.webp when r1024 misses', async () => {
-    const fetchMock = vi.fn(async (url: string) =>
-      String(url).includes('r1024.webp') ? new Response(null, { status: 404 }) : okResponse(),
-    );
+  // The derivative is a separate asset with its own address, so it is found
+  // only by the id the document carries — and preferring it is the whole point
+  // of storing one.
+  it('resolves from r1024Id when the reference carries one', async () => {
+    const fetchMock = vi.fn(async () => okResponse());
     vi.stubGlobal('fetch', fetchMock);
-    const map = await resolveAssets({ logo: { assetId: SHA, aspect: 1 } });
+    const map = await resolveAssets({ logo: { assetId: SHA, r1024Id: SHA2, aspect: 1 } });
     expect(map.get('logo')).toMatch(/^data:/);
-    expect(fetchMock).toHaveBeenNthCalledWith(1, `/assets/${SHA}/r1024.webp`, { credentials: 'omit' });
-    expect(fetchMock).toHaveBeenNthCalledWith(2, `/assets/${SHA}/full.webp`, { credentials: 'omit' });
+    expect(fetchMock).toHaveBeenCalledWith(`/${assetKey(SHA2)}`, { credentials: 'omit' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  // Neither variant resolves — must still fall through to the transparent
-  // pixel rather than throwing.
-  it('falls back to a transparent pixel when both variants 404', async () => {
+  // A derivative that was reclaimed, never landed, or is simply absent must
+  // not cost the image — the canonical bytes are still there.
+  it('falls back to assetId when the r1024Id misses', async () => {
+    const fetchMock = vi.fn(async (url: string) =>
+      String(url).includes(SHA2) ? new Response(null, { status: 404 }) : okResponse(),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const map = await resolveAssets({ logo: { assetId: SHA, r1024Id: SHA2, aspect: 1 } });
+    expect(map.get('logo')).toMatch(/^data:/);
+    expect(fetchMock).toHaveBeenNthCalledWith(1, `/${assetKey(SHA2)}`, { credentials: 'omit' });
+    expect(fetchMock).toHaveBeenNthCalledWith(2, `/${assetKey(SHA)}`, { credentials: 'omit' });
+  });
+
+  // Neither id resolves — must still fall through to the transparent pixel
+  // rather than throwing.
+  it('falls back to a transparent pixel when both ids 404', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 404 })));
-    const map = await resolveAssets({ logo: { assetId: SHA, aspect: 1 } });
+    const map = await resolveAssets({ logo: { assetId: SHA, r1024Id: SHA2, aspect: 1 } });
     expect(map.get('logo')).toBe(TRANSPARENT_PIXEL);
   });
 
@@ -116,5 +131,12 @@ describe('resolveAssets', () => {
     );
     expect(unsetWarnings).toHaveLength(1);
     warn.mockRestore();
+  });
+
+  // A console.warn is the only runtime signal that this is unset, and nobody
+  // is watching a console at an exhibit. PublishDialog reads this to say so
+  // where an operator will actually see it.
+  it('reports the unset base URL as unconfigured', () => {
+    expect(isAssetHostConfigured()).toBe(false);
   });
 });

@@ -14,9 +14,11 @@
  * gradient rather than a camera feed, because there is no camera on a desk.
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useStudioDraft } from './studioDraftStore';
 import { phoneScene } from './phoneScene';
+import { toComposeImages } from './composeImages';
+import { useResolvedAssets } from './useResolvedAssets';
 import { useStoryTypewriter } from '@/components/story/useStoryTypewriter';
 
 /** Where a playthrough currently is. */
@@ -47,7 +49,13 @@ export const PhonePreview: React.FC<PhonePreviewProps> = ({ playing, onExitPlay 
   const stageRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
   const dragRef = useRef<{ x: number; pan: number } | null>(null);
-  const images = doc.assets ?? {};
+  // This is a live-rendered preview, never persisted, so it resolves v4
+  // (assetId) references to real `data:` URLs rather than tokens.
+  const resolvedAssets = useResolvedAssets(doc.assets);
+  const images = useMemo(
+    () => toComposeImages(doc.assets ?? {}, resolvedAssets),
+    [doc.assets, resolvedAssets],
+  );
   const reduce =
     typeof window !== 'undefined' &&
     window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;

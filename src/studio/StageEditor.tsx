@@ -28,6 +28,8 @@ import { deriveBackdrop, parseSvgDoc, scaledBackdrop } from './backdrop';
 import { PROP_LIMITS, duplicateProp } from './propEdit';
 import { checkComposable } from './assetGuard';
 import { uploadStoryAsset, type AssetContentType } from '@/services/assetApi';
+import { toComposeImages } from './composeImages';
+import { useResolvedAssets } from './useResolvedAssets';
 import {
   FRONT,
   TOP,
@@ -67,9 +69,22 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
   const dragging = useRef<{ index: number; view: 'front' | 'top' } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Memoized because `?? {}` would mint a new object each render and defeat
-  // the composition memo below — which re-serializes the whole scene.
-  const images = useMemo(() => doc.assets ?? {}, [doc.assets]);
+  // Raw asset map — used for display metadata (name/aspect) and as the shared
+  // input to both compose-image maps below. Memoized because `?? {}` would
+  // mint a new object each render and defeat those memos.
+  const assets = useMemo(() => doc.assets ?? {}, [doc.assets]);
+
+  // The live preview needs real pixels, so v4 (assetId) references are
+  // resolved to `data:` URLs here.
+  const resolvedAssets = useResolvedAssets(doc.assets);
+  const previewImages = useMemo(
+    () => toComposeImages(assets, resolvedAssets),
+    [assets, resolvedAssets],
+  );
+
+  // Art that gets persisted must carry `asset:<alias>` tokens rather than
+  // bytes — no resolved map is passed here. See save() below.
+  const persistImages = useMemo(() => toComposeImages(assets), [assets]);
 
   // The backdrop's native size, parsed once. Its inner markup is the layer the
   // preview and the saved art both draw behind the props.
@@ -85,10 +100,10 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
         height: FRONT.h,
         groundY: FRONT.groundY,
         ppm: FRONT.ppm,
-        images,
+        images: previewImages,
         backdrop: scaledBackdrop(backdrop.inner, backdrop.width, backdrop.height, FRONT.w, FRONT.h),
       }),
-    [props, images, backdrop],
+    [props, previewImages, backdrop],
   );
 
   const update = (index: number, patch: Partial<StoryProp>): void =>
@@ -198,7 +213,7 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
         height: backdrop.height,
         groundY: COMPOSE_DEFAULTS.groundY * groundScale,
         ppm: COMPOSE_DEFAULTS.ppm * groundScale,
-        images,
+        images: persistImages,
         backdrop: backdrop.inner,
       }),
     });
@@ -211,7 +226,7 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
       ? ''
       : sel.t === 'lib'
         ? (PROP_LIBRARY[sel.k]?.name ?? sel.k)
-        : (images[sel.k]?.name ?? 'UPLOAD');
+        : (assets[sel.k]?.name ?? 'UPLOAD');
 
   return (
     <div className="st-modal on" role="dialog" aria-label="Stage editor">
@@ -238,7 +253,7 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
                   const hpx = p.h * FRONT.ppm * s;
                   const aspect =
                     p.t === 'img'
-                      ? (images[p.k]?.aspect ?? 1)
+                      ? (assets[p.k]?.aspect ?? 1)
                       : PROP_LIBRARY[p.k]
                         ? PROP_LIBRARY[p.k].bbox.w / PROP_LIBRARY[p.k].bbox.h
                         : 1;

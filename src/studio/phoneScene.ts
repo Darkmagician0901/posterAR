@@ -14,9 +14,10 @@
  * Pure string logic (no DOM).
  */
 
-import { isAssetRef, type StoryFrame, type StoryAsset } from '@/story/storyDoc';
+import type { StoryFrame } from '@/story/storyDoc';
 import { PROP_LIBRARY } from '@/story/props/library';
 import { MESH_DEF } from '@/story/props/builders';
+import type { ComposedImage } from '@/story/props/compose';
 import { deriveBackdrop, parseSvgDoc, scaledBackdrop } from './backdrop';
 import { CAMERA, VIEW, GROUND, project, groundGrid } from './perspective';
 
@@ -96,7 +97,7 @@ function grid(pan: number): string {
 }
 
 /** Staged props, far -> near, with contact shadow, distance fade, flip, and sway. */
-function props(frame: StoryFrame, pan: number, images: Record<string, StoryAsset>): string {
+function props(frame: StoryFrame, pan: number, images: Record<string, ComposedImage>): string {
   const list = frame.props ?? [];
   const placeable = list.filter((p) =>
     p.t === 'img' ? images[p.k] !== undefined : PROP_LIBRARY[p.k] !== undefined,
@@ -115,11 +116,9 @@ function props(frame: StoryFrame, pan: number, images: Record<string, StoryAsset
     s += `<ellipse cx="${n(G.x)}" cy="${n(G.y)}" rx="${n(wpx * 0.34)}" ry="${n(wpx * 0.07)}" fill="#101408" opacity="${(0.2 * fade).toFixed(2)}"/>`;
     let mark: string;
     if (p.t === 'img') {
-      // Task 11 resolves v4 (assetId) references to actual bytes; until then
-      // this falls back to blank rather than reading .href off a ref. Safe
-      // for now — nothing writes an assetId yet.
-      const asset = images[p.k];
-      const src = isAssetRef(asset) ? '' : asset.href;
+      // The caller has already resolved this to a usable href — see
+      // ComposedImage.
+      const src = images[p.k].href;
       mark = `<image href="${escapeAttr(src)}" x="${n(-wpx / 2)}" y="${n(-hpx)}" width="${n(wpx)}" height="${n(hpx)}"/>`;
     } else {
       const { bbox, make } = PROP_LIBRARY[p.k];
@@ -145,7 +144,7 @@ function props(frame: StoryFrame, pan: number, images: Record<string, StoryAsset
 export function phoneScene(
   frame: StoryFrame,
   pan: number,
-  images: Record<string, StoryAsset>,
+  images: Record<string, ComposedImage>,
 ): string {
   const needsMesh = (frame.props ?? []).some((p) => p.t === 'lib' && PROP_LIBRARY[p.k]?.needsMesh);
   return (

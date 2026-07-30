@@ -17,9 +17,36 @@
  * measured constants in library.ts.
  */
 
-import { StoryProp, StoryAsset, isAssetRef } from '../storyDoc';
+import { StoryProp } from '../storyDoc';
 import { MESH_DEF } from './builders';
 import { PROP_LIBRARY } from './library';
+
+/**
+ * An image ready to be composed: a resolvable href plus its aspect.
+ *
+ * This is the composer's own boundary type — it knows nothing about how the
+ * href was produced. The caller (see @/studio/composeImages) is responsible
+ * for turning a document's StoryAsset map into this shape, resolving v4
+ * `assetId` references to either an `asset:<alias>` token (for art that will
+ * be persisted) or a real `data:` URL (for a live preview). compose.ts must
+ * stay unaware of storage.
+ */
+export interface ComposedImage {
+  /**
+   * Image source, interpolated verbatim into `<image href="...">`.
+   *
+   * For art that will be PERSISTED this must be an `asset:<alias>` token —
+   * see @/studio/composeImages. For art rendered as live DOM (the studio
+   * preview) it may be a real `data:` or `blob:` URL.
+   *
+   * It must never be an `https:` URL in art that will be rasterized: an SVG
+   * loaded through `<img>` runs in restricted mode and will not fetch external
+   * references, so it renders blank rather than erroring.
+   */
+  href: string;
+  /** Natural width / height, used to size the placement box. */
+  aspect: number;
+}
 
 /** Composition frame defaults, matching the shipped era art's proportions. */
 export const COMPOSE_DEFAULTS = {
@@ -47,9 +74,10 @@ export interface ComposeOptions {
   backdrop?: string;
   /**
    * Uploaded assets keyed by the `k` of any `t: 'img'` prop. Props whose key is
-   * missing here are skipped rather than emitted as a broken reference.
+   * missing here are skipped rather than emitted as a broken reference. The
+   * caller has already resolved each entry's href — see ComposedImage.
    */
-  images?: Record<string, StoryAsset>;
+  images?: Record<string, ComposedImage>;
 }
 
 /**
@@ -141,12 +169,9 @@ export function composeFrame(props: StoryProp[], options: ComposeOptions = {}): 
     const mirror = p.f ? -1 : 1;
     if (p.t === 'img') {
       // Uploaded art is placed directly into the target box, bottom-centre
-      // anchored, so it needs no bbox mapping.
-      // Task 11 resolves v4 (assetId) references to actual bytes; until then
-      // this falls back to blank rather than reading .href off a ref. Safe
-      // for now — nothing writes an assetId yet.
-      const asset = images[p.k];
-      const src = isAssetRef(asset) ? '' : asset.href;
+      // anchored, so it needs no bbox mapping. The caller has already
+      // resolved this to a usable href — see ComposedImage.
+      const src = images[p.k].href;
       parts.push(
         `<g transform="translate(${n(bx)},${n(by)}) scale(${mirror},1)">` +
           `<image href="${escapeAttr(src)}" x="${n(-wpx / 2)}" y="${n(-hpx)}" width="${n(wpx)}" height="${n(hpx)}"/>` +

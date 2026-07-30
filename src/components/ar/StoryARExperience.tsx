@@ -58,12 +58,16 @@ export const StoryARExperience: React.FC = () => {
   // era's SVG and hand it to the tile. Runs on the React side so it composes
   // cleanly with store state; the tile lives in a ref so the engine loop and
   // this effect share it.
+  // Subscribed rather than read once: an authored story can arrive after mount
+  // (the ?s= fetch in App resolves asynchronously), and the tile must
+  // re-rasterize when it does.
+  const frames = useContentStore((s) => s.doc.frames);
+
   useEffect(() => {
     if (!placed) return;
-    let cancelled = false;
-    const frames = useContentStore.getState().doc.frames;
     const frame = frames[eraIndex] ?? frames[0];
     if (!frame) return;
+    let cancelled = false;
     void svgToTexture(frame.art).then(({ texture, aspect }) => {
       if (cancelled) {
         texture.dispose();
@@ -75,10 +79,7 @@ export const StoryARExperience: React.FC = () => {
     return () => {
       cancelled = true;
     };
-    // The doc is fixed for the lifetime of the session in this phase, so it is
-    // deliberately not a dependency. When a doc can be swapped at runtime the
-    // active doc must be added here or the tile will keep the old art.
-  }, [placed, eraIndex]);
+  }, [placed, eraIndex, frames]);
 
   /**
    * Plants the diorama at the current reticle pose (first tap only). Later

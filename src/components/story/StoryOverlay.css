@@ -202,20 +202,29 @@
   }
 }
 
+/*
+ * Narration floats over the camera feed rather than sitting on a panel: a
+ * light translucent scrim plus a blur, not an opaque slab. Legibility over a
+ * bright, busy feed comes from the text shadow, which is why the scrim can
+ * stay this transparent.
+ *
+ * Press Start 2P throughout, inherited — the app's one voice.
+ */
 .story-narration {
   flex: 1 1 auto;
   text-align: left;
   font-family: inherit;
-  font-size: 9px;
-  line-height: 1.95;
-  color: #f4efe4;
-  background: rgba(20, 18, 14, 0.82);
-  border: 2px solid rgba(255, 255, 255, 0.14);
+  font-size: 8.5px;
+  line-height: 1.85;
+  color: #ffffff;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.85);
+  background: rgba(20, 18, 14, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 12px;
-  padding: 12px 13px;
+  padding: 11px 12px;
   pointer-events: auto;
   cursor: pointer;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(3px);
 }
 .story-caret {
   color: var(--story-orange);

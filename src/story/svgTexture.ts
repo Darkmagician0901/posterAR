@@ -98,21 +98,32 @@ export async function svgToTexture(svg: string): Promise<EraTexture> {
 }
 
 /**
- * Decodes an SVG string into an HTMLImageElement via a data: URL.
+ * Decodes an SVG string into an HTMLImageElement.
  *
- * Uses encodeURIComponent rather than btoa so non-Latin characters in the
- * markup can't throw, and avoids fetch entirely (works offline / under strict
- * CSP connect-src).
+ * Uses a blob: URL rather than `data:image/svg+xml,${encodeURIComponent(svg)}`.
+ * Once hydrated art carries base64 image payloads, percent-encoding expands
+ * `+`, `/` and `=` three-for-one — roughly 6% on top of base64's 33% — and
+ * builds a large intermediate string on the way. A Blob skips both.
  *
- * @param svg — SVG document string.
+ * The `<img>` restricted-mode rules are unchanged by this: they are a property
+ * of the image context, not of the URL scheme, so external references still
+ * will not load and art must still arrive already hydrated.
+ *
+ * @param svg — SVG document string, with every asset token already replaced.
  * @returns A decoded, ready-to-draw image.
  */
 function loadSvgImage(svg: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
-    const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
     const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('SVG decode failed'));
+    const done = (fn: () => void) => {
+      // Revoke as soon as the image has decoded; the bitmap is retained
+      // independently, so holding the URL open would just leak.
+      URL.revokeObjectURL(url);
+      fn();
+    };
+    img.onload = () => done(() => resolve(img));
+    img.onerror = () => done(() => reject(new Error('SVG decode failed')));
     img.src = url;
   });
 }

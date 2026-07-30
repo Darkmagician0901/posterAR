@@ -1,0 +1,162 @@
+/**
+ * POST /api/publish — writes a story document to Blob storage.
+ *
+ * The only authenticated endpoint in the app. It exists for two reasons that
+ * both require a server: the Blob write token must never reach a browser, and
+ * the live exhibit needs a gate so that finding /studio is not the same as
+ * being able to overwrite what visitors see.
+ *
+ * Reads stay unauthenticated — published documents are public by design and are
+ * fetched straight from Blob's CDN, not through this function.
+ *
+ * Deployed by Vercel from the api/ directory. Uses the Web handler signature,
+ * so it needs no platform-specific types.
+ */
+
+import { put } from '@vercel/blob';
+import { timingSafeEqual } from 'node:crypto';
+import { validateStoryDoc, type StoryDoc } from '../src/story/storyDoc';
+
+/** Shape returned on success. */
+interface PublishResult {
+  id: string;
+  url: string;
+}
+
+/** Maximum accepted document size. Composed art is inlined, so this is generous. */
+const MAX_BODY_BYTES = 12 * 1024 * 1024;
+
+/** Ids are slugs; keep the accepted shape narrow and path-safe. */
+const ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
+/** In-memory throttle. Per-instance only — see the note in the handler. */
+const attempts = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT = { max: 10, windowMs: 60_000 };
+
+function json(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+  });
+}
+
+/**
+ * Compares two secrets without leaking their relationship through timing.
+ *
+ * Lengths are compared first because timingSafeEqual throws on a mismatch;
+ * that leak is acceptable (it reveals only the length) and unavoidable here.
+ */
+function secretMatches(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+/** True when this caller has exceeded the window. Also records the attempt. */
+function isRateLimited(key: string): boolean {
+  const now = Date.now();
+  const entry = attempts.get(key);
+  if (entry === undefined || now > entry.resetAt) {
+    attempts.set(key, { count: 1, resetAt: now + RATE_LIMIT.windowMs });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > RATE_LIMIT.max;
+}
+
+export default async function handler(request: Request): Promise<Response> {
+  if (request.method !== 'POST') {
+    return json({ error: 'Use POST to publish.' }, 405);
+  }
+
+  const secret = process.env.STUDIO_PUBLISH_SECRET;
+  if (secret === undefined || secret === '') {
+    return json(
+      {
+        error:
+          'Publishing is not configured. Set STUDIO_PUBLISH_SECRET in the project environment.',
+      },
+      503,
+    );
+  }
+  if (process.env.BLOB_READ_WRITE_TOKEN === undefined) {
+    return json(
+      {
+        error:
+          'Publishing is not configured. Connect a Blob store to this project so BLOB_READ_WRITE_TOKEN is set.',
+      },
+      503,
+    );
+  }
+
+  // Per-instance only: serverless spreads callers across instances, so this
+  // slows a single attacker rather than stopping a distributed one. It is worth
+  // having because the realistic threat here is someone guessing one secret in
+  // a loop, not a botnet.
+  const caller = request.headers.get('x-forwarded-for') ?? 'unknown';
+  if (isRateLimited(caller)) {
+    return json({ error: 'Too many attempts. Wait a minute and try again.' }, 429);
+  }
+
+  const auth = request.headers.get('authorization') ?? '';
+  const provided = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (provided === '' || !secretMatches(provided, secret)) {
+    return json({ error: 'Not authorised.' }, 401);
+  }
+
+  const raw = await request.text();
+  if (raw.length > MAX_BODY_BYTES) {
+    return json({ error: 'That story is too large to publish.' }, 413);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return json({ error: 'Body was not valid JSON.' }, 400);
+  }
+
+  const body = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as {
+    doc?: unknown;
+    id?: unknown;
+  };
+
+  // Validate against an empty-framed document rather than a bundled default:
+  // publishing a story that silently fell back to the demo content would be
+  // worse than refusing.
+  const empty: StoryDoc = {
+    schemaVersion: 4,
+    id: 'unpublished',
+    title: '',
+    loc: '',
+    intro: { title: '', subtitle: '' },
+    outro: { title: '', subtitle: '' },
+    frames: [],
+  };
+  const doc = validateStoryDoc(body.doc, empty);
+  if (doc.frames.length === 0) {
+    return json({ error: 'That story has no usable frames.' }, 400);
+  }
+
+  const id = typeof body.id === 'string' ? body.id.trim().toLowerCase() : '';
+  if (!ID_PATTERN.test(id)) {
+    return json({ error: 'Story id must be lowercase letters, numbers and hyphens.' }, 400);
+  }
+
+  try {
+    const blob = await put(`stories/${id}.json`, JSON.stringify({ ...doc, id }), {
+      access: 'public',
+      contentType: 'application/json',
+      // Deterministic path so /?s=<id> resolves without a lookup table, and so
+      // republishing replaces rather than accumulating orphans.
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      cacheControlMaxAge: 60,
+    });
+    return json({ id, url: blob.url } satisfies PublishResult, 200);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown storage error';
+    return json({ error: `Could not save the story: ${message}` }, 502);
+  }
+}

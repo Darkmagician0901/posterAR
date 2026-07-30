@@ -15,7 +15,11 @@ import { detectXRSupport } from '@/utils/deviceDetection';
 import { XRSupport } from '@/types';
 import { UI_TEXT } from '@/utils/constants';
 import { isPersistenceEnabled, listAssets } from '@/services/posterApi';
+import { loadStoryForLocation, hydrateStoryDoc } from '@/services/storyApi';
+import { validateStoryDoc } from '@/story/storyDoc';
+import { DEFAULT_STORY } from '@/story/defaultStory';
 import { usePosterStore } from '@/store/posterStore';
+import { useContentStore } from '@/store/contentStore';
 import { DesktopMockMode } from '@/components/ar/DesktopMockMode';
 import { StoryARExperience } from '@/components/ar/StoryARExperience';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
@@ -138,6 +142,29 @@ function App() {
         if (!cancelled) usePosterStore.getState().hydrateUploads(assets);
       })
       .catch((err) => console.warn('Asset hydration failed:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load the story this URL asks for (?s=<id>, or ?draft=1 for the studio's
+  // local preview). loadStoryForLocation resolves null on every failure path,
+  // in which case the content store keeps the bundled default — so a bad link
+  // or an offline device still gets a complete experience.
+  useEffect(() => {
+    let cancelled = false;
+    void loadStoryForLocation(window.location.search)
+      .then(async (raw) => {
+        if (cancelled || raw === null) return;
+        // Validate first: hydration trusts assetId, and only the validator
+        // guarantees it is a bare content address.
+        const validated = validateStoryDoc(raw, DEFAULT_STORY);
+        const hydrated = await hydrateStoryDoc(validated);
+        if (cancelled) return;
+        useContentStore.getState().load(hydrated);
+        debugTelemetry.logEvent('story: loaded authored document');
+      })
+      .catch((err) => console.warn('Story load failed:', err));
     return () => {
       cancelled = true;
     };

@@ -5,8 +5,11 @@ import {
   loadStoryForLocation,
   slugifyStoryId,
   publishStory,
+  hydrateStoryDoc,
   LOCAL_DRAFT_KEY,
 } from './storyApi';
+import { clearAssetCache } from '@/story/assetResolver';
+import type { StoryDoc } from '@/story/storyDoc';
 
 describe('resolveStorySource', () => {
   it('defaults to the bundled story when nothing is asked for', () => {
@@ -203,5 +206,62 @@ describe('publishStory', () => {
     );
     const out = await publishStory({}, 'abc', 's');
     expect(out.ok).toBe(false);
+  });
+});
+
+const SHA = 'a'.repeat(64);
+
+const docWithToken = (): StoryDoc => ({
+  schemaVersion: 4,
+  id: 'x',
+  title: '',
+  loc: '',
+  intro: { title: '', subtitle: '' },
+  outro: { title: '', subtitle: '' },
+  frames: [
+    { key: 'f1', year: '', label: '', title: '', line: '', washColor: '',
+      art: '<svg><image href="asset:logo"/></svg>' },
+    { key: 'f2', year: '', label: '', title: '', line: '', washColor: '',
+      art: '<svg><image href="asset:logo"/></svg>' },
+  ],
+  assets: { logo: { assetId: SHA, aspect: 1 } },
+});
+
+describe('hydrateStoryDoc', () => {
+  afterEach(() => {
+    clearAssetCache();
+    vi.unstubAllGlobals();
+  });
+
+  it('replaces tokens in every frame with the resolved bytes', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      new Response(new Blob([new Uint8Array([1])], { type: 'image/webp' }), { status: 200 })));
+
+    const out = await hydrateStoryDoc(docWithToken());
+    expect(out.frames[0].art).toMatch(/href="data:/);
+    expect(out.frames[1].art).toMatch(/href="data:/);
+    expect(out.frames[0].art).not.toContain('asset:logo');
+  });
+
+  it('fetches a shared asset once for the whole document', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(new Blob([new Uint8Array([1])], { type: 'image/webp' }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await hydrateStoryDoc(docWithToken());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a document with no assets unchanged', async () => {
+    const doc = { ...docWithToken(), assets: undefined };
+    const out = await hydrateStoryDoc(doc);
+    expect(out).toBe(doc);
+  });
+
+  it('leaves art intact when an asset fails to resolve', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 500 })));
+    const out = await hydrateStoryDoc(docWithToken());
+    // A transparent pixel, not a broken document.
+    expect(out.frames[0].art).toContain('data:image/png;base64,');
   });
 });

@@ -14,6 +14,10 @@
  * Source resolution is pure string logic so it is unit-testable without a DOM.
  */
 
+import { hydrateArt } from '@/story/artTokens';
+import { resolveAssets } from '@/story/assetResolver';
+import type { StoryDoc } from '@/story/storyDoc';
+
 /** localStorage key the studio writes its working draft to. */
 export const LOCAL_DRAFT_KEY = 'arcade.studio.draft';
 
@@ -174,4 +178,25 @@ export async function loadStoryForLocation(search: string): Promise<unknown | nu
   if (source.kind === 'published') return fetchPublishedStory(source.id);
   if (source.kind === 'draft') return readLocalDraft();
   return null;
+}
+
+/**
+ * Inlines every referenced asset into the document's art.
+ *
+ * Call once after loading and before anything rasterizes. The result is
+ * render-only: its `art` strings carry full image payloads, so it must never
+ * be written back to the draft, persisted, or published.
+ *
+ * @param doc — A validated document, freshly loaded.
+ * @returns A copy whose frames' art is ready for `svgToTexture`. Documents
+ *   with no assets — every hand-drawn era scene — are returned untouched.
+ */
+export async function hydrateStoryDoc(doc: StoryDoc): Promise<StoryDoc> {
+  if (!doc.assets || Object.keys(doc.assets).length === 0) return doc;
+
+  const resolved = await resolveAssets(doc.assets);
+  return {
+    ...doc,
+    frames: doc.frames.map((f) => ({ ...f, art: hydrateArt(f.art, resolved) })),
+  };
 }

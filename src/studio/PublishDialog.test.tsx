@@ -1,16 +1,26 @@
 /**
- * Regression test for a crash in the post-publish success view.
+ * Regression coverage for the post-publish success view when the server
+ * returns a relative story URL.
  *
  * `POST /api/publish` returns `url: "/stories/<id>.json"` — relative, no
  * origin — whenever the server's STORY_PUBLIC_BASE_URL is unset (see
- * api/publish.ts). The "one setup step left" hint used to call
- * `new URL(result.url).origin` directly in JSX with no base argument, which
- * throws `TypeError: Invalid URL` on a relative string. That crashed the
- * dialog in exactly the fresh-deploy case it exists to help with, even
- * though the publish itself had already succeeded.
+ * api/publish.ts). This never happened before the S3 migration: Vercel
+ * Blob's `put()` always returned an absolute URL.
  *
- * This never happened before the S3 migration: Vercel Blob's `put()` always
- * returned an absolute URL.
+ * Round 1 of this fix called `new URL(result.url).origin` directly in JSX
+ * with no base argument, which throws `TypeError: Invalid URL` on a relative
+ * string — crashing the dialog right after a successful publish.
+ *
+ * Round 1's fix resolved the relative URL against `window.location.origin`
+ * instead, which stopped the crash but replaced it with a worse bug: it
+ * showed the operator the *studio's own domain* as the value to put in
+ * `VITE_STORY_BASE_URL`. That's never the bucket host, so a copied value
+ * would silently misconfigure the viewer — a mistake that only surfaces
+ * later, once every published story 404s and renders as a transparent gap.
+ *
+ * The correct behaviour (asserted below): when the URL is relative, do not
+ * synthesise an origin at all. Tell the operator the server itself isn't
+ * configured, and name `STORY_PUBLIC_BASE_URL` as what to set.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -63,7 +73,7 @@ describe('PublishDialog', () => {
     useStudioDraft.getState().reset();
   });
 
-  it('renders the success view without throwing when the server returns a relative story URL', async () => {
+  it('names STORY_PUBLIC_BASE_URL — and never the studio origin — when the server returns a relative story URL', async () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -80,8 +90,8 @@ describe('PublishDialog', () => {
     )!;
     expect(publishBtn.disabled).toBe(false);
 
-    // Would throw synchronously inside the pre-fix JSX (new URL with no base)
-    // the moment the success view rendered.
+    // Would throw synchronously inside round 1's pre-fix JSX (new URL with no
+    // base) the moment the success view rendered.
     await act(async () => {
       publishBtn.click();
       await Promise.resolve();
@@ -91,8 +101,13 @@ describe('PublishDialog', () => {
     const link = container.querySelector<HTMLInputElement>('#st-pub-link');
     expect(link?.value).toBe(`${window.location.origin}/?s=my-story`);
 
-    // Resolved against the current origin rather than left blank or crashing.
-    const hint = container.querySelector<HTMLInputElement>('.st-warn input');
-    expect(hint?.value).toBe(window.location.origin);
+    // The real requirement: no synthesised origin anywhere in the dialog —
+    // the studio's own domain must never be presented as if it were the
+    // bucket host — and the actionable env var is named instead.
+    expect(container.textContent).not.toContain(window.location.origin);
+    expect(container.textContent).toContain('STORY_PUBLIC_BASE_URL');
+
+    // No origin input/copy row rendered at all: there is nothing true to show.
+    expect(container.querySelector('.st-warn input')).toBeNull();
   });
 });

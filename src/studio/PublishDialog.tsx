@@ -46,19 +46,21 @@ function rememberSecret(value: string): void {
 }
 
 /**
- * Best-effort origin for the "set VITE_STORY_BASE_URL to..." hint.
+ * The origin the "set VITE_STORY_BASE_URL to..." hint can show — only when
+ * the server actually gave us an absolute one.
  *
  * `result.url` is absolute when the server's STORY_PUBLIC_BASE_URL is
- * configured, but relative (e.g. "/stories/x.json") when it isn't —
- * precisely the unconfigured case this hint exists to help with. `new URL()`
- * throws on a relative string with no base, so a bare `new URL(result.url)`
- * would crash this dialog right after a publish that actually succeeded.
- * Resolve against the current origin instead; if that still fails, return
- * null so the caller can skip the hint rather than render a broken value.
+ * configured, and relative (e.g. "/stories/x.json") when it isn't. Deliberately
+ * does NOT fall back to resolving against `window.location.origin`: that would
+ * synthesise the *studio's own* domain and hand the operator a plausible-
+ * looking but wrong value — the studio is never the bucket host. A copied
+ * misconfiguration fails silently later, once every published story 404s and
+ * renders as a transparent gap. Returning null instead lets the caller show
+ * the true state (the server isn't configured either) rather than a guess.
  */
-function safeOrigin(url: string): string | null {
+function originOf(url: string): string | null {
   try {
-    return new URL(url, window.location.origin).origin;
+    return new URL(url).origin;
   } catch {
     return null;
   }
@@ -104,7 +106,7 @@ export const PublishDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
   };
 
   // Only meaningful (and only computed) once a publish has actually succeeded.
-  const originHint = result?.ok === true ? safeOrigin(result.url) : null;
+  const originHint = result?.ok === true ? originOf(result.url) : null;
 
   const copy = async (text: string): Promise<void> => {
     try {
@@ -140,17 +142,28 @@ export const PublishDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 {copied ? 'COPIED' : 'COPY'}
               </button>
             </div>
-            {!isStoryHostConfigured() && originHint !== null && (
+            {!isStoryHostConfigured() && (
               <div className="st-warn">
-                <b>One setup step left.</b> The story is saved, but visitors opening the link will
-                still see the bundled demo until the app knows where published stories live. Set{' '}
-                <code>VITE_STORY_BASE_URL</code> to the origin below, then redeploy.
-                <div className="st-linkrow st-mt">
-                  <input readOnly value={originHint} onFocus={(e) => e.target.select()} />
-                  <button className="st-btn green" onClick={() => void copy(originHint)}>
-                    COPY
-                  </button>
-                </div>
+                <b>One setup step left.</b>{' '}
+                {originHint !== null ? (
+                  <>
+                    The story is saved, but visitors opening the link will still see the bundled
+                    demo until the app knows where published stories live. Set{' '}
+                    <code>VITE_STORY_BASE_URL</code> to the origin below, then redeploy.
+                    <div className="st-linkrow st-mt">
+                      <input readOnly value={originHint} onFocus={(e) => e.target.select()} />
+                      <button className="st-btn green" onClick={() => void copy(originHint)}>
+                        COPY
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    The story is saved, but the server doesn't know its own public URL yet, so
+                    this dialog can't show it either. Set <code>STORY_PUBLIC_BASE_URL</code> in
+                    the server environment, then republish.
+                  </>
+                )}
               </div>
             )}
 

@@ -6,6 +6,8 @@ import {
   slugifyStoryId,
   publishStory,
   hydrateStoryDoc,
+  publishedStoryUrl,
+  fetchPublishedStory,
   LOCAL_DRAFT_KEY,
 } from './storyApi';
 import { clearAssetCache } from '@/story/assetResolver';
@@ -263,5 +265,29 @@ describe('hydrateStoryDoc', () => {
     const out = await hydrateStoryDoc(docWithToken());
     // A transparent pixel, not a broken document.
     expect(out.frames[0].art).toContain('data:image/png;base64,');
+  });
+});
+
+describe('publishedStoryUrl', () => {
+  it('builds a path under the configured story origin', () => {
+    expect(publishedStoryUrl('my-story')).toMatch(/\/stories\/my-story\.json$/);
+  });
+
+  it('percent-encodes the id rather than interpolating it raw', () => {
+    expect(publishedStoryUrl('a b')).toContain('a%20b');
+  });
+});
+
+describe('fetchPublishedStory', () => {
+  it('returns null rather than throwing when the document is missing', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 404 })));
+    await expect(fetchPublishedStory('gone')).resolves.toBeNull();
+  });
+
+  it('returns null rather than throwing when the network fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('offline');
+    }));
+    await expect(fetchPublishedStory('x')).resolves.toBeNull();
   });
 });

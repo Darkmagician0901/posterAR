@@ -18,6 +18,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useStudioDraft } from './studioDraftStore';
 import { phoneScene } from './phoneScene';
 import { useStoryTypewriter } from '@/components/story/useStoryTypewriter';
+import { resolveFont } from '@/story/textStyle';
 
 /** Where a playthrough currently is. */
 type PlayStage = 'intro' | 'scanning' | 'placed' | 'outro';
@@ -88,6 +89,14 @@ export const PhonePreview: React.FC<PhonePreviewProps> = ({ playing, onExitPlay 
   const index = playing ? playIndex : selected;
   const frame = doc.frames[index] ?? doc.frames[0];
   const isLast = index === doc.frames.length - 1;
+
+  // The frame's author-chosen text style, mirroring the viewer's StoryOverlay.
+  const frameFont = resolveFont(frame?.font);
+  const frameTextStyle = {
+    fontFamily: frameFont.family,
+    color: frame?.color,
+    '--font-scale': frameFont.scale,
+  } as React.CSSProperties;
 
   // Play the shown frame's audio during a placed playthrough; stop on advance,
   // on leaving 'placed', and on exit. The BEGIN/tap gesture unlocks autoplay.
@@ -209,8 +218,12 @@ export const PhonePreview: React.FC<PhonePreviewProps> = ({ playing, onExitPlay 
           {showingFrame && (
             <>
               <div className="st-era-head">
-                <div className="st-era-year">{frame?.year}</div>
-                <div className="st-era-title">{frame?.title}</div>
+                <div className="st-era-year" style={frameTextStyle}>
+                  {frame?.year}
+                </div>
+                <div className="st-era-title" style={frameTextStyle}>
+                  {frame?.title}
+                </div>
               </div>
 
               <div className="st-narr">
@@ -226,7 +239,7 @@ export const PhonePreview: React.FC<PhonePreviewProps> = ({ playing, onExitPlay 
                     if (done) advance();
                     else skip();
                   }}
-                  style={{ textAlign: 'left', cursor: playing ? 'pointer' : 'default' }}
+                  style={{ ...frameTextStyle, textAlign: 'left', cursor: playing ? 'pointer' : 'default' }}
                 >
                   {playing ? (
                     <>

@@ -122,7 +122,7 @@
   animation: story-fade-down 0.5s ease both;
 }
 .story-year {
-  font-size: 26px;
+  font-size: calc(26px * var(--font-scale, 1));
   color: #fff;
   text-shadow:
     0 2px 0 rgba(0, 0, 0, 0.55),
@@ -130,7 +130,7 @@
 }
 .story-era-title {
   margin-top: 8px;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale, 1));
   letter-spacing: 1px;
   color: var(--story-orange);
 }
@@ -214,7 +214,7 @@
   flex: 1 1 auto;
   text-align: left;
   font-family: inherit;
-  font-size: 8.5px;
+  font-size: calc(8.5px * var(--font-scale, 1));
   line-height: 1.85;
   color: #ffffff;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.85);

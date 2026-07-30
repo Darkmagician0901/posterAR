@@ -455,14 +455,14 @@ svg.drift {
 }
 .st-era-year {
   font-family: 'Press Start 2P', monospace;
-  font-size: 20px;
+  font-size: calc(20px * var(--font-scale, 1));
   color: #fff;
   letter-spacing: 2px;
   text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
 }
 .st-era-title {
   font-family: 'Press Start 2P', monospace;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale, 1));
   letter-spacing: 3px;
   color: var(--orange-light);
   text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
@@ -493,7 +493,7 @@ svg.drift {
   border-radius: 12px;
   padding: 11px 12px;
   font-family: 'Press Start 2P', monospace;
-  font-size: 8.5px;
+  font-size: calc(8.5px * var(--font-scale, 1));
   line-height: 1.85;
   color: #ffffff;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.85);

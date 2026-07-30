@@ -12,6 +12,7 @@
 
 import React, { useRef, useState } from 'react';
 import { validateAudioUpload } from './audioUpload';
+import { FONT_OPTIONS, COLOR_OPTIONS, DEFAULT_FONT_ID } from '@/story/textStyle';
 import { useStudioDraft } from './studioDraftStore';
 
 /** Era mood tints, taken from the shipped story's five eras. */
@@ -145,6 +146,47 @@ export const Inspector: React.FC<InspectorProps> = ({ onOpenStage }) => {
           <span>
             {frame.line.length}/{NARRATION_MAX}
           </span>
+        </div>
+      </div>
+
+      <div className="st-sec">
+        <h3>
+          TEXT STYLE <em>this frame</em>
+        </h3>
+        <label className="st-lbl" htmlFor="st-font">
+          Font
+        </label>
+        <select
+          id="st-font"
+          className="st-in"
+          value={frame.font ?? DEFAULT_FONT_ID}
+          onChange={(e) => patchFrame(selected, { font: e.target.value })}
+        >
+          {FONT_OPTIONS.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.label}
+            </option>
+          ))}
+        </select>
+        <label className="st-lbl">Color</label>
+        <div className="st-swatches">
+          <button
+            className={`st-swatch ${frame.color === undefined ? 'sel' : ''}`}
+            style={{ background: 'repeating-linear-gradient(45deg,#fff 0 5px,#e6ddc8 5px 10px)' }}
+            title="Default"
+            aria-label="Default color"
+            onClick={() => patchFrame(selected, { color: undefined })}
+          />
+          {COLOR_OPTIONS.map((c) => (
+            <button
+              key={c.value}
+              className={`st-swatch ${frame.color === c.value ? 'sel' : ''}`}
+              style={{ background: c.value }}
+              title={c.label}
+              aria-label={c.label}
+              onClick={() => patchFrame(selected, { color: c.value })}
+            />
+          ))}
         </div>
       </div>
 

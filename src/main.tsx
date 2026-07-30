@@ -17,6 +17,12 @@ import App from './App';
 import './index.css';
 import '@fontsource/press-start-2p/400.css';
 import '@fontsource/vt323/400.css';
+// Author-selectable story fonts (see src/story/textStyle.ts).
+import '@fontsource/poppins/400.css';
+import '@fontsource/anton/400.css';
+import '@fontsource/permanent-marker/400.css';
+import '@fontsource/playfair-display/400.css';
+import '@fontsource/fredoka/400.css';
 
 const StudioApp = lazy(() => import('./studio/StudioApp'));
 

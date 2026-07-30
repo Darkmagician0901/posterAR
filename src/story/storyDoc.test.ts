@@ -203,4 +203,22 @@ describe('validateStoryDoc', () => {
     );
     expect(doc.frames[0].audio).toBeUndefined();
   });
+
+  it('keeps a valid text font and color on a frame', () => {
+    const doc = validateStoryDoc(
+      { frames: [{ art: '<svg viewBox="0 0 1 1"></svg>', font: 'terminal', color: '#f08a1e' }] },
+      DEFAULT_STORY,
+    );
+    expect(doc.frames[0].font).toBe('terminal');
+    expect(doc.frames[0].color).toBe('#f08a1e');
+  });
+
+  it('drops an unknown font id and an unoffered color', () => {
+    const doc = validateStoryDoc(
+      { frames: [{ art: '<svg viewBox="0 0 1 1"></svg>', font: 'comic-sans', color: '#010203' }] },
+      DEFAULT_STORY,
+    );
+    expect(doc.frames[0].font).toBeUndefined();
+    expect(doc.frames[0].color).toBeUndefined();
+  });
 });

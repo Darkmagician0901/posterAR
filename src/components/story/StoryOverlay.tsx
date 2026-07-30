@@ -16,6 +16,7 @@ import React from 'react';
 import { useStoryStore } from '@/store/storyStore';
 import { useContentStore } from '@/store/contentStore';
 import { useStoryTypewriter } from './useStoryTypewriter';
+import { resolveFont } from '@/story/textStyle';
 import './StoryOverlay.css';
 
 /**
@@ -34,6 +35,16 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
   // eraIndex can briefly exceed the frame list when a shorter doc loads
   // mid-walk; fall back to the first frame rather than rendering undefined.
   const era = doc.frames[eraIndex] ?? doc.frames[0];
+
+  // Author-chosen text style for this frame (font family + a size scale so a
+  // non-pixel face still reads at the right visual weight; color overrides each
+  // element's default only when the author picked one).
+  const eraFont = resolveFont(era.font);
+  const eraTextStyle = {
+    fontFamily: eraFont.family,
+    color: era.color,
+    '--font-scale': eraFont.scale,
+  } as React.CSSProperties;
 
   // Type the narration only while an era is on screen.
   const { shown, done, skip } = useStoryTypewriter(era.line, phase === 'placed');
@@ -69,8 +80,12 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
       {/* ── Era title card (top) ──────────────────────────────────────── */}
       {phase === 'placed' && (
         <div className="story-era-head" key={era.key}>
-          <div className="story-year">{era.year}</div>
-          <div className="story-era-title">{era.title}</div>
+          <div className="story-year" style={eraTextStyle}>
+            {era.year}
+          </div>
+          <div className="story-era-title" style={eraTextStyle}>
+            {era.title}
+          </div>
         </div>
       )}
 
@@ -85,6 +100,7 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
           <button
             type="button"
             className="story-narration"
+            style={eraTextStyle}
             onClick={() => (done ? next() : skip())}
             aria-label={done ? 'Next era' : 'Reveal full text'}
           >

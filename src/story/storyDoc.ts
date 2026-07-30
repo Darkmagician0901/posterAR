@@ -11,6 +11,8 @@
  * to import anywhere and cheap to unit-test.
  */
 
+import { isFontId, isTextColor } from './textStyle';
+
 /** One staged element within a frame. Positions are in metres. */
 export interface StoryProp {
   /** 'lib' = built-in builder keyed by `k`; 'img' = uploaded asset id `k`. */
@@ -58,6 +60,12 @@ export interface StoryFrame {
   audio?: string;
   /** Original filename of the attached audio, shown in the studio. */
   audioName?: string;
+  /** Author-chosen text font id (a value from textStyle's FONT_OPTIONS). Absent
+   *  = the shipped pixel font. */
+  font?: string;
+  /** Author-chosen text color (a value from textStyle's COLOR_OPTIONS). Absent
+   *  = each element's own default color. */
+  color?: string;
 }
 
 /** An author-uploaded image available to any frame. */
@@ -159,6 +167,11 @@ function sanitizeFrame(raw: unknown): StoryFrame | null {
     const audioName = str(r.audioName, '');
     if (audioName) frame.audioName = audioName;
   }
+
+  // Author text style, kept only when it names an offered font / color so a
+  // published doc can never inject an arbitrary family or value.
+  if (isFontId(r.font)) frame.font = r.font as string;
+  if (isTextColor(r.color)) frame.color = r.color as string;
   return frame;
 }
 

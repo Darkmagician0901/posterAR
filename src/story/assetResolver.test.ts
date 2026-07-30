@@ -28,12 +28,38 @@ describe('resolveAssets', () => {
   // Pins the key<->URL contract from the read side, mirroring the write side
   // pinned in api/story-assets.test.ts — the write key must be exactly what
   // this fetch requests, or the upload lands somewhere nothing ever reads
-  // (see finding 1: a divergence here is a silent, unfixable 404).
-  it('fetches exactly assets/<assetId>/full.webp, credentials omitted', async () => {
+  // (see finding 1: a divergence here is a silent, unfixable 404). Pins BOTH
+  // variants so a future divergence between the written key and the read URL
+  // — the exact defect this note exists to prevent — fails a test instead of
+  // going silent.
+  it('fetches the r1024 derivative first, credentials omitted', async () => {
     const fetchMock = vi.fn(async () => okResponse());
     vi.stubGlobal('fetch', fetchMock);
     await resolveAssets({ logo: { assetId: SHA, aspect: 1 } });
-    expect(fetchMock).toHaveBeenCalledWith(`/assets/${SHA}/full.webp`, { credentials: 'omit' });
+    expect(fetchMock).toHaveBeenCalledWith(`/assets/${SHA}/r1024.webp`, { credentials: 'omit' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  // The derivative is preferred, but full.webp is what pre-derivative assets
+  // have — so a miss on r1024 must fall through to it, at the exact key the
+  // presign endpoint writes.
+  it('falls back to assets/<assetId>/full.webp when r1024 misses', async () => {
+    const fetchMock = vi.fn(async (url: string) =>
+      String(url).includes('r1024.webp') ? new Response(null, { status: 404 }) : okResponse(),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const map = await resolveAssets({ logo: { assetId: SHA, aspect: 1 } });
+    expect(map.get('logo')).toMatch(/^data:/);
+    expect(fetchMock).toHaveBeenNthCalledWith(1, `/assets/${SHA}/r1024.webp`, { credentials: 'omit' });
+    expect(fetchMock).toHaveBeenNthCalledWith(2, `/assets/${SHA}/full.webp`, { credentials: 'omit' });
+  });
+
+  // Neither variant resolves — must still fall through to the transparent
+  // pixel rather than throwing.
+  it('falls back to a transparent pixel when both variants 404', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 404 })));
+    const map = await resolveAssets({ logo: { assetId: SHA, aspect: 1 } });
+    expect(map.get('logo')).toBe(TRANSPARENT_PIXEL);
   });
 
   it('passes a v3 inline href through without fetching', async () => {
@@ -67,12 +93,6 @@ describe('resolveAssets', () => {
     vi.stubGlobal('fetch', vi.fn(async () => {
       throw new Error('offline');
     }));
-    const map = await resolveAssets({ logo: { assetId: SHA, aspect: 1 } });
-    expect(map.get('logo')).toBe(TRANSPARENT_PIXEL);
-  });
-
-  it('falls back to a transparent pixel on a non-2xx response', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 404 })));
     const map = await resolveAssets({ logo: { assetId: SHA, aspect: 1 } });
     expect(map.get('logo')).toBe(TRANSPARENT_PIXEL);
   });

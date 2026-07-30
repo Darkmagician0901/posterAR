@@ -86,3 +86,96 @@ describe('uploadStoryAsset', () => {
     expect(a).toBe(b);
   });
 });
+
+// The derivative rides the SAME parent content address as variant: 'r1024',
+// never its own hash — see src/story/assetVariants.ts. These pin that both
+// presign requests share `sha256` while diverging on `sha256Base64` (the
+// checksum of the bytes actually being uploaded) and `variant`.
+describe('uploadStoryAsset with a derivative', () => {
+  const derivative = () => new Blob([new Uint8Array([9, 9, 9, 9])], { type: 'image/webp' });
+
+  function stubTwoVariantUploads(): {
+    presignBodies: Array<Record<string, unknown>>;
+    putCount: () => number;
+  } {
+    const presignBodies: Array<Record<string, unknown>> = [];
+    let putCount = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (String(url).includes('/api/story-assets')) {
+          presignBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+          return new Response(
+            JSON.stringify({
+              exists: false,
+              uploadUrl: 'https://store.example/x',
+              requiredHeaders: { 'If-None-Match': '*' },
+            }),
+            { status: 201 },
+          );
+        }
+        putCount += 1;
+        return new Response(null, { status: 200 });
+      }),
+    );
+    return { presignBodies, putCount: () => putCount };
+  }
+
+  it('uploads the derivative under the parent sha256 as variant r1024', async () => {
+    const { presignBodies, putCount } = stubTwoVariantUploads();
+
+    const assetId = await uploadStoryAsset(blob(), 'image/webp', derivative());
+
+    expect(assetId).toMatch(/^[a-f0-9]{64}$/);
+    expect(presignBodies).toHaveLength(2);
+    const [full, r1024] = presignBodies;
+
+    expect(full.variant).toBe('full');
+    expect(r1024.variant).toBe('r1024');
+    // Both requests address the SAME parent — the derivative is never
+    // addressed by its own hash.
+    expect(full.sha256).toBe(assetId);
+    expect(r1024.sha256).toBe(assetId);
+    // But the checksum header is of the bytes actually being uploaded, so it
+    // differs between the two distinct blobs.
+    expect(full.sha256Base64).not.toBe(r1024.sha256Base64);
+
+    expect(putCount()).toBe(2);
+  });
+
+  it('is non-fatal when the derivative upload fails — the asset still stands', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (String(url).includes('/api/story-assets')) {
+          const parsed = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          if (parsed.variant === 'r1024') {
+            return new Response(JSON.stringify({ error: 'boom' }), { status: 500 });
+          }
+          return new Response(
+            JSON.stringify({ exists: false, uploadUrl: 'https://store.example/x', requiredHeaders: {} }),
+            { status: 201 },
+          );
+        }
+        return new Response(null, { status: 200 });
+      }),
+    );
+
+    await expect(uploadStoryAsset(blob(), 'image/webp', derivative())).resolves.toMatch(
+      /^[a-f0-9]{64}$/,
+    );
+  });
+
+  it('does not swallow a primary upload failure when a derivative is also provided', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 400 })));
+    await expect(uploadStoryAsset(blob(), 'image/webp', derivative())).rejects.toThrow(/400/);
+  });
+
+  it('skips the derivative step entirely when none is passed', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ exists: true }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await uploadStoryAsset(blob(), 'image/webp', null);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});

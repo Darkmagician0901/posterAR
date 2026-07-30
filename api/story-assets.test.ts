@@ -118,3 +118,59 @@ describe('POST /api/story-assets', () => {
     expect(res.status).toBe(405);
   });
 });
+
+// variant is optional and defaults to 'full', but when it's r1024 the
+// derivative shares the PARENT sha256 as its path segment — never its own
+// hash — so both variants live in one directory. Pins the key<->URL contract
+// for r1024 the same way the tests above pin it for full: a divergence
+// between the key written here and the URL src/story/assetResolver.ts reads
+// must fail a test, not resolve to a silent 404 -> transparent pixel.
+describe('POST /api/story-assets — variant', () => {
+  it('defaults to variant "full" when omitted, unchanged from before', async () => {
+    const res = await post(body);
+    const json = await res.json();
+    expect(json.uploadUrl).toContain(`assets/${SHA}/full.webp`);
+    expect(presigned).toEqual([`assets/${SHA}/full.webp`]);
+  });
+
+  it('presigns assets/<sha256>/r1024.webp when variant is r1024', async () => {
+    const res = await post({ ...body, variant: 'r1024' });
+    const json = await res.json();
+    const expectedKey = `assets/${SHA}/r1024.webp`;
+    expect(res.status).toBe(201);
+    expect(presigned).toEqual([expectedKey]);
+    expect(json.uploadUrl).toBe(`https://store.example/${expectedKey}?X-Amz-Signature=abc`);
+  });
+
+  it('keeps sha256 as the PARENT address for the r1024 variant — never its own hash', async () => {
+    // sha256Base64 stands in for the derivative's own digest here; sha256
+    // itself (the path segment) still names the parent asset.
+    await post({ ...body, variant: 'r1024', sha256Base64: 'ZGVyaXZhdGl2ZS1oYXNoLWJhc2U2NA==' });
+    expect(presigned[0]).toBe(`assets/${SHA}/r1024.webp`);
+  });
+
+  it('rejects a variant outside the allowed set', async () => {
+    const res = await post({ ...body, variant: 'r2048' });
+    expect(res.status).toBe(400);
+    expect(presigned).toHaveLength(0);
+  });
+
+  it('checks existence at the SAME key it is about to presign for r1024', async () => {
+    present.add(`assets/${SHA}/r1024.webp`);
+    const res = await post({ ...body, variant: 'r1024' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ exists: true });
+    // A dedup hit means nothing is presigned.
+    expect(presigned).toHaveLength(0);
+  });
+
+  // full and r1024 are independent objects: an existing full.webp must not
+  // short-circuit an r1024 upload for the same parent, and vice versa.
+  it('treats full and r1024 as independently-existing objects', async () => {
+    present.add(`assets/${SHA}/full.webp`);
+    const res = await post({ ...body, variant: 'r1024' });
+    const json = await res.json();
+    expect(json.exists).toBe(false);
+    expect(presigned).toEqual([`assets/${SHA}/r1024.webp`]);
+  });
+});

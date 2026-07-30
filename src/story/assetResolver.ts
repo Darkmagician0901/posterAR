@@ -17,6 +17,7 @@
 
 import { isAssetRef, type StoryAsset } from './storyDoc';
 import { TRANSPARENT_PIXEL } from './artTokens';
+import { variantKey } from './assetVariants';
 
 /** Origin serving `assets/`. Empty means same-origin, which is the default. */
 const ASSET_BASE_URL: string = import.meta.env.VITE_ASSET_BASE_URL || '';
@@ -91,13 +92,20 @@ async function fetchAsDataUrl(assetId: string): Promise<string> {
     );
   }
   const base = ASSET_BASE_URL.replace(/\/$/, '');
-  try {
-    const res = await fetch(`${base}/assets/${assetId}/full.webp`, { credentials: 'omit' });
-    if (!res.ok) return TRANSPARENT_PIXEL;
-    return await blobToDataUrl(await res.blob());
-  } catch {
-    return TRANSPARENT_PIXEL;
+  // Prefer the display derivative; fall back to the canonical bytes so assets
+  // uploaded before derivatives existed still resolve. A network failure on
+  // one variant tries the next rather than giving up immediately — only
+  // exhausting both falls through to the transparent pixel.
+  for (const variant of ['r1024', 'full'] as const) {
+    try {
+      const res = await fetch(`${base}/${variantKey(assetId, variant)}`, { credentials: 'omit' });
+      if (!res.ok) continue;
+      return await blobToDataUrl(await res.blob());
+    } catch {
+      // Try the next variant; a transparent pixel is the last resort only.
+    }
   }
+  return TRANSPARENT_PIXEL;
 }
 
 /**

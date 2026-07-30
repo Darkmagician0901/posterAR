@@ -227,6 +227,30 @@ const canvasToWebp = (canvas: HTMLCanvasElement, quality: number): Promise<Blob>
   });
 
 /**
+ * Re-encodes an already-decoded image at a smaller longest-axis cap.
+ *
+ * Reuses the same canvas path as processImage (fitWithin + drawToCanvas +
+ * canvasToWebp), so the display derivative is produced by existing, exercised
+ * code rather than a second implementation.
+ *
+ * @param source — Decoded image.
+ * @param longestAxis — Cap for the longer dimension, in pixels.
+ * @returns WebP bytes, or null when the source is already within the cap —
+ *   there is nothing smaller to produce.
+ * @throws Rejects when canvas creation or WebP encoding fails.
+ */
+export const downscaleToWebp = async (
+  source: ImageBitmap | HTMLImageElement,
+  longestAxis: number,
+): Promise<Blob | null> => {
+  const srcW = 'width' in source ? source.width : (source as HTMLImageElement).naturalWidth;
+  const srcH = 'height' in source ? source.height : (source as HTMLImageElement).naturalHeight;
+  if (Math.max(srcW, srcH) <= longestAxis) return null;
+  const { width, height } = fitWithin(srcW, srcH, longestAxis);
+  return canvasToWebp(drawToCanvas(source, width, height), INITIAL_QUALITY);
+};
+
+/**
  * Reads a Blob as a base64 data URL. FileReader is event-based, so we wrap it
  * in a promise; readAsDataURL guarantees `result` is a string, hence the cast.
  *

@@ -316,7 +316,7 @@ possible, and it is worth understanding before changing anything above it.
                     │        └─ PublishDialog ──▶ POST /api/publish       │
                     └─────────────────────────────────┬───────────────────┘
                                                       ▼
-                                          Blob: stories/<id>.json
+                                           S3: stories/<id>.json
                                                       │
                     ┌───────────────── viewing (/) ────┼───────────────────┐
                     │  storyApi.loadStoryForLocation() ◀┘                  │
@@ -385,23 +385,32 @@ framing choice, not a physical scale.
 ## 9c. Publishing (`api/publish.ts`)
 
 The only authenticated endpoint. It exists because two things require a server:
-the Blob write token must never reach a browser, and the live exhibit needs a
-gate so that finding `/studio` is not the same as being able to overwrite what
-visitors see.
+AWS credentials must never reach a browser, and the live exhibit needs a gate so
+that finding `/studio` is not the same as being able to overwrite what visitors
+see.
 
 - Auth is a shared secret compared with `timingSafeEqual` against
   `STUDIO_PUBLISH_SECRET`, rate-limited per instance.
 - The document is validated **against an empty document, not the bundled
   default** — otherwise a malformed payload would silently publish the demo
   story over the exhibit.
-- Written to a deterministic path (`stories/<id>.json`) so `/?s=<id>` resolves
-  without a lookup table and republishing replaces rather than orphaning.
+- Written to a deterministic path (`stories/<id>.json`) in the S3 bucket, so
+  `/?s=<id>` resolves without a lookup table and republishing replaces rather
+  than orphaning.
+- Every declared asset must already exist in the bucket — both `assetId` and,
+  when present, `r1024Id` — probed with the one shared key builder in
+  `src/story/assetStorage.ts`. A missing object would otherwise surface as a
+  silent transparent gap on every visitor's device.
 - Reads are unauthenticated and bypass the function entirely — visitors fetch
-  from Blob's CDN. The gate is on the write, where the asset is.
+  `stories/<id>.json` straight from CloudFront (or the bucket origin). The gate
+  is on the write, where the asset is.
 
-Required environment: `BLOB_READ_WRITE_TOKEN` (set by connecting a Blob store),
-`STUDIO_PUBLISH_SECRET`, and client-side `VITE_STORY_BASE_URL`. Missing any of
-these produces a 503 naming the specific one rather than a vague failure.
+Required environment: `S3_BUCKET`, `S3_REGION`, `STUDIO_PUBLISH_SECRET`,
+`STORY_PUBLIC_BASE_URL`, AWS credentials (`AWS_ROLE_ARN` via Vercel OIDC, or a
+static key pair), and client-side `VITE_STORY_BASE_URL` / `VITE_ASSET_BASE_URL`.
+A missing bucket or secret produces a 503 naming the specific one rather than a
+vague failure; the two client-side origins are build-time, so `PublishDialog`
+names whichever is unset after a successful publish. See `.env.example`.
 
 ---
 

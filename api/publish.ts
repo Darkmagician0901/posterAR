@@ -1,21 +1,22 @@
 /**
- * POST /api/publish — writes a story document to Blob storage.
+ * POST /api/publish — writes a story document to S3.
  *
  * The only authenticated endpoint in the app. It exists for two reasons that
- * both require a server: the Blob write token must never reach a browser, and
- * the live exhibit needs a gate so that finding /studio is not the same as
- * being able to overwrite what visitors see.
+ * both require a server: AWS credentials must never reach a browser, and the
+ * live exhibit needs a gate so that finding /studio is not the same as being
+ * able to overwrite what visitors see.
  *
  * Reads stay unauthenticated — published documents are public by design and are
- * fetched straight from Blob's CDN, not through this function.
+ * fetched straight from the bucket, not through this function.
  *
  * Deployed by Vercel from the api/ directory. Uses the Web handler signature,
  * so it needs no platform-specific types.
  */
 
-import { put } from '@vercel/blob';
 import { timingSafeEqual } from 'node:crypto';
-import { validateStoryDoc, type StoryDoc } from '../src/story/storyDoc';
+import { objectExists, putJson } from './_s3';
+import { collectAssetRefs } from '../src/story/artTokens';
+import { isAssetRef, validateStoryDoc, type StoryDoc } from '../src/story/storyDoc';
 
 /** Shape returned on success. */
 interface PublishResult {
@@ -80,12 +81,9 @@ export default async function handler(request: Request): Promise<Response> {
       503,
     );
   }
-  if (process.env.BLOB_READ_WRITE_TOKEN === undefined) {
+  if (!process.env.S3_BUCKET) {
     return json(
-      {
-        error:
-          'Publishing is not configured. Connect a Blob store to this project so BLOB_READ_WRITE_TOKEN is set.',
-      },
+      { error: 'Publishing is not configured. Set S3_BUCKET in the project environment.' },
       503,
     );
   }
@@ -144,17 +142,34 @@ export default async function handler(request: Request): Promise<Response> {
     return json({ error: 'Story id must be lowercase letters, numbers and hyphens.' }, 400);
   }
 
+  // Every token in the art must name a declared asset, and every declared
+  // asset must actually exist in the bucket. Both failures would otherwise
+  // surface as a silent transparent gap on every visitor's device — long
+  // after the operator has walked away.
+  const declared = doc.assets ?? {};
+  const referenced = new Set(doc.frames.flatMap((f) => collectAssetRefs(f.art)));
+
+  for (const alias of referenced) {
+    if (!(alias in declared)) {
+      return json({ error: `Frame art references "${alias}", which is not an uploaded image.` }, 422);
+    }
+  }
+
+  for (const [alias, asset] of Object.entries(declared)) {
+    if (!isAssetRef(asset)) continue; // v3 inline asset: bytes are in the document
+    if (!(await objectExists(`assets/${asset.assetId}/full.webp`))) {
+      return json({ error: `The image "${alias}" did not finish uploading. Re-add it and try again.` }, 422);
+    }
+  }
+
   try {
-    const blob = await put(`stories/${id}.json`, JSON.stringify({ ...doc, id }), {
-      access: 'public',
-      contentType: 'application/json',
-      // Deterministic path so /?s=<id> resolves without a lookup table, and so
-      // republishing replaces rather than accumulating orphans.
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      cacheControlMaxAge: 60,
-    });
-    return json({ id, url: blob.url } satisfies PublishResult, 200);
+    const key = `stories/${id}.json`;
+    // 60 seconds, because this is the one object that is mutable at a stable
+    // key — that is how /?s=<id> resolves without a lookup table. A longer TTL
+    // makes a republish invisible until it expires.
+    await putJson(key, JSON.stringify({ ...doc, id }), 'public, max-age=60, must-revalidate');
+    const base = (process.env.STORY_PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
+    return json({ id, url: `${base}/${key}` } satisfies PublishResult, 200);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown storage error';
     return json({ error: `Could not save the story: ${message}` }, 502);

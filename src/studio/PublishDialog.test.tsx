@@ -110,4 +110,37 @@ describe('PublishDialog', () => {
     // No origin input/copy row rendered at all: there is nothing true to show.
     expect(container.querySelector('.st-warn input')).toBeNull();
   });
+
+  /**
+   * VITE_ASSET_BASE_URL is unset in this test environment, exactly as it is in
+   * a build nobody configured. Unset, it is the one viewer setting that
+   * refuses nothing and warns nowhere a person will see: the story publishes,
+   * the link works, and every uploaded image renders as a transparent gap with
+   * a single console.warn behind it. This dialog is the last moment an
+   * operator is looking, so it must say so here.
+   */
+  it('names VITE_ASSET_BASE_URL too when the asset origin is unset', async () => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    act(() => {
+      root!.render(<PublishDialog onClose={() => {}} />);
+    });
+
+    const secretInput = container.querySelector<HTMLInputElement>('#st-pub-secret')!;
+    act(() => setInputValue(secretInput, 'shh'));
+
+    await act(async () => {
+      container!.querySelector<HTMLButtonElement>('.st-btn.orange')!.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const warn = container.querySelector('.st-warn')!;
+    // Both unset settings named in the one panel — neither hidden by the other.
+    expect(warn.textContent).toContain('VITE_ASSET_BASE_URL');
+    expect(warn.textContent).toContain('STORY_PUBLIC_BASE_URL');
+    expect(warn.textContent).toContain('2 setup steps left');
+  });
 });

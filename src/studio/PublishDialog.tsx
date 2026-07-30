@@ -45,6 +45,25 @@ function rememberSecret(value: string): void {
   }
 }
 
+/**
+ * Best-effort origin for the "set VITE_STORY_BASE_URL to..." hint.
+ *
+ * `result.url` is absolute when the server's STORY_PUBLIC_BASE_URL is
+ * configured, but relative (e.g. "/stories/x.json") when it isn't —
+ * precisely the unconfigured case this hint exists to help with. `new URL()`
+ * throws on a relative string with no base, so a bare `new URL(result.url)`
+ * would crash this dialog right after a publish that actually succeeded.
+ * Resolve against the current origin instead; if that still fails, return
+ * null so the caller can skip the hint rather than render a broken value.
+ */
+function safeOrigin(url: string): string | null {
+  try {
+    return new URL(url, window.location.origin).origin;
+  } catch {
+    return null;
+  }
+}
+
 export const PublishDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const doc = useStudioDraft((s) => s.doc);
   const [secret, setSecret] = useState(readSecret);
@@ -84,6 +103,9 @@ export const PublishDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     setBusy(false);
   };
 
+  // Only meaningful (and only computed) once a publish has actually succeeded.
+  const originHint = result?.ok === true ? safeOrigin(result.url) : null;
+
   const copy = async (text: string): Promise<void> => {
     try {
       await navigator.clipboard.writeText(text);
@@ -118,21 +140,14 @@ export const PublishDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 {copied ? 'COPIED' : 'COPY'}
               </button>
             </div>
-            {!isStoryHostConfigured() && (
+            {!isStoryHostConfigured() && originHint !== null && (
               <div className="st-warn">
                 <b>One setup step left.</b> The story is saved, but visitors opening the link will
                 still see the bundled demo until the app knows where published stories live. Set{' '}
                 <code>VITE_STORY_BASE_URL</code> to the origin below, then redeploy.
                 <div className="st-linkrow st-mt">
-                  <input
-                    readOnly
-                    value={new URL(result.url).origin}
-                    onFocus={(e) => e.target.select()}
-                  />
-                  <button
-                    className="st-btn green"
-                    onClick={() => void copy(new URL(result.url).origin)}
-                  >
+                  <input readOnly value={originHint} onFocus={(e) => e.target.select()} />
+                  <button className="st-btn green" onClick={() => void copy(originHint)}>
                     COPY
                   </button>
                 </div>

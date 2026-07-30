@@ -7,9 +7,11 @@
  * set, because a vertical drag in the camera view is ambiguous between "further
  * away" and "lifted off the ground".
  *
- * Props come from the built-in library or from the author's own uploads, which
- * are compressed through the same path as poster uploads and stored as inline
- * data so composed art stays self-contained.
+ * Props come from the built-in library or from the author's own uploads. An
+ * upload is compressed through the same path as poster uploads, checked for
+ * composability (animated GIFs are refused — see assetGuard.ts), and then
+ * uploaded to asset storage immediately; the document records only the
+ * resulting content address, never the bytes.
  *
  * Saving composes the props into the frame's `art`. Both are kept: `props` so
  * the frame stays re-editable, `art` because that is all the viewer reads.
@@ -24,6 +26,8 @@ import { useStudioDraft } from './studioDraftStore';
 import { svgToDataUrl } from './svgPreview';
 import { deriveBackdrop, parseSvgDoc, scaledBackdrop } from './backdrop';
 import { PROP_LIMITS, duplicateProp } from './propEdit';
+import { checkComposable } from './assetGuard';
+import { uploadStoryAsset, type AssetContentType } from '@/services/assetApi';
 import {
   FRONT,
   TOP,
@@ -36,6 +40,22 @@ import {
 
 /** Where a newly added prop lands. */
 const DROP_IN = { x: 0, z: 1.5 };
+
+/**
+ * Derives a document-local alias from a filename.
+ *
+ * Must satisfy ASSET_ALIAS_RE, because it is interpolated into art as
+ * `asset:<alias>`. A collision is resolved by suffixing, so two files named
+ * `logo.png` become `logo` and `logo-2`.
+ */
+function aliasFor(filename: string, taken: Set<string>): string {
+  const base = filename.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_-]+/g, '-').slice(0, 56) || 'image';
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n++) {
+    const candidate = `${base}-${n}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+}
 
 interface StageEditorProps {
   /** Index of the frame being staged. */
@@ -104,13 +124,39 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
     setBusy(true);
     try {
       const processed = await validateAndProcessImage(file);
-      const id = addAsset({
-        href: processed.dataUrl,
+
+      // The processed payload is what gets stored and hashed — not the
+      // original file — so the guard and the upload must both see the same
+      // bytes.
+      const blob = await (await fetch(processed.dataUrl)).blob();
+      const buffer = await blob.arrayBuffer();
+
+      const check = checkComposable(processed.mimeType, buffer);
+      if (!check.ok) {
+        setUploadError(check.reason);
+        return;
+      }
+
+      let assetId: string;
+      try {
+        // processed.mimeType is always 'image/webp' or 'image/gif' (see
+        // processImage), both members of AssetContentType.
+        assetId = await uploadStoryAsset(blob, processed.mimeType as AssetContentType);
+      } catch (err) {
+        setUploadError(err instanceof Error ? err.message : 'Upload failed. Check your connection.');
+        return;
+      }
+
+      // The document records only the content address. No bytes ever reach
+      // the draft, which is what keeps it inside the localStorage budget.
+      const alias = aliasFor(processed.originalName, new Set(Object.keys(doc.assets ?? {})));
+      addAsset(alias, {
+        assetId,
         aspect: processed.width / processed.height,
         name: processed.originalName,
       });
       // Size it so the image's real proportions read at a sensible scale.
-      setLocal((list) => [...list, { t: 'img', k: id, ...DROP_IN, h: 1.8, f: false, e: 0 }]);
+      setLocal((list) => [...list, { t: 'img', k: alias, ...DROP_IN, h: 1.8, f: false, e: 0 }]);
       setSelected(props.length);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Could not read that image');
@@ -434,8 +480,8 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
           </button>
         </div>
         <div className="st-hintline" style={{ padding: '0 2px' }}>
-          Uploads are compressed to WebP and stored inside the story, capped at{' '}
-          {formatBytes(2 * 1024 * 1024)} each.
+          Uploads are compressed to WebP and stored in asset storage — not inside the story —
+          capped at {formatBytes(2 * 1024 * 1024)} each. Animated GIFs can't be placed in a frame.
         </div>
       </div>
     </div>

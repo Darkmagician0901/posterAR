@@ -264,7 +264,7 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
                 {/* The visitor stands at the bottom edge, looking up the map. */}
                 <polygon
                   points={`${TOP.w / 2 - 9},${TOP.h - 2} ${TOP.w / 2 + 9},${TOP.h - 2} ${TOP.w / 2},${TOP.h - 20}`}
-                  fill="#f08a1e"
+                  fill="#e5761f"
                   stroke="#120e0e"
                   strokeWidth="2"
                 />

@@ -1,0 +1,1528 @@
+<title>ARCADE — AWS Setup Runbook</title>
+
+<style>
+  :root {
+    --paper:      #f7f8fa;
+    --card:       #ffffff;
+    --ink:        #131722;
+    --ink-2:      #454e63;
+    --ink-3:      #6b7488;
+    --rule:       #dfe3ec;
+    --rule-soft:  #eaedf3;
+    --accent:     #2f43c9;
+    --accent-bg:  #eceffc;
+    --amber:      #97620a;
+    --amber-bg:   #fdf3e2;
+    --red:        #ab2028;
+    --red-bg:     #fdeded;
+    --green:      #12674a;
+    --green-bg:   #e8f5ef;
+    --code-bg:    #12151f;
+    --code-ink:   #dfe3ee;
+    --code-dim:   #79839c;
+    --code-str:   #9ad4a6;
+    --code-key:   #8fb4f2;
+
+    --mono: ui-monospace, "Cascadia Mono", "Cascadia Code", "SFMono-Regular", "Segoe UI Mono", Consolas, "Liberation Mono", monospace;
+    --sans: ui-sans-serif, -apple-system, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+    --maxw: 62rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:     #0d1017;
+      --card:      #151a24;
+      --ink:       #e7eaf2;
+      --ink-2:     #a8b1c4;
+      --ink-3:     #7b8598;
+      --rule:      #262d3b;
+      --rule-soft: #1e2431;
+      --accent:    #8c9df8;
+      --accent-bg: #1a2140;
+      --amber:     #e0a94d;
+      --amber-bg:  #2b2213;
+      --red:       #f28b86;
+      --red-bg:    #2e1719;
+      --green:     #63c79b;
+      --green-bg:  #12271f;
+      --code-bg:   #090c13;
+      --code-ink:  #d5dae6;
+      --code-dim:  #6b7488;
+      --code-str:  #9ad4a6;
+      --code-key:  #8fb4f2;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:     #0d1017;
+    --card:      #151a24;
+    --ink:       #e7eaf2;
+    --ink-2:     #a8b1c4;
+    --ink-3:     #7b8598;
+    --rule:      #262d3b;
+    --rule-soft: #1e2431;
+    --accent:    #8c9df8;
+    --accent-bg: #1a2140;
+    --amber:     #e0a94d;
+    --amber-bg:  #2b2213;
+    --red:       #f28b86;
+    --red-bg:    #2e1719;
+    --green:     #63c79b;
+    --green-bg:  #12271f;
+    --code-bg:   #090c13;
+    --code-ink:  #d5dae6;
+    --code-dim:  #6b7488;
+  }
+
+  :root[data-theme="light"] {
+    --paper:     #f7f8fa;
+    --card:      #ffffff;
+    --ink:       #131722;
+    --ink-2:     #454e63;
+    --ink-3:     #6b7488;
+    --rule:      #dfe3ec;
+    --rule-soft: #eaedf3;
+    --accent:    #2f43c9;
+    --accent-bg: #eceffc;
+    --amber:     #97620a;
+    --amber-bg:  #fdf3e2;
+    --red:       #ab2028;
+    --red-bg:    #fdeded;
+    --green:     #12674a;
+    --green-bg:  #e8f5ef;
+    --code-bg:   #12151f;
+    --code-ink:  #dfe3ee;
+    --code-dim:  #79839c;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 0 1.25rem 6rem;
+  }
+
+  /* ---------- progress rail ---------- */
+
+  .railbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--rule);
+  }
+  .railbar-inner {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: .6rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: .9rem;
+  }
+  .railbar .tag {
+    font-family: var(--mono);
+    font-size: .7rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
+  .meter {
+    flex: 1;
+    height: 5px;
+    background: var(--rule);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .meter > i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width .3s ease;
+  }
+  .count {
+    font-family: var(--mono);
+    font-size: .78rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+
+  /* ---------- masthead ---------- */
+
+  header.mast {
+    padding: 3.5rem 0 2rem;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 2.5rem;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 .9rem;
+  }
+  h1 {
+    font-family: var(--mono);
+    font-size: clamp(1.9rem, 5vw, 2.9rem);
+    font-weight: 600;
+    letter-spacing: -.02em;
+    line-height: 1.1;
+    margin: 0 0 1rem;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-size: 1.08rem;
+    color: var(--ink-2);
+    max-width: 42rem;
+    margin: 0 0 1.6rem;
+  }
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .facts div {
+    background: var(--card);
+    padding: .8rem .95rem;
+  }
+  .facts dt {
+    font-family: var(--mono);
+    font-size: .66rem;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 .3rem;
+  }
+  .facts dd {
+    margin: 0;
+    font-size: .9rem;
+    font-weight: 500;
+  }
+
+  /* ---------- typography ---------- */
+
+  h2 {
+    font-family: var(--mono);
+    font-size: 1.3rem;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    margin: 0 0 .35rem;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--mono);
+    font-size: .95rem;
+    font-weight: 600;
+    letter-spacing: .01em;
+    margin: 2rem 0 .6rem;
+    color: var(--ink);
+  }
+  p { margin: 0 0 1rem; max-width: 44rem; }
+  p.lede { color: var(--ink-2); }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+  strong { font-weight: 650; }
+  code {
+    font-family: var(--mono);
+    font-size: .875em;
+    background: var(--rule-soft);
+    padding: .1em .35em;
+    border-radius: 4px;
+    word-break: break-word;
+  }
+
+  /* ---------- values panel ---------- */
+
+  .values {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 1.4rem;
+    margin: 0 0 3rem;
+  }
+  .values h2 { font-size: 1.05rem; margin-bottom: .3rem; }
+  .values > p { font-size: .9rem; color: var(--ink-2); margin-bottom: 1.2rem; }
+  .grid-in {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: .9rem 1.1rem;
+  }
+  .field { display: flex; flex-direction: column; gap: .3rem; }
+  .field label {
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .field input {
+    font-family: var(--mono);
+    font-size: .85rem;
+    padding: .5rem .6rem;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--paper);
+    color: var(--ink);
+    width: 100%;
+  }
+  .field small { font-size: .72rem; color: var(--ink-3); line-height: 1.4; }
+
+  /* ---------- steps ---------- */
+
+  section.step {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 1.6rem 1.5rem;
+    margin: 0 0 1.5rem;
+  }
+  .step-head {
+    display: flex;
+    gap: 1rem;
+    align-items: baseline;
+    margin-bottom: 1rem;
+  }
+  .num {
+    font-family: var(--mono);
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-bg);
+    padding: .18rem .5rem;
+    border-radius: 5px;
+    letter-spacing: .06em;
+    white-space: nowrap;
+    flex: none;
+  }
+  .step-head .t { flex: 1; min-width: 0; }
+  .step-head .sub {
+    font-size: .84rem;
+    color: var(--ink-3);
+    margin: .15rem 0 0;
+  }
+
+  /* ---------- callouts ---------- */
+
+  .note {
+    border-left: 3px solid var(--ink-3);
+    background: var(--rule-soft);
+    padding: .85rem 1rem;
+    border-radius: 0 7px 7px 0;
+    margin: 1.1rem 0;
+    font-size: .92rem;
+  }
+  .note > .lbl {
+    display: block;
+    font-family: var(--mono);
+    font-size: .66rem;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    margin-bottom: .35rem;
+    font-weight: 600;
+  }
+  .note p:last-child { margin-bottom: 0; }
+  .note p { max-width: none; }
+
+  .trap { border-left-color: var(--amber); background: var(--amber-bg); }
+  .trap > .lbl { color: var(--amber); }
+  .danger { border-left-color: var(--red); background: var(--red-bg); }
+  .danger > .lbl { color: var(--red); }
+  .ok { border-left-color: var(--green); background: var(--green-bg); }
+  .ok > .lbl { color: var(--green); }
+  .info { border-left-color: var(--accent); background: var(--accent-bg); }
+  .info > .lbl { color: var(--accent); }
+
+  /* ---------- code ---------- */
+
+  .codeblock {
+    position: relative;
+    margin: 1rem 0;
+    border-radius: 8px;
+    background: var(--code-bg);
+    border: 1px solid color-mix(in srgb, var(--code-bg) 70%, var(--rule));
+  }
+  .codeblock > .cbhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: .45rem .5rem .45rem .85rem;
+    border-bottom: 1px solid rgba(255,255,255,.07);
+  }
+  .codeblock .fname {
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--code-dim);
+  }
+  .codeblock pre {
+    margin: 0;
+    padding: .9rem 1rem;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: .8rem;
+    line-height: 1.65;
+    color: var(--code-ink);
+    tab-size: 2;
+  }
+  .copy {
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--code-dim);
+    background: transparent;
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 5px;
+    padding: .25rem .55rem;
+    cursor: pointer;
+    transition: color .15s, border-color .15s;
+  }
+  .copy:hover { color: var(--code-ink); border-color: rgba(255,255,255,.35); }
+  .copy.done { color: var(--code-str); border-color: var(--code-str); }
+
+  /* ---------- checklist ---------- */
+
+  ul.checks { list-style: none; padding: 0; margin: 1.2rem 0 0; display: flex; flex-direction: column; gap: .1rem; }
+  ul.checks li { margin: 0; }
+  ul.checks label {
+    display: flex;
+    gap: .65rem;
+    align-items: flex-start;
+    padding: .45rem .55rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: .92rem;
+    transition: background .12s;
+  }
+  ul.checks label:hover { background: var(--rule-soft); }
+  ul.checks input { margin: .35rem 0 0; flex: none; width: 1rem; height: 1rem; accent-color: var(--accent); cursor: pointer; }
+  ul.checks input:checked + span { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--ink-3); }
+
+  /* ---------- tables ---------- */
+
+  .tscroll { overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--rule); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: .87rem; min-width: 34rem; }
+  th, td { text-align: left; padding: .6rem .8rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  th {
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    background: var(--rule-soft);
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: none; }
+  td code { background: transparent; padding: 0; color: var(--accent); }
+
+  /* ---------- flow diagram ---------- */
+
+  .flow {
+    display: grid;
+    gap: .55rem;
+    margin: 1.2rem 0;
+    font-family: var(--mono);
+    font-size: .78rem;
+  }
+  .flow .row {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    flex-wrap: wrap;
+    padding: .65rem .8rem;
+    border: 1px solid var(--rule);
+    border-radius: 7px;
+    background: var(--paper);
+  }
+  .flow .who {
+    flex: none;
+    width: 6.5rem;
+    color: var(--ink-3);
+    font-size: .68rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+  .flow .arrow { color: var(--ink-3); }
+  .flow b { font-weight: 600; color: var(--accent); }
+
+  details {
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: .1rem .9rem;
+    margin: 1rem 0;
+    background: var(--paper);
+  }
+  summary {
+    cursor: pointer;
+    padding: .7rem 0;
+    font-family: var(--mono);
+    font-size: .8rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+  }
+  details[open] summary { border-bottom: 1px solid var(--rule-soft); margin-bottom: .8rem; }
+
+  hr.sep { border: none; border-top: 1px solid var(--rule); margin: 3rem 0 2.2rem; }
+
+  .sechead { margin: 0 0 1.4rem; }
+  .sechead .eyebrow { margin-bottom: .5rem; }
+
+  footer.end {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+    font-size: .82rem;
+    color: var(--ink-3);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+
+  @media (max-width: 34rem) {
+    .step-head { flex-direction: column; gap: .5rem; }
+    .num { align-self: flex-start; }
+    .flow .who { width: auto; }
+  }
+</style>
+
+<div class="railbar">
+  <div class="railbar-inner">
+    <span class="tag">Setup progress</span>
+    <span class="meter"><i id="meterfill"></i></span>
+    <span class="count" id="counttext">0 / 0</span>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <header class="mast">
+    <p class="eyebrow">ARCADE · Infrastructure runbook</p>
+    <h1>AWS setup, from zero</h1>
+    <p class="standfirst">
+      Everything needed to make story publishing and image uploads work in production.
+      Nothing exists in AWS yet — no bucket, no roles, no Terraform state. This creates
+      all of it by hand, in order, in about 30&nbsp;minutes.
+    </p>
+    <dl class="facts">
+      <div><dt>Starting point</dt><dd>Empty AWS account</dd></div>
+      <div><dt>You will create</dt><dd>1 bucket, 1 role</dd></div>
+      <div><dt>Database</dt><dd>None — by design</dd></div>
+      <div><dt>Running cost</dt><dd>Cents per month</dd></div>
+    </dl>
+  </header>
+
+  <div class="values">
+    <h2>Your values</h2>
+    <p>Fill these in once. Every command and policy on this page rewrites itself to match — no placeholders left to hand-edit.</p>
+    <div class="grid-in">
+      <div class="field">
+        <label for="v-bucket">S3 bucket name</label>
+        <input id="v-bucket" data-var="BUCKET" value="arcade-storage-postarr" spellcheck="false">
+        <small>Globally unique across all of AWS. Lowercase, no underscores.</small>
+      </div>
+      <div class="field">
+        <label for="v-region">AWS region</label>
+        <input id="v-region" data-var="REGION" value="us-east-1" spellcheck="false">
+        <small>Pick one near your visitors and never change it.</small>
+      </div>
+      <div class="field">
+        <label for="v-account">AWS account ID</label>
+        <input id="v-account" data-var="ACCOUNT_ID" value="111122223333" spellcheck="false">
+        <small>12 digits. Top-right menu in the AWS console.</small>
+      </div>
+      <div class="field">
+        <label for="v-team">Vercel team slug</label>
+        <input id="v-team" data-var="TEAM_SLUG" value="darkmagician-0901" spellcheck="false">
+        <small>The path segment in your Vercel dashboard URL.</small>
+      </div>
+      <div class="field">
+        <label for="v-project">Vercel project name</label>
+        <input id="v-project" data-var="PROJECT" value="postarr" spellcheck="false">
+        <small>Used to scope which project may assume the AWS role.</small>
+      </div>
+      <div class="field">
+        <label for="v-origin">App origin</label>
+        <input id="v-origin" data-var="APP_ORIGIN" value="https://postarr.vercel.app" spellcheck="false">
+        <small>Where the studio and viewer are served. Include <code>https://</code>, no trailing slash.</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ORIENTATION ============ -->
+
+  <div class="sechead">
+    <p class="eyebrow">Orientation</p>
+    <h2>What you are actually building</h2>
+  </div>
+
+  <p class="lede">
+    One S3 bucket holds everything. There is no database — that was designed out, because
+    a Vercel function has no fixed IP address to allowlist against RDS, and the bucket already
+    answers every question the tables would have. Two prefixes, two very different lifetimes:
+  </p>
+
+  <div class="tscroll">
+    <table>
+      <thead>
+        <tr><th>Prefix</th><th>Holds</th><th>Written by</th><th>Cache-Control</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>stories/&lt;id&gt;.json</code></td>
+          <td>A published exhibit</td>
+          <td><code>POST /api/publish</code></td>
+          <td><code>max-age=60, must-revalidate</code> — changes when republished</td>
+        </tr>
+        <tr>
+          <td><code>assets/&lt;sha256&gt;/full.webp</code></td>
+          <td>One uploaded image</td>
+          <td>The browser, via a signed URL</td>
+          <td><code>max-age=31536000, immutable</code> — can never change</td>
+        </tr>
+        <tr>
+          <td><code>tmp/</code></td>
+          <td>Scratch. Nothing important.</td>
+          <td>Nothing yet</td>
+          <td>The only thing safe to auto-delete</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    An image's filename <em>is</em> the fingerprint of its own bytes. That's what makes uploads
+    idempotent and safe to leave public: the same photo uploaded twice lands on the same key,
+    and nobody can claim a key for content that doesn't hash to it.
+  </p>
+
+  <h3>The upload path — note who talks to whom</h3>
+
+  <div class="flow">
+    <div class="row"><span class="who">Browser</span><span>hashes the image, asks</span><span class="arrow">→</span><b>POST /api/story-assets</b></div>
+    <div class="row"><span class="who">Function</span><span>checks S3, returns a</span><span class="arrow">→</span><b>signed upload URL</b><span class="arrow">+ 3 required headers</span></div>
+    <div class="row"><span class="who">Browser</span><span class="arrow">→</span><b>PUT direct to S3</b><span>(not through Vercel)</span></div>
+    <div class="row"><span class="who">Viewer</span><span class="arrow">→</span><b>GET direct from S3</b><span>then inlines the bytes into the artwork</span></div>
+  </div>
+
+  <div class="note info">
+    <span class="lbl">Why this matters for Step 2</span>
+    <p>
+      The browser uploads to S3 <em>directly</em> and the viewer reads from S3 <em>directly</em>.
+      Vercel is never in the middle of the bytes. So the bucket's own CORS rules are what make
+      or break both paths — this is the single most common way this setup fails.
+    </p>
+  </div>
+
+  <hr class="sep">
+
+  <!-- ============ STEP 0 ============ -->
+
+  <section class="step">
+    <div class="step-head">
+      <span class="num">STEP 0</span>
+      <div class="t">
+        <h2>Get a working AWS CLI</h2>
+        <p class="sub">You need credentials before you can create the credentials. One-time console visit.</p>
+      </div>
+    </div>
+
+    <p>Install the CLI:</p>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">PowerShell</span><button class="copy">Copy</button></div><pre class="sub-tpl">winget install -e --id Amazon.AWSCLI</pre></div>
+
+    <p>Open a <strong>new</strong> terminal afterwards so the PATH refreshes, then confirm:</p>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">PowerShell</span><button class="copy">Copy</button></div><pre class="sub-tpl">aws --version</pre></div>
+
+    <p>
+      Now get an access key for yourself in the AWS console:
+      <strong>IAM → Users → your user → Security credentials → Create access key</strong>,
+      choosing <em>Command Line Interface</em>. Then:
+    </p>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">PowerShell</span><button class="copy">Copy</button></div><pre class="sub-tpl">aws configure</pre></div>
+
+    <p>Paste the key and secret, set the region to <code class="sub-tpl">{{REGION}}</code>, leave output format blank. Verify you are who you think you are:</p>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">PowerShell</span><button class="copy">Copy</button></div><pre class="sub-tpl">aws sts get-caller-identity</pre></div>
+
+    <div class="note trap">
+      <span class="lbl">Trap</span>
+      <p>
+        The <code>Account</code> field in that output is your <strong>AWS account ID</strong>.
+        Copy it into the values panel at the top of this page now — Step&nbsp;5 needs it and
+        an incorrect one produces a role that silently never works.
+      </p>
+    </div>
+
+    <ul class="checks">
+      <li><label><input type="checkbox" data-ck="s0a"><span><code>aws --version</code> prints a version</span></label></li>
+      <li><label><input type="checkbox" data-ck="s0b"><span><code>aws sts get-caller-identity</code> succeeds</span></label></li>
+      <li><label><input type="checkbox" data-ck="s0c"><span>Account ID pasted into the values panel above</span></label></li>
+    </ul>
+  </section>
+
+  <!-- ============ STEP 1 ============ -->
+
+  <section class="step">
+    <div class="step-head">
+      <span class="num">STEP 1</span>
+      <div class="t">
+        <h2>Create the bucket</h2>
+        <p class="sub">One bucket holds published exhibits and every uploaded image.</p>
+      </div>
+    </div>
+
+    <div class="note trap">
+      <span class="lbl">Trap — region syntax</span>
+      <p>
+        <code>us-east-1</code> is the one region that must <strong>omit</strong>
+        <code>--create-bucket-configuration</code>. Every other region requires it.
+        Use whichever of the two commands matches your region.
+      </p>
+    </div>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">If region IS us-east-1</span><button class="copy">Copy</button></div><pre class="sub-tpl">aws s3api create-bucket --bucket {{BUCKET}} --region us-east-1</pre></div>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">If region is anything else</span><button class="copy">Copy</button></div><pre class="sub-tpl">aws s3api create-bucket --bucket {{BUCKET}} --region {{REGION}} \
+  --create-bucket-configuration LocationConstraint={{REGION}}</pre></div>
+
+    <p>
+      Next, allow a bucket <em>policy</em> to grant public reads while keeping public
+      <em>ACLs</em> blocked. Published exhibits have to be world-readable; ACLs are a legacy
+      mechanism you never want on:
+    </p>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">PowerShell</span><button class="copy">Copy</button></div><pre class="sub-tpl">aws s3api put-public-access-block --bucket {{BUCKET}} `
+  --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=false,RestrictPublicBuckets=false"</pre></div>
+
+    <ul class="checks">
+      <li><label><input type="checkbox" data-ck="s1a"><span>Bucket created</span></label></li>
+      <li><label><input type="checkbox" data-ck="s1b"><span>Public access block set — ACLs blocked, policies allowed</span></label></li>
+    </ul>
+  </section>
+
+  <!-- ============ STEP 2 ============ -->
+
+  <section class="step">
+    <div class="step-head">
+      <span class="num">STEP 2</span>
+      <div class="t">
+        <h2>CORS — the load-bearing one</h2>
+        <p class="sub">Both the upload and the display go browser-to-S3 directly. Get this wrong and images vanish without an error.</p>
+      </div>
+    </div>
+
+    <p>Save this as <code>cors.json</code>:</p>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">cors.json</span><button class="copy">Copy</button></div><pre class="sub-tpl">{
+  "CORSRules": [
+    {
+      "AllowedOrigins": ["{{APP_ORIGIN}}"],
+      "AllowedMethods": ["GET", "HEAD", "PUT"],
+      "AllowedHeaders": ["content-type", "if-none-match", "x-amz-checksum-sha256"],
+      "ExposeHeaders": ["ETag"],
+      "MaxAgeSeconds": 3000
+    }
+  ]
+}</pre></div>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">PowerShell</span><button class="copy">Copy</button></div><pre class="sub-tpl">aws s3api put-bucket-cors --bucket {{BUCKET}} --cors-configuration file://cors.json</pre></div>
+
+    <div class="note trap">
+      <span class="lbl">Trap — those three headers are not optional</span>
+      <p>
+        <code>if-none-match</code> and <code>x-amz-checksum-sha256</code> are part of the
+        upload's cryptographic signature. The browser must send them and S3 must be willing
+        to receive them. Drop either from <code>AllowedHeaders</code> and every upload fails
+        the CORS preflight — before the request is even attempted.
+      </p>
+    </div>
+
+    <div class="note trap">
+      <span class="lbl">Trap — preview deployments</span>
+      <p>
+        Vercel generates a new URL for every preview deployment, so preview origins cannot be
+        listed here in advance. <strong>Images will be blank on preview URLs and correct in
+        production.</strong> That is expected, not a bug — decide now that you know it, rather
+        than debugging it later. Attach a stable custom domain if you need previews to work.
+      </p>
+    </div>
+
+    <ul class="checks">
+      <li><label><input type="checkbox" data-ck="s2a"><span>CORS applied with all three headers</span></label></li>
+      <li><label><input type="checkbox" data-ck="s2b"><span>Understood: images are blank on preview URLs</span></label></li>
+    </ul>
+  </section>
+
+  <!-- ============ STEP 3 ============ -->
+
+  <section class="step">
+    <div class="step-head">
+      <span class="num">STEP 3</span>
+      <div class="t">
+        <h2>Lifecycle rule — scoped to scratch only</h2>
+        <p class="sub">The rule that deletes things. It must never point at anything real.</p>
+      </div>
+    </div>
+
+    <div class="note danger">
+      <span class="lbl">Why this step exists</span>
+      <p>
+        The Terraform written for the earlier testbed expires the <strong>whole bucket</strong>
+        after 90 days. That was harmless when the bucket held disposable test uploads. Applied
+        to this bucket it would delete every published exhibit's images three months after
+        upload — silently, and long after anyone would connect the two events. Never apply
+        that file as written.
+      </p>
+    </div>
+
+    <p>Save as <code>lifecycle.json</code>:</p>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">lifecycle.json</span><button class="copy">Copy</button></div><pre class="sub-tpl">{
+  "Rules": [
+    {
+      "ID": "expire-scratch-only",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "tmp/" },
+      "Expiration": { "Days": 90 }
+    },
+    {
+      "ID": "abort-incomplete-uploads",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "" },
+      "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 1 }
+    }
+  ]
+}</pre></div>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">PowerShell</span><button class="copy">Copy</button></div><pre class="sub-tpl">aws s3api put-bucket-lifecycle-configuration --bucket {{BUCKET}} `
+  --lifecycle-configuration file://lifecycle.json</pre></div>
+
+    <p>Read it back and confirm the expiry rule says <code>tmp/</code> and nothing else:</p>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">PowerShell</span><button class="copy">Copy</button></div><pre class="sub-tpl">aws s3api get-bucket-lifecycle-configuration --bucket {{BUCKET}}</pre></div>
+
+    <ul class="checks">
+      <li><label><input type="checkbox" data-ck="s3a"><span>Lifecycle applied</span></label></li>
+      <li><label><input type="checkbox" data-ck="s3b"><span>Read back — the <code>Expiration</code> rule is scoped to <code>tmp/</code>, never to the whole bucket</span></label></li>
+    </ul>
+  </section>
+
+  <!-- ============ STEP 4 ============ -->
+
+  <section class="step">
+    <div class="step-head">
+      <span class="num">STEP 4</span>
+      <div class="t">
+        <h2>Make published content readable</h2>
+        <p class="sub">Two prefixes public. Everything else stays private.</p>
+      </div>
+    </div>
+
+    <p>Save as <code>bucket-policy.json</code>:</p>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">bucket-policy.json</span><button class="copy">Copy</button></div><pre class="sub-tpl">{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadPublishedContent",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": [
+        "arn:aws:s3:::{{BUCKET}}/assets/*",
+        "arn:aws:s3:::{{BUCKET}}/stories/*"
+      ]
+    }
+  ]
+}</pre></div>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">PowerShell</span><button class="copy">Copy</button></div><pre class="sub-tpl">aws s3api put-bucket-policy --bucket {{BUCKET}} --policy file://bucket-policy.json</pre></div>
+
+    <div class="note info">
+      <span class="lbl">This is intended, not a leak</span>
+      <p>
+        A published exhibit is a public web page — its artwork has to be fetchable by any
+        visitor's phone. Note what is <em>not</em> listed: <code>tmp/</code> is private, and
+        nobody can list the bucket's contents, so keys can't be enumerated.
+      </p>
+    </div>
+
+    <ul class="checks">
+      <li><label><input type="checkbox" data-ck="s4a"><span>Policy applied to <code>assets/*</code> and <code>stories/*</code> only</span></label></li>
+    </ul>
+  </section>
+
+  <!-- ============ STEP 5 ============ -->
+
+  <section class="step">
+    <div class="step-head">
+      <span class="num">STEP 5</span>
+      <div class="t">
+        <h2>Let Vercel write to the bucket</h2>
+        <p class="sub">Two routes. Take A to get running today; B is the one worth ending up on.</p>
+      </div>
+    </div>
+
+    <p>Both routes use the same permission set. Save it as <code>s3-write.json</code> first:</p>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">s3-write.json</span><button class="copy">Copy</button></div><pre class="sub-tpl">{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject"],
+      "Resource": [
+        "arn:aws:s3:::{{BUCKET}}/assets/*",
+        "arn:aws:s3:::{{BUCKET}}/stories/*"
+      ]
+    }
+  ]
+}</pre></div>
+
+    <p class="sub" style="font-size:.85rem;color:var(--ink-3)">
+      <code>s3:GetObject</code> is there because the deduplication check uses <code>HeadObject</code>,
+      which AWS authorises as a read.
+    </p>
+
+    <h3>Route A — access keys (fastest)</h3>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">PowerShell</span><button class="copy">Copy</button></div><pre class="sub-tpl">aws iam create-user --user-name arcade-publisher
+
+aws iam put-user-policy --user-name arcade-publisher `
+  --policy-name arcade-s3-write --policy-document file://s3-write.json
+
+aws iam create-access-key --user-name arcade-publisher</pre></div>
+
+    <p>
+      Keep the printed <code>AccessKeyId</code> and <code>SecretAccessKey</code> — the secret
+      is shown once. They become <code>AWS_ACCESS_KEY_ID</code> and
+      <code>AWS_SECRET_ACCESS_KEY</code> in Step&nbsp;6.
+    </p>
+
+    <h3>Route B — Vercel OIDC (no stored secret)</h3>
+
+    <p>
+      Vercel proves its identity per request and AWS hands back credentials that expire in
+      minutes. Nothing long-lived is stored anywhere. The code already supports this — it
+      switches automatically when <code>AWS_ROLE_ARN</code> is set.
+    </p>
+
+    <div class="note trap">
+      <span class="lbl">Check first — issuer mode</span>
+      <p>
+        In Vercel: <strong>Team Settings → Security → OIDC Federation</strong>. If the issuer
+        mode is <em>Global</em>, the URL below is <code>https://oidc.vercel.com</code> with no
+        team slug, and the condition keys lose their slug too. The commands here assume
+        <em>Team</em> mode.
+      </p>
+    </div>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">PowerShell</span><button class="copy">Copy</button></div><pre class="sub-tpl">aws iam create-open-id-connect-provider `
+  --url https://oidc.vercel.com/{{TEAM_SLUG}} `
+  --client-id-list https://vercel.com/{{TEAM_SLUG}}</pre></div>
+
+    <p>Save as <code>trust.json</code>:</p>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">trust.json</span><button class="copy">Copy</button></div><pre class="sub-tpl">{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::{{ACCOUNT_ID}}:oidc-provider/oidc.vercel.com/{{TEAM_SLUG}}"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "oidc.vercel.com/{{TEAM_SLUG}}:aud": "https://vercel.com/{{TEAM_SLUG}}"
+        },
+        "StringLike": {
+          "oidc.vercel.com/{{TEAM_SLUG}}:sub": "owner:{{TEAM_SLUG}}:project:{{PROJECT}}:environment:*"
+        }
+      }
+    }
+  ]
+}</pre></div>
+
+    <div class="note danger">
+      <span class="lbl">Trap — do not copy the audience from Vercel's docs</span>
+      <p>
+        Vercel's own S3 example passes <code>audience: 'sts.amazonaws.com'</code> and shows a
+        trust policy to match. <strong>This project's code does not pass an audience</strong>
+        — <code>api/_s3.ts</code> calls <code>awsCredentialsProvider({ roleArn })</code> and
+        nothing else, so the token arrives with the default audience
+        <code class="sub-tpl">https://vercel.com/{{TEAM_SLUG}}</code>.
+      </p>
+      <p>
+        Use <code>sts.amazonaws.com</code> here and every publish fails with
+        <em>“Not authorized to perform sts:AssumeRoleWithWebIdentity”</em> — a message that
+        points at permissions rather than at the audience mismatch actually causing it.
+      </p>
+    </div>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">PowerShell</span><button class="copy">Copy</button></div><pre class="sub-tpl">aws iam create-role --role-name arcade-vercel `
+  --assume-role-policy-document file://trust.json
+
+aws iam put-role-policy --role-name arcade-vercel `
+  --policy-name arcade-s3-write --policy-document file://s3-write.json
+
+aws iam get-role --role-name arcade-vercel --query Role.Arn --output text</pre></div>
+
+    <p>That last command prints the ARN you'll paste as <code>AWS_ROLE_ARN</code>.</p>
+
+    <ul class="checks">
+      <li><label><input type="checkbox" data-ck="s5a"><span>Route chosen and credentials created</span></label></li>
+      <li><label><input type="checkbox" data-ck="s5b"><span>Route B only — audience is <code>https://vercel.com/…</code>, <em>not</em> <code>sts.amazonaws.com</code></span></label></li>
+      <li><label><input type="checkbox" data-ck="s5c"><span>Role ARN or access key pair saved somewhere you can paste from</span></label></li>
+    </ul>
+  </section>
+
+  <!-- ============ STEP 6 ============ -->
+
+  <section class="step">
+    <div class="step-head">
+      <span class="num">STEP 6</span>
+      <div class="t">
+        <h2>Vercel environment variables</h2>
+        <p class="sub">Project <code class="sub-tpl">{{PROJECT}}</code> → Settings → Environment Variables.</p>
+      </div>
+    </div>
+
+    <p>Where a value points at the bucket, it is:</p>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">Bucket origin</span><button class="copy">Copy</button></div><pre class="sub-tpl">https://{{BUCKET}}.s3.{{REGION}}.amazonaws.com</pre></div>
+
+    <h3>Public — safe to expose, readable by anyone</h3>
+
+    <div class="tscroll">
+      <table>
+        <thead><tr><th>Name</th><th>Value</th><th>If wrong</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>VITE_ASSET_BASE_URL</code></td>
+            <td class="sub-tpl"><code>https://{{BUCKET}}.s3.{{REGION}}.amazonaws.com</code></td>
+            <td>Every uploaded image renders as a transparent gap</td>
+          </tr>
+          <tr>
+            <td><code>VITE_STORY_BASE_URL</code></td>
+            <td class="sub-tpl"><code>https://{{BUCKET}}.s3.{{REGION}}.amazonaws.com</code></td>
+            <td>Published exhibits never load; visitors get the built-in story</td>
+          </tr>
+          <tr>
+            <td><code>VITE_API_BASE_URL</code></td>
+            <td><em>leave empty</em></td>
+            <td>Empty is correct — the functions are same-origin on Vercel</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Server-only — never prefix these with <code>VITE_</code></h3>
+
+    <div class="tscroll">
+      <table>
+        <thead><tr><th>Name</th><th>Value</th><th>If wrong</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>S3_BUCKET</code></td>
+            <td class="sub-tpl"><code>{{BUCKET}}</code></td>
+            <td>Publish and upload both return <code>503</code></td>
+          </tr>
+          <tr>
+            <td><code>S3_REGION</code></td>
+            <td class="sub-tpl"><code>{{REGION}}</code></td>
+            <td><strong>Silently defaults to us-east-1</strong> — a wrong value misroutes instead of failing clearly</td>
+          </tr>
+          <tr>
+            <td><code>STORY_PUBLIC_BASE_URL</code></td>
+            <td class="sub-tpl"><code>https://{{BUCKET}}.s3.{{REGION}}.amazonaws.com</code></td>
+            <td>Publishing still works; the studio just can't show a shareable link</td>
+          </tr>
+          <tr>
+            <td><code>STUDIO_PUBLISH_SECRET</code></td>
+            <td>Generate below</td>
+            <td>Publishing returns <code>401</code></td>
+          </tr>
+          <tr>
+            <td><code>AWS_ROLE_ARN</code></td>
+            <td>Route B only</td>
+            <td>Falls back to static keys when unset</td>
+          </tr>
+          <tr>
+            <td><code>AWS_ACCESS_KEY_ID</code><br><code>AWS_SECRET_ACCESS_KEY</code></td>
+            <td>Route A only</td>
+            <td>Every S3 call fails unauthenticated</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">Generate the publish secret</span><button class="copy">Copy</button></div><pre class="sub-tpl">node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"</pre></div>
+
+    <div class="note trap">
+      <span class="lbl">Trap — <code>VITE_</code> values are baked in at build time</span>
+      <p>
+        They are compiled into the JavaScript bundle, not read at runtime. Setting or changing
+        one has <strong>no effect until you redeploy</strong>. Editing a value and refreshing
+        the page will convince you the variable is broken when it simply hasn't been rebuilt.
+      </p>
+      <p>
+        The same fact is a security rule: anything named <code>VITE_*</code> is visible to
+        anyone who opens the bundle. Never put a secret behind that prefix.
+      </p>
+    </div>
+
+    <div class="note info">
+      <span class="lbl">Also worth knowing</span>
+      <p>
+        Vercel sets a built-in <code>AWS_REGION</code> that changes with the function's
+        execution region. This project deliberately reads <code>S3_REGION</code> instead, so
+        that instability can't misroute your calls. Don't "tidy" it into <code>AWS_REGION</code>.
+      </p>
+    </div>
+
+    <ul class="checks">
+      <li><label><input type="checkbox" data-ck="s6a"><span>All three <code>VITE_</code> variables set</span></label></li>
+      <li><label><input type="checkbox" data-ck="s6b"><span>Server variables set, none carrying a <code>VITE_</code> prefix</span></label></li>
+      <li><label><input type="checkbox" data-ck="s6c"><span><code>S3_REGION</code> set explicitly, matching the bucket</span></label></li>
+      <li><label><input type="checkbox" data-ck="s6d"><span><strong>Redeployed</strong> after setting them</span></label></li>
+    </ul>
+  </section>
+
+  <!-- ============ STEP 7 ============ -->
+
+  <section class="step">
+    <div class="step-head">
+      <span class="num">STEP 7</span>
+      <div class="t">
+        <h2>Verify</h2>
+        <p class="sub">Four checks, cheapest first. Each one fails differently, so do them in order.</p>
+      </div>
+    </div>
+
+    <h3>1 — The CORS preflight, exactly as the browser sends it</h3>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">Git Bash</span><button class="copy">Copy</button></div><pre class="sub-tpl">curl -s -o /dev/null -D - -X OPTIONS \
+  "https://{{BUCKET}}.s3.{{REGION}}.amazonaws.com/assets/probe/full.webp" \
+  -H "Origin: {{APP_ORIGIN}}" \
+  -H "Access-Control-Request-Method: PUT" \
+  -H "Access-Control-Request-Headers: content-type,if-none-match,x-amz-checksum-sha256"</pre></div>
+
+    <div class="note ok">
+      <span class="lbl">Pass</span>
+      <p>
+        <code>200</code>, with <code>Access-Control-Allow-Origin</code> echoing your origin and
+        all three request headers listed in <code>Access-Control-Allow-Headers</code>.
+        A <code>403</code> means Step&nbsp;2's header list is incomplete.
+      </p>
+    </div>
+
+    <h3>2 — Publish a real exhibit</h3>
+
+    <p>Open the studio, make any small edit, publish. Then confirm the object landed:</p>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">PowerShell</span><button class="copy">Copy</button></div><pre class="sub-tpl">aws s3 ls s3://{{BUCKET}}/stories/
+aws s3 ls s3://{{BUCKET}}/assets/</pre></div>
+
+    <h3>3 — Confirm the cache headers survived the write</h3>
+
+    <p>Substitute the story id you just published:</p>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">Git Bash</span><button class="copy">Copy</button></div><pre class="sub-tpl">curl -sI "https://{{BUCKET}}.s3.{{REGION}}.amazonaws.com/stories/YOUR-STORY-ID.json" \
+  | grep -i "http/\|cache-control"</pre></div>
+
+    <div class="note ok">
+      <span class="lbl">Pass</span>
+      <p>
+        <code>200</code> and <code>cache-control: public, max-age=60, must-revalidate</code>.
+        A longer max-age on <code>stories/</code> means republishing stays invisible to visitors
+        until the cache expires. Assets should read <code>immutable</code> instead — that
+        difference is deliberate.
+      </p>
+    </div>
+
+    <h3>4 — A real phone</h3>
+
+    <p>
+      Open the published link on a phone and check that an uploaded image actually appears in
+      the scene. This is the only test that exercises the whole chain, and the only one that
+      can catch the remaining unknown: how large a <code>data:</code> URL a given phone will
+      accept before it gives up. A blank rectangle where a photo should be means the bytes
+      never arrived — start at the browser console, then Step&nbsp;2.
+    </p>
+
+    <ul class="checks">
+      <li><label><input type="checkbox" data-ck="s7a"><span>CORS preflight returns 200 with all three headers allowed</span></label></li>
+      <li><label><input type="checkbox" data-ck="s7b"><span>A published story object exists in <code>stories/</code></span></label></li>
+      <li><label><input type="checkbox" data-ck="s7c"><span><code>stories/</code> serves <code>max-age=60</code>; <code>assets/</code> serves <code>immutable</code></span></label></li>
+      <li><label><input type="checkbox" data-ck="s7d"><span>Uploaded image visible in AR on a real phone</span></label></li>
+    </ul>
+  </section>
+
+  <!-- ============ STEP 8 ============ -->
+
+  <section class="step">
+    <div class="step-head">
+      <span class="num">OPTIONAL</span>
+      <div class="t">
+        <h2>CloudFront, later</h2>
+        <p class="sub">Skip until the S3-direct setup is proven working. It adds speed and one nasty failure mode.</p>
+      </div>
+    </div>
+
+    <p>
+      Serving straight from S3 works and costs almost nothing at exhibit scale. A CDN buys
+      lower latency for distant visitors and cheaper egress at volume. Add it only when you
+      want those, and only after Step&nbsp;7 passes — otherwise a CDN problem and a bucket
+      problem look identical.
+    </p>
+
+    <div class="note danger">
+      <span class="lbl">The trap that makes this worth postponing</span>
+      <p>
+        CloudFront caches responses. If <code>Origin</code> is not part of the
+        <strong>cache key</strong>, the first request that arrives without an
+        <code>Origin</code> header caches a response carrying no CORS headers — and that
+        cached copy is then served to real browsers, which reject it.
+      </p>
+      <p>
+        The symptom is the worst kind: it depends on cache state. It passes when you test it
+        and fails for a visitor an hour later, in a region you didn't test from.
+      </p>
+    </div>
+
+    <p>Three settings, all required together:</p>
+
+    <div class="tscroll">
+      <table>
+        <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Origin</td><td>The S3 bucket, via Origin Access Control</td></tr>
+          <tr><td>Cache policy</td><td>Must include <strong><code>Origin</code></strong> in the cache key</td></tr>
+          <tr><td>Origin request policy</td><td>Managed <code>CORS-S3Origin</code>, so <code>Origin</code> reaches the bucket at all</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p><strong>Test it on a cold cache, in this exact order</strong> — testing only the warm path hides precisely this defect:</p>
+
+    <div class="codeblock"><div class="cbhead"><span class="fname">Git Bash</span><button class="copy">Copy</button></div><pre class="sub-tpl"># 1. Prime the cache deliberately WITHOUT an Origin header.
+curl -sI "https://YOUR-CDN-DOMAIN/assets/SOME-SHA/full.webp" \
+  | grep -i "access-control\|x-cache"
+
+# 2. Now ask again the way a browser would.
+curl -sI -H "Origin: {{APP_ORIGIN}}" \
+  "https://YOUR-CDN-DOMAIN/assets/SOME-SHA/full.webp" \
+  | grep -i "access-control-allow-origin\|x-cache"</pre></div>
+
+    <p>
+      Step 2 <strong>must</strong> return <code>access-control-allow-origin</code>. If it
+      doesn't, <code>Origin</code> is missing from the cache key. Once it passes, repoint
+      <code>VITE_ASSET_BASE_URL</code> and <code>VITE_STORY_BASE_URL</code> at the CDN domain
+      and redeploy.
+    </p>
+
+    <ul class="checks">
+      <li><label><input type="checkbox" data-ck="s8a"><span>Deferred for now — S3 direct is fine</span></label></li>
+      <li><label><input type="checkbox" data-ck="s8b"><span>Or: cold-cache acceptance test passed</span></label></li>
+    </ul>
+  </section>
+
+  <hr class="sep">
+
+  <!-- ============ TROUBLESHOOTING ============ -->
+
+  <div class="sechead">
+    <p class="eyebrow">Reference</p>
+    <h2>When something breaks</h2>
+  </div>
+
+  <p class="lede">
+    Most failures in this system are quiet by design — a missing image resolves to a
+    transparent pixel rather than an error, because a gap in one frame is recoverable and a
+    crash mid-exhibit is not. That makes the symptom table more useful than the logs.
+  </p>
+
+  <div class="tscroll">
+    <table>
+      <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Images are blank gaps; everything else renders</td>
+          <td><code>VITE_ASSET_BASE_URL</code> unset, wrong, or not yet rebuilt</td>
+          <td>Set it, then <strong>redeploy</strong>. Check the console for the one-time warning.</td>
+        </tr>
+        <tr>
+          <td>Blank in preview, correct in production</td>
+          <td>Preview origin isn't in the bucket's CORS list</td>
+          <td>Expected. Use a stable custom domain if previews must work.</td>
+        </tr>
+        <tr>
+          <td>Publish returns <code>503</code></td>
+          <td><code>S3_BUCKET</code> not set on the project</td>
+          <td>Set it and redeploy</td>
+        </tr>
+        <tr>
+          <td>Publish returns <code>401</code></td>
+          <td><code>STUDIO_PUBLISH_SECRET</code> mismatch</td>
+          <td>Re-enter it in both places</td>
+        </tr>
+        <tr>
+          <td>Publish returns <code>422</code></td>
+          <td>Artwork references an image whose bytes never uploaded</td>
+          <td>Correct — it refuses to publish a broken exhibit. Re-add the image.</td>
+        </tr>
+        <tr>
+          <td>Upload fails <code>SignatureDoesNotMatch</code></td>
+          <td>A signed header was dropped or altered</td>
+          <td>All three <code>requiredHeaders</code> must be sent verbatim</td>
+        </tr>
+        <tr>
+          <td>Upload returns <code>412</code></td>
+          <td>Those exact bytes are already stored</td>
+          <td><strong>Not an error.</strong> Deduplication working — the client treats it as success.</td>
+        </tr>
+        <tr>
+          <td><code>PermanentRedirect</code> or a signing error</td>
+          <td><code>S3_REGION</code> wrong — it defaults to <code>us-east-1</code> silently</td>
+          <td>Set it to the bucket's real region</td>
+        </tr>
+        <tr>
+          <td><code>Not authorized to perform sts:AssumeRoleWithWebIdentity</code></td>
+          <td>Usually the audience, not the permissions</td>
+          <td>Trust policy audience must be <code class="sub-tpl">https://vercel.com/{{TEAM_SLUG}}</code></td>
+        </tr>
+        <tr>
+          <td>Worked yesterday, images gone today</td>
+          <td>A whole-bucket lifecycle rule</td>
+          <td>Step&nbsp;3. Check the rule's scope immediately.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <details>
+    <summary>What this costs to run</summary>
+    <p>
+      At exhibit scale this rounds to nothing. Storage is about
+      <strong>2.3¢ per GB per month</strong>; a hundred exhibits with images is comfortably
+      under a gigabyte. Requests are fractions of a cent per thousand. Egress from S3 is the
+      only line that grows with visitors, at roughly <strong>9¢ per GB</strong> — and the
+      first 100&nbsp;GB each month is free.
+    </p>
+    <p>
+      The thing to actually watch: <strong>do not create the RDS Postgres instance</strong>
+      from the older Terraform. It is around <strong>$15/month</strong> for a database this
+      design deliberately does not use, and it cannot be reached from a Vercel function anyway.
+      Set a billing alarm at $5 and you'll hear about anything unexpected long before it matters.
+    </p>
+  </details>
+
+  <details>
+    <summary>Things not to do</summary>
+    <p>
+      <strong>Don't apply <code>infra/terraform/</code> as it stands.</strong> It expires the
+      whole bucket after 90 days, creates the unused database, provisions a static-key IAM user,
+      and defaults CORS to <code>*</code>. It was written for a different, disposable purpose.
+    </p>
+    <p>
+      <strong>Don't rename a stored object.</strong> An asset's key is the fingerprint of its
+      own bytes; renaming breaks every exhibit referencing it, and re-uploading cannot repair it.
+    </p>
+    <p>
+      <strong>Don't widen the upload allowlist to non-WebP types.</strong> The read path fetches
+      <code>full.webp</code> specifically. Anything stored under another extension is written
+      to a key nothing ever reads — a permanent silent gap.
+    </p>
+    <p>
+      <strong>Don't put a secret behind <code>VITE_</code>.</strong> It ends up in the public
+      bundle. This has already happened once in this project's history.
+    </p>
+  </details>
+
+  <footer class="end">
+    <p>
+      Values and checkboxes are saved in this browser only — close the tab and come back where
+      you left off. Nothing on this page is transmitted anywhere.
+    </p>
+    <p>
+      Companion documents in the repo: <code>docs/arcade-architecture.md</code> for the design
+      and why each decision was made, <code>docs/arcade-storage-ops-checklist.md</code> for the
+      original checklist this runbook supersedes.
+    </p>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var STORE_VALS = 'arcade-aws-setup.values.v1';
+  var STORE_CKS  = 'arcade-aws-setup.checks.v1';
+
+  var inputs = Array.prototype.slice.call(document.querySelectorAll('input[data-var]'));
+  var targets = Array.prototype.slice.call(document.querySelectorAll('.sub-tpl'));
+
+  // Cache each template's original text before any substitution runs, so
+  // re-rendering never compounds a previous pass.
+  targets.forEach(function (el) {
+    el.setAttribute('data-raw', el.innerHTML);
+  });
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function currentValues() {
+    var v = {};
+    inputs.forEach(function (i) {
+      v[i.getAttribute('data-var')] = i.value.trim() || ('{{' + i.getAttribute('data-var') + '}}');
+    });
+    return v;
+  }
+
+  function render() {
+    var vals = currentValues();
+    targets.forEach(function (el) {
+      var out = el.getAttribute('data-raw');
+      Object.keys(vals).forEach(function (k) {
+        out = out.split('{{' + k + '}}').join(escapeHtml(vals[k]));
+      });
+      el.innerHTML = out;
+    });
+  }
+
+  function saveValues() {
+    var v = {};
+    inputs.forEach(function (i) { v[i.getAttribute('data-var')] = i.value; });
+    try { localStorage.setItem(STORE_VALS, JSON.stringify(v)); } catch (e) { /* private mode */ }
+  }
+
+  function loadValues() {
+    var raw;
+    try { raw = localStorage.getItem(STORE_VALS); } catch (e) { return; }
+    if (!raw) return;
+    var v;
+    try { v = JSON.parse(raw); } catch (e) { return; }
+    inputs.forEach(function (i) {
+      var k = i.getAttribute('data-var');
+      if (typeof v[k] === 'string') i.value = v[k];
+    });
+  }
+
+  inputs.forEach(function (i) {
+    i.addEventListener('input', function () { render(); saveValues(); });
+  });
+
+  // ---- checkboxes + progress ----
+
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('input[data-ck]'));
+  var fill = document.getElementById('meterfill');
+  var count = document.getElementById('counttext');
+
+  function saveChecks() {
+    var s = {};
+    boxes.forEach(function (b) { s[b.getAttribute('data-ck')] = b.checked; });
+    try { localStorage.setItem(STORE_CKS, JSON.stringify(s)); } catch (e) { /* private mode */ }
+  }
+
+  function loadChecks() {
+    var raw;
+    try { raw = localStorage.getItem(STORE_CKS); } catch (e) { return; }
+    if (!raw) return;
+    var s;
+    try { s = JSON.parse(raw); } catch (e) { return; }
+    boxes.forEach(function (b) {
+      if (s[b.getAttribute('data-ck')] === true) b.checked = true;
+    });
+  }
+
+  function updateProgress() {
+    var done = boxes.filter(function (b) { return b.checked; }).length;
+    var pct = boxes.length ? Math.round((done / boxes.length) * 100) : 0;
+    fill.style.width = pct + '%';
+    count.textContent = done + ' / ' + boxes.length;
+  }
+
+  boxes.forEach(function (b) {
+    b.addEventListener('change', function () { saveChecks(); updateProgress(); });
+  });
+
+  // ---- copy buttons ----
+
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest ? ev.target.closest('.copy') : null;
+    if (!btn) return;
+    var block = btn.closest('.codeblock');
+    var pre = block && block.querySelector('pre');
+    if (!pre) return;
+
+    var text = pre.textContent;
+    var finish = function (ok) {
+      btn.textContent = ok ? 'Copied' : 'Press Ctrl+C';
+      btn.classList.toggle('done', ok);
+      setTimeout(function () {
+        btn.textContent = 'Copy';
+        btn.classList.remove('done');
+      }, 1600);
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { finish(true); }, function () { finish(false); });
+    } else {
+      // Fallback for contexts without the async clipboard API.
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      finish(ok);
+    }
+  });
+
+  loadValues();
+  loadChecks();
+  render();
+  updateProgress();
+})();
+</script>

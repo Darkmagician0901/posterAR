@@ -3,6 +3,7 @@ import { renderToString } from 'react-dom/server';
 import React from 'react';
 import { StudioApp } from './StudioApp';
 import { useStudioDraft } from './studioDraftStore';
+import { DEMO_NOTE } from './demoMode';
 import { DEFAULT_STORY } from '@/story/defaultStory';
 
 /**
@@ -69,5 +70,32 @@ describe('StudioApp', () => {
   it('keeps the stage editor closed until it is opened', () => {
     const html = renderToString(<StudioApp />);
     expect(html).not.toContain('STAGE EDITOR</h2>');
+  });
+
+  describe('demo build', () => {
+    it('links on-device preview at the viewer in the normal build', () => {
+      const html = renderToString(<StudioApp />);
+      expect(html).toContain('href="/?draft=1"');
+      expect(html).not.toContain('DEMO BUILD');
+    });
+
+    it('drops the viewer link, which would go nowhere without the viewer', () => {
+      const html = renderToString(<StudioApp demo />);
+      expect(html).not.toContain('href="/?draft=1"');
+      expect(html).toContain('ON DEVICE');
+    });
+
+    it('marks itself as a demo and says what is missing', () => {
+      const html = renderToString(<StudioApp demo />);
+      expect(html).toContain('DEMO BUILD');
+      expect(html).toContain(DEMO_NOTE);
+    });
+
+    it('leaves the authoring actions alone', () => {
+      const html = renderToString(<StudioApp demo />);
+      expect(html).toContain('OPEN STAGE EDITOR');
+      expect(html).toContain('PREVIEW');
+      expect(html).toContain('NEW');
+    });
   });
 });

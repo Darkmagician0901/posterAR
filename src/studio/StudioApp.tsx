@@ -19,9 +19,18 @@ import { Inspector } from './Inspector';
 import { StageEditor } from './StageEditor';
 import { PublishDialog } from './PublishDialog';
 import { useStudioDraft } from './studioDraftStore';
+import { IS_DEMO, DEMO_NOTE } from './demoMode';
 import './studio.css';
 
-export const StudioApp: React.FC = () => {
+export interface StudioAppProps {
+  /**
+   * Demo mode: the two actions that need a backend render disabled. Defaults to
+   * the build flag; taken as a prop so both branches are testable.
+   */
+  demo?: boolean;
+}
+
+export const StudioApp: React.FC<StudioAppProps> = ({ demo = IS_DEMO }) => {
   const title = useStudioDraft((s) => s.doc.title);
   const canUndo = useStudioDraft((s) => s.canUndo);
   const selected = useStudioDraft((s) => s.selected);
@@ -55,6 +64,11 @@ export const StudioApp: React.FC = () => {
         </div>
 
         <div className="st-actions">
+          {demo && (
+            <span className="st-demo-badge" title={DEMO_NOTE}>
+              DEMO BUILD
+            </span>
+          )}
           <button
             className="st-btn ghost"
             onClick={undo}
@@ -81,19 +95,26 @@ export const StudioApp: React.FC = () => {
           >
             {playing ? '✎ EDIT' : '▶ PREVIEW'}
           </button>
-          <a
-            className="st-btn paper"
-            href="/?draft=1"
-            target="_blank"
-            rel="noreferrer"
-            title="Open this draft in the real app — use this to test on a phone"
-          >
-            ⧉ ON DEVICE
-          </a>
+          {demo ? (
+            <button className="st-btn paper" disabled title={DEMO_NOTE}>
+              ⧉ ON DEVICE
+            </button>
+          ) : (
+            <a
+              className="st-btn paper"
+              href="/?draft=1"
+              target="_blank"
+              rel="noreferrer"
+              title="Open this draft in the real app — use this to test on a phone"
+            >
+              ⧉ ON DEVICE
+            </a>
+          )}
           <button
             className="st-btn orange"
             onClick={() => setPublishOpen(true)}
-            title="Publish this story and get a shareable link"
+            disabled={demo}
+            title={demo ? DEMO_NOTE : 'Publish this story and get a shareable link'}
           >
             ⬆ PUBLISH
           </button>

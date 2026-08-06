@@ -1,22 +1,24 @@
 /**
- * _s3.ts — S3 access for Vercel functions.
+ * _s3.ts — S3 access for the API functions.
  *
- * The leading underscore keeps this out of Vercel's route table: files in api/
- * become endpoints, and this is a helper.
+ * The leading underscore marks this as a helper rather than a route: on Vercel
+ * it keeps the file out of the route table, and the same convention carries
+ * over unchanged.
  *
  * S3 is the whole storage layer for v1 — there is no database. An object's
  * existence is the record that it was uploaded, and because the key is the
  * content hash, existence means those exact bytes are stored.
  *
- * Credentials come from Vercel OIDC when AWS_ROLE_ARN is set: the function
- * exchanges a short-lived Vercel-signed token for AWS credentials, so no static
- * secret is stored anywhere. A static key pair remains as a fallback until that
- * is wired up.
+ * Credentials are deliberately NOT configured here. The SDK's default provider
+ * chain resolves them from the environment it happens to be running in — on
+ * Lambda that is the function's execution role, with credentials that rotate
+ * automatically and are never stored anywhere. Naming a provider explicitly
+ * would break that, and every alternative involves a static secret living in an
+ * environment variable.
  */
 
 import { HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { awsCredentialsProvider } from '@vercel/functions/oidc';
 
 export const BUCKET = process.env.S3_BUCKET ?? '';
 
@@ -25,11 +27,12 @@ let client: S3Client | null = null;
 /** Returns the shared S3 client, constructing it on first use. */
 export function getS3(): S3Client {
   if (client) return client;
-  const roleArn = process.env.AWS_ROLE_ARN;
-  client = new S3Client({
-    region: process.env.S3_REGION ?? 'us-east-1',
-    ...(roleArn ? { credentials: awsCredentialsProvider({ roleArn }) } : {}),
-  });
+  // S3_REGION, not AWS_REGION. Lambda reserves AWS_REGION and sets it to the
+  // function's own region, which is the right value today but is set by the
+  // platform rather than by us — and on other hosts the same name is set to
+  // whatever region the request landed in. Reading a name we own means the
+  // bucket's region is stated once, by us, and cannot drift underneath.
+  client = new S3Client({ region: process.env.S3_REGION ?? 'us-east-1' });
   return client;
 }
 

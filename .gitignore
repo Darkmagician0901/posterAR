@@ -11,6 +11,8 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist-lambda
+dist-lambda.zip
 *.local
 
 # Editor directories and files

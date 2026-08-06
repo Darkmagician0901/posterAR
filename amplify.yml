@@ -1,0 +1,34 @@
+# Amplify Hosting build settings.
+#
+# Builds the static Vite bundle only. The API is NOT built here — it deploys
+# separately as a Lambda function (see scripts/build-lambda.mjs), and Amplify
+# reaches it through a rewrite rather than by hosting it. That split is what
+# lets the frontend redeploy on every push without touching the API, and vice
+# versa.
+#
+# Rewrites are configured in the Amplify console, not in this file, and their
+# ORDER matters:
+#
+#   1.  /api/<*>   ->  https://<function-url>/api/<*>   200 (Rewrite)
+#   2.  /<*>       ->  /index.html                      200 (Rewrite)
+#
+# Amplify matches top-down and stops at the first hit. Put the catch-all first
+# and it swallows every API call, returning index.html to a caller expecting
+# JSON. Omit the catch-all entirely and /studio 404s in production while
+# working perfectly in dev.
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*

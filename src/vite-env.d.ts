@@ -20,6 +20,13 @@ interface ImportMeta {
 }
 
 /**
+ * True only in the standalone single-file demo build (vite.config.demo.ts).
+ * Substituted as a literal by Vite's `define`, so demo-only branches are
+ * dead-code-eliminated from the production bundle. See src/studio/demoMode.ts.
+ */
+declare const __DEMO_BUILD__: boolean;
+
+/**
  * 8th Wall (XR8) engine globals are declared in src/xr8/globals.d.ts.
  * The old WebXR (navigator.xr) augmentation and the webxr-polyfill shim were
  * removed when the app migrated off WebXR.

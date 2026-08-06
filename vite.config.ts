@@ -12,6 +12,11 @@ export default defineConfig({
     react(),
     basicSsl()
   ],
+  // The standalone demo build (vite.config.demo.ts) sets this true. Keeping it
+  // a literal here lets the demo-only branches drop out of this bundle.
+  define: {
+    __DEMO_BUILD__: 'false'
+  },
   resolve: {
     alias: {
       '@': '/src',

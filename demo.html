@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <title>ARCADE STUDIO — story builder</title>
+    <meta
+      name="description"
+      content="A browser story builder for AR poster experiences. Standalone demo build — everything runs in the page."
+    />
+
+    <!-- Inline favicon: a fetched one would break the single-file promise. -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23120e0e'/%3E%3Crect x='6' y='9' width='20' height='13' rx='2' fill='%2355963a'/%3E%3Crect x='9' y='12' width='5' height='4' fill='%23f4efe2'/%3E%3Crect x='18' y='12' width='5' height='4' fill='%23f4efe2'/%3E%3Crect x='12' y='24' width='8' height='2' fill='%23e5761f'/%3E%3C/svg%3E"
+    />
+
+    <!-- No 8th Wall engine scripts and no CDN preconnects: this build is the
+         studio only, and must stay a single self-contained file. -->
+
+    <style>
+      /* Match index.html: iOS zooms the page when a control's text is under 16px. */
+      input,
+      select,
+      textarea {
+        font-size: 16px !important;
+      }
+      html,
+      body {
+        margin: 0;
+        background: #f4efe2;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="module" src="/src/demoMain.tsx"></script>
+
+    <noscript>
+      <div
+        style="
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+          font-family: sans-serif;
+          text-align: center;
+          padding: 20px;
+          background-color: #0f172a;
+          color: #f1f5f9;
+        "
+      >
+        <div>
+          <h1>JavaScript Required</h1>
+          <p>ARCADE STUDIO runs entirely in the browser and needs JavaScript enabled.</p>
+        </div>
+      </div>
+    </noscript>
+  </body>
+</html>

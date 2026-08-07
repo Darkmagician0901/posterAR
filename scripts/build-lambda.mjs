@@ -16,6 +16,8 @@
 import { build } from 'esbuild';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync, statSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
 
 const OUT_DIR = 'dist-lambda';
 const ZIP = 'dist-lambda.zip';
@@ -35,7 +37,41 @@ await build({
   // Keep function names readable so a stack trace in CloudWatch points
   // somewhere useful; minification otherwise renames them to single letters.
   keepNames: true,
+  // The AWS SDK still reaches for `require('node:https')` internally. ESM has
+  // no `require`, so esbuild emits a shim that throws "Dynamic require of
+  // node:https is not supported" — at import time, meaning the function dies on
+  // cold start before it can handle anything. Defining a real `require` lets
+  // that shim resolve to it. Without this the zip builds and uploads happily
+  // and only fails once deployed.
+  banner: {
+    js: [
+      "import { createRequire as __nodeCreateRequire } from 'node:module';",
+      'const require = __nodeCreateRequire(import.meta.url);',
+    ].join('\n'),
+  },
 });
+
+// Import the artifact we just wrote and invoke it. A bundling problem of the
+// kind above is invisible to `npm run test` — the tests exercise the TypeScript
+// sources, not the bundle — so this is the only place it can be caught before
+// the zip reaches AWS.
+const bundleUrl = pathToFileURL(resolve(OUT_DIR, 'index.mjs')).href;
+const { handler } = await import(bundleUrl);
+
+if (typeof handler !== 'function') {
+  throw new Error('bundle does not export a handler — check the entry point');
+}
+
+const probe = await handler({
+  rawPath: '/api/__buildprobe',
+  requestContext: { domainName: 'build.invalid', http: { method: 'GET' } },
+});
+
+if (probe?.statusCode !== 404) {
+  throw new Error(
+    `bundle did not route: expected 404 for an unknown path, got ${probe?.statusCode}`,
+  );
+}
 
 // Lambda wants the handler file at the ROOT of the archive, not inside a
 // folder — `index.handler` resolves `index.mjs` relative to the zip root.

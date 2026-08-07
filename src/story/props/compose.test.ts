@@ -2,10 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { composeFrame, backdropImage, COMPOSE_DEFAULTS } from './compose';
 import { PROP_LIBRARY } from './library';
 import { StoryProp } from '../storyDoc';
+import { SCENE } from '../projection';
 import { svgFrame } from '../svgTexture';
 
+// Depth is measured out from the wall, so SCENE.zMax is the near plane by the
+// visitor — where depthScale is 1 and a prop composes at its nominal size.
 function prop(over: Partial<StoryProp> = {}): StoryProp {
-  return { t: 'lib', k: 'sunflower', x: 0, z: 0, h: 1.6, f: false, e: 0, ...over };
+  return { t: 'lib', k: 'sunflower', x: 0, z: SCENE.zMax, h: 1.6, f: false, e: 0, ...over };
 }
 
 describe('composeFrame', () => {
@@ -32,8 +35,8 @@ describe('composeFrame', () => {
 
   it('paints far props before near ones so near overlaps far', () => {
     const svg = composeFrame([
-      prop({ k: 'car', z: 0, h: 1.35 }),
-      prop({ k: 'tree', z: 5, h: 4.5 }),
+      prop({ k: 'car', z: SCENE.zMax, h: 1.35 }),
+      prop({ k: 'tree', z: 0.5, h: 4.5 }),
     ]);
     // The tree is further away, so its group must appear earlier in the markup.
     const treeAt = svg.indexOf(PROP_LIBRARY.tree.make().slice(0, 40));
@@ -44,8 +47,8 @@ describe('composeFrame', () => {
   });
 
   it('shrinks props with depth', () => {
-    const near = composeFrame([prop({ z: 0 })]);
-    const far = composeFrame([prop({ z: 6 })]);
+    const near = composeFrame([prop({ z: SCENE.zMax })]);
+    const far = composeFrame([prop({ z: 0 })]);
     const scaleOf = (svg: string): number => Number(/scale\(([-\d.]+),/.exec(svg)![1]);
     expect(Math.abs(scaleOf(far))).toBeLessThan(Math.abs(scaleOf(near)));
   });
@@ -122,7 +125,7 @@ describe('composeFrame', () => {
 
   it('mixes library and uploaded props in one depth-sorted scene', () => {
     const svg = composeFrame(
-      [prop({ k: 'tree', z: 5, h: 4.5 }), prop({ t: 'img', k: 'a', z: 0, h: 1 })],
+      [prop({ k: 'tree', z: 0.5, h: 4.5 }), prop({ t: 'img', k: 'a', z: SCENE.zMax, h: 1 })],
       { images: { a: { href: 'data:image/png;base64,AA', aspect: 1 } } },
     );
     // The uploaded prop is nearer, so it is painted last.

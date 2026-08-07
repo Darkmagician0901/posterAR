@@ -25,6 +25,7 @@ import { STORY_ERAS, STORY_INTRO, STORY_OUTRO } from './storyData';
 import { eraProps } from './eraProps';
 import { composeFrame } from './props/compose';
 import { StoryDoc, STORY_SCHEMA_VERSION } from './storyDoc';
+import { DEFAULT_MARKER } from './marker';
 
 /** The shipped "THE GROUND REMEMBERS" experience, as data. */
 export const DEFAULT_STORY: StoryDoc = {
@@ -34,6 +35,10 @@ export const DEFAULT_STORY: StoryDoc = {
   loc: '',
   intro: { title: STORY_INTRO.title, subtitle: STORY_INTRO.subtitle },
   outro: { title: STORY_OUTRO.title, subtitle: STORY_OUTRO.subtitle },
+  // Carried explicitly so the bundled story reads as already wall-relative:
+  // its props come from eraProps, which converts, so the draft migration must
+  // not convert them a second time.
+  marker: { ...DEFAULT_MARKER },
   frames: STORY_ERAS.map((era) => {
     const props = eraProps(era.key);
     return {

@@ -43,7 +43,7 @@ export function frontProject(x: number, z: number, e = 0): Point {
   const s = depthScale(z);
   return {
     x: FRONT.w / 2 + x * FRONT.ppm * s,
-    y: FRONT.groundY - z * depthRise * s - e * FRONT.ppm * s,
+    y: FRONT.groundY - (SCENE.zMax - z) * depthRise * s - e * FRONT.ppm * s,
   };
 }
 
@@ -67,14 +67,15 @@ export function frontUnprojectX(viewX: number, z: number): number {
  * Projects a staged position onto the top-down map.
  *
  * @param x — Metres left(-) / right(+) of centre.
- * @param z — Metres into the scene.
+ * @param z — Metres out from the wall.
  * @returns The plan position in view units.
  */
 export function topProject(x: number, z: number): Point {
   return {
     x: TOP.w / 2 + (x / TOP.xr) * (TOP.w / 2),
-    // z grows upward on the map: the viewer stands at the bottom edge.
-    y: TOP.h - (z / TOP.zr) * TOP.h,
+    // The wall is the top edge and the visitor stands at the bottom, so z grows
+    // downward on the map.
+    y: (z / TOP.zr) * TOP.h,
   };
 }
 
@@ -87,7 +88,7 @@ export function topProject(x: number, z: number): Point {
  */
 export function topUnproject(viewX: number, viewY: number): { x: number; z: number } {
   const x = ((viewX - TOP.w / 2) / (TOP.w / 2)) * TOP.xr;
-  const z = ((TOP.h - viewY) / TOP.h) * TOP.zr;
+  const z = (viewY / TOP.h) * TOP.zr;
   return {
     x: Math.max(-TOP.xr, Math.min(TOP.xr, x)),
     z: Math.max(0, Math.min(TOP.zr, z)),

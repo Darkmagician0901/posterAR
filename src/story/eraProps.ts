@@ -23,10 +23,21 @@
 
 import type { StoryProp } from './storyDoc';
 import type { EraKey } from './storyData';
+import { fromLegacyZ } from './projection';
 
-/** Builds one library prop. Mirrors the prototype's tplProps tuple order. */
-function prop(k: string, x: number, z: number, h: number, f = false, e = 0): StoryProp {
-  return { t: 'lib', k, x, z, h, f, e };
+/**
+ * Builds one library prop. Mirrors the prototype's tplProps tuple order.
+ *
+ * The prototype authored `z` as metres from the viewer across a 6.2 m stage;
+ * depth is now measured out from the wall the marker hangs on. The conversion
+ * happens here rather than by rewriting the tuples below, so this list stays
+ * diffable against arcade-studio-v4.html:770 and the scenes keep reading
+ * exactly as they were composed — background props behind, clutter in front.
+ *
+ * @param zFromViewer — Depth as authored in the prototype, not as stored.
+ */
+function prop(k: string, x: number, zFromViewer: number, h: number, f = false, e = 0): StoryProp {
+  return { t: 'lib', k, x, z: fromLegacyZ(zFromViewer), h, f, e };
 }
 
 /**

@@ -39,8 +39,9 @@ describe('phoneScene', () => {
 
   it('renders a farther prop smaller than a nearer identical prop', () => {
     const mk = (z: number): StoryProp => ({ t: 'lib', k: 'car', x: 0, z, h: 1.4, f: false, e: 0 });
-    const near = phoneScene(frame([mk(0)]), 0, {});
-    const far = phoneScene(frame([mk(4)]), 0, {});
+    // Depth is measured out from the wall, so the nearer prop has the larger z.
+    const near = phoneScene(frame([mk(4.6)]), 0, {});
+    const far = phoneScene(frame([mk(0.5)]), 0, {});
     const w = (s: string) => Number(/rx="([\d.]+)"/.exec(s)![1]); // shadow rx tracks prop width
     expect(w(far)).toBeLessThan(w(near));
   });

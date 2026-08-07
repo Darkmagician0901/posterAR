@@ -19,7 +19,7 @@
  */
 
 import { StoryProp } from '../storyDoc';
-import { depthScale } from '../projection';
+import { SCENE, depthScale } from '../projection';
 import { MESH_DEF } from './builders';
 import { PROP_LIBRARY } from './library';
 
@@ -125,8 +125,9 @@ export function composeFrame(props: StoryProp[], options: ComposeOptions = {}): 
     p.t === 'img' ? images[p.k] !== undefined : PROP_LIBRARY[p.k] !== undefined,
   );
 
-  // Far to near, so nearer props overlap further ones.
-  const ordered = [...placeable].sort((a, b) => b.z - a.z);
+  // Far to near, so nearer props overlap further ones. Far is now small z —
+  // flat against the wall — so this sorts ascending.
+  const ordered = [...placeable].sort((a, b) => a.z - b.z);
 
   const needsMesh = ordered.some((p) => p.t === 'lib' && PROP_LIBRARY[p.k].needsMesh);
 
@@ -139,7 +140,7 @@ export function composeFrame(props: StoryProp[], options: ComposeOptions = {}): 
     const wpx = hpx * aspect;
     const lift = p.e * ppm * s;
     const bx = cx + p.x * ppm * s;
-    const byGround = groundY - p.z * depthRise * s;
+    const byGround = groundY - (SCENE.zMax - p.z) * depthRise * s;
     const by = byGround - lift;
 
     // Contact shadow sits on the ground even when the prop is lifted, fading

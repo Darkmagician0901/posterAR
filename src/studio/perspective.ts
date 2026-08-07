@@ -67,7 +67,8 @@ export function groundGrid(pan: number): GridLine[] {
   for (let z = 0; z <= SCENE.zMax; z += 0.5) {
     const a = project(-SCENE.xHalf, 0, z, pan);
     const b = project(SCENE.xHalf, 0, z, pan);
-    lines.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, opacity: 0.05 + 0.16 * (1 - z / SCENE.zMax) });
+    // Nearer lines stay more opaque, and nearer is now large z.
+    lines.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, opacity: 0.05 + 0.16 * (z / SCENE.zMax) });
   }
   for (let x = -3; x <= 3; x++) {
     const a = project(x, 0, 0, pan);

@@ -18,11 +18,11 @@ import type { StoryFrame, StoryAsset } from '@/story/storyDoc';
 import { PROP_LIBRARY } from '@/story/props/library';
 import { MESH_DEF } from '@/story/props/builders';
 import { deriveBackdrop, parseSvgDoc, scaledBackdrop } from '@/story/props/backdrop';
-import { CAMERA, VIEW, SCENE, project, groundGrid } from './perspective';
+import { CAMERA, VIEW, cameraDepth, project, groundGrid } from './perspective';
 
 const HORIZON = Math.round(VIEW.h * CAMERA.horizonRatio);
-/** Far-plane depth, setting the skyline/backdrop parallax rate (matches v4's CAMZ). */
-const FAR = CAMERA.nearM + SCENE.zMax;
+/** Camera depth of the wall, setting the skyline/backdrop parallax rate. */
+const FAR = cameraDepth(0);
 
 const n = (v: number): string => Number(v.toFixed(1)).toString();
 const escapeAttr = (v: string): string =>
@@ -77,7 +77,7 @@ function sky(pan: number): string {
 function backdrop(frame: StoryFrame, pan: number): string {
   const parsed = parseSvgDoc(deriveBackdrop(frame));
   if (parsed.inner === '') return '';
-  const zb = SCENE.zMax * 0.85;
+  const zb = 0; // the wall plane: the backdrop hangs where the poster hangs
   const base = project(0, 0, zb, pan);
   const wm = 6.0; // scene-metres wide; tuned live in Task 4
   const wpx = wm * base.k;
@@ -101,7 +101,7 @@ function props(frame: StoryFrame, pan: number, images: Record<string, StoryAsset
   const placeable = list.filter((p) =>
     p.t === 'img' ? images[p.k] !== undefined : PROP_LIBRARY[p.k] !== undefined,
   );
-  const ordered = [...placeable].sort((a, b) => b.z - a.z); // far -> near
+  const ordered = [...placeable].sort((a, b) => a.z - b.z); // far (the wall) -> near
   let s = '';
   ordered.forEach((p, i) => {
     const aspect =

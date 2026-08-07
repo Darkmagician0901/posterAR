@@ -25,6 +25,8 @@ import {
 } from '@/story/storyDoc';
 import { DEFAULT_STORY } from '@/story/defaultStory';
 import { backfillEraProps } from '@/story/eraBackfill';
+import { migrateDraftDepth } from '@/story/markerBackfill';
+import { DEFAULT_MARKER } from '@/story/marker';
 import { LOCAL_DRAFT_KEY } from '@/services/storyApi';
 
 /** How many undo steps to retain. */
@@ -55,6 +57,7 @@ function blankStory(): StoryDoc {
     intro: { title: 'Welcome', subtitle: 'Step in to begin' },
     outro: { title: 'The end', subtitle: 'Thanks for visiting' },
     frames: [blankFrame(0)],
+    marker: { ...DEFAULT_MARKER },
   };
 }
 
@@ -114,13 +117,17 @@ function persist(doc: StoryDoc): string | null {
  *
  * A saved draft shadows the bundled story, so an author who already has one
  * would keep the old flat era art forever. backfillEraProps stages those frames
- * on the way in, leaving every other edit they made alone.
+ * on the way in, leaving every other edit they made alone. migrateDraftDepth
+ * then re-bases depth on the wall, which a pre-marker draft still measures from
+ * the viewer.
  */
 function initialDoc(): StoryDoc {
   try {
     const raw = window.localStorage.getItem(LOCAL_DRAFT_KEY);
     if (raw !== null) {
-      return backfillEraProps(validateStoryDoc(JSON.parse(raw) as unknown, DEFAULT_STORY));
+      return migrateDraftDepth(
+        backfillEraProps(validateStoryDoc(JSON.parse(raw) as unknown, DEFAULT_STORY)),
+      );
     }
   } catch {
     // Corrupt draft — fall through to the bundled story rather than blocking.

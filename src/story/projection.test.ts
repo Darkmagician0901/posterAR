@@ -9,13 +9,14 @@ describe('SCENE', () => {
 });
 
 describe('cameraDepth', () => {
-  it('is the near distance at the front plane', () => {
-    expect(cameraDepth(0)).toBeCloseTo(1.9, 10);
+  it('puts the wall furthest away and the near plane closest', () => {
+    // z is measured out from the wall, so z = 0 is the far plane.
+    expect(cameraDepth(0)).toBeCloseTo(6.5, 10);
+    expect(cameraDepth(SCENE.zMax)).toBeCloseTo(1.9, 10);
   });
 
-  it('grows one metre of camera depth per metre of scene depth', () => {
+  it('loses one metre of camera depth per metre out from the wall', () => {
     expect(cameraDepth(2.3)).toBeCloseTo(4.2, 10);
-    expect(cameraDepth(SCENE.zMax)).toBeCloseTo(6.5, 10);
   });
 
   it('clamps outside the scene rather than producing a negative depth', () => {
@@ -25,16 +26,17 @@ describe('cameraDepth', () => {
 });
 
 describe('depthScale', () => {
-  it('is 1 at the front plane', () => {
-    expect(depthScale(0)).toBe(1);
+  it('is 1 at the near plane, by the visitor', () => {
+    expect(depthScale(SCENE.zMax)).toBe(1);
   });
 
-  it('shrinks with depth, on the pinhole law', () => {
-    expect(depthScale(2.3)).toBeCloseTo(0.4523809, 6);
-    expect(depthScale(SCENE.zMax)).toBeCloseTo(0.2923076, 6);
+  it('is smallest at the wall', () => {
+    expect(depthScale(0)).toBeCloseTo(0.2923076, 6);
+    expect(depthScale(0)).toBeLessThan(depthScale(2.3));
+    expect(depthScale(2.3)).toBeLessThan(depthScale(SCENE.zMax));
   });
 
-  it('is the reciprocal of camera depth, normalised to the front plane', () => {
+  it('is the reciprocal of camera depth, normalised to the near plane', () => {
     for (const z of [0, 1.15, 2.3, 3.45, 4.6]) {
       expect(depthScale(z)).toBeCloseTo(1.9 / cameraDepth(z), 10);
     }

@@ -36,8 +36,8 @@ import {
   toViewBox,
 } from './stageGeometry';
 
-/** Where a newly added prop lands. */
-const DROP_IN = { x: 0, z: 1.5 };
+/** Where a newly added prop lands: mid-room, out from the wall. */
+const DROP_IN = { x: 0, z: 2.3 };
 
 interface StageEditorProps {
   /** Index of the frame being staged. */
@@ -232,7 +232,7 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
             <div className="st-topwrap">
               <svg ref={topRef} viewBox={`0 0 ${TOP.w} ${TOP.h}`} className="st-stagesvg">
                 <rect x="0" y="0" width={TOP.w} height={TOP.h} fill="#20301a" />
-                {[1, 2, 3, 4, 5, 6].map((m) => {
+                {[1, 2, 3, 4].map((m) => {
                   const y = topProject(0, m).y;
                   return (
                     <g key={m}>
@@ -279,7 +279,8 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
               </svg>
             </div>
             <div className="st-hintline">
-              The orange marker is the visitor. Drag a dot up to push that prop further away.
+              The orange arrow is the visitor. Drag a dot up to push that prop back toward the
+              wall, down to bring it out into the room.
             </div>
           </div>
         </div>

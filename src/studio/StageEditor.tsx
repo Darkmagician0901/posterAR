@@ -18,11 +18,12 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { StoryProp } from '@/story/storyDoc';
 import { PROP_LIBRARY } from '@/story/props/library';
-import { composeFrame, COMPOSE_DEFAULTS } from '@/story/props/compose';
+import { composeFrame } from '@/story/props/compose';
+import { composeFrameArt } from '@/story/props/frameArt';
 import { validateAndProcessImage, formatBytes } from '@/utils/imageUpload';
 import { useStudioDraft } from './studioDraftStore';
 import { svgToDataUrl } from './svgPreview';
-import { deriveBackdrop, parseSvgDoc, scaledBackdrop } from './backdrop';
+import { deriveBackdrop, parseSvgDoc, scaledBackdrop } from '@/story/props/backdrop';
 import { PROP_LIMITS, duplicateProp } from './propEdit';
 import {
   FRONT,
@@ -154,23 +155,12 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
   };
 
   const save = (): void => {
-    // Compose at the backdrop's native size so its inner markup drops in
-    // unscaled — the saved art stays byte-faithful to the original scene — with
-    // the props' ground line and scale following the same proportion. The
-    // backdrop is stored so a later re-edit reads it rather than re-deriving it
-    // from this composed art (which already contains the props).
-    const groundScale = backdrop.height / COMPOSE_DEFAULTS.height;
+    // The backdrop is stored so a later re-edit reads it rather than re-deriving
+    // it from this composed art (which already contains the props).
     patchFrame(frameIndex, {
       props,
       backdrop: backdropDoc,
-      art: composeFrame(props, {
-        width: backdrop.width,
-        height: backdrop.height,
-        groundY: COMPOSE_DEFAULTS.groundY * groundScale,
-        ppm: COMPOSE_DEFAULTS.ppm * groundScale,
-        images,
-        backdrop: backdrop.inner,
-      }),
+      art: composeFrameArt({ ...frame, props }, images, backdropDoc),
     });
     onClose();
   };

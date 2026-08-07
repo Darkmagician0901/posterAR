@@ -17,7 +17,7 @@
 import type { StoryFrame, StoryAsset } from '@/story/storyDoc';
 import { PROP_LIBRARY } from '@/story/props/library';
 import { MESH_DEF } from '@/story/props/builders';
-import { deriveBackdrop, parseSvgDoc, scaledBackdrop } from './backdrop';
+import { deriveBackdrop, parseSvgDoc, scaledBackdrop } from '@/story/props/backdrop';
 import { CAMERA, VIEW, SCENE, project, groundGrid } from './perspective';
 
 const HORIZON = Math.round(VIEW.h * CAMERA.horizonRatio);

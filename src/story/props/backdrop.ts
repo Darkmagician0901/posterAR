@@ -14,8 +14,8 @@
  * Pure string logic: no DOM, so it is safe to import anywhere and unit-testable.
  */
 
-import { COMPOSE_DEFAULTS } from '@/story/props/compose';
-import type { StoryFrame } from '@/story/storyDoc';
+import { COMPOSE_DEFAULTS } from './compose';
+import type { StoryFrame } from '../storyDoc';
 
 /** An SVG document split into its drawable inner markup and its dimensions. */
 export interface ParsedSvg {

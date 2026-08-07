@@ -18,11 +18,11 @@ import type { StoryFrame, StoryAsset } from '@/story/storyDoc';
 import { PROP_LIBRARY } from '@/story/props/library';
 import { MESH_DEF } from '@/story/props/builders';
 import { deriveBackdrop, parseSvgDoc, scaledBackdrop } from './backdrop';
-import { CAMERA, VIEW, GROUND, project, groundGrid } from './perspective';
+import { CAMERA, VIEW, SCENE, project, groundGrid } from './perspective';
 
 const HORIZON = Math.round(VIEW.h * CAMERA.horizonRatio);
 /** Far-plane depth, setting the skyline/backdrop parallax rate (matches v4's CAMZ). */
-const FAR = CAMERA.nearM + GROUND.zMax;
+const FAR = CAMERA.nearM + SCENE.zMax;
 
 const n = (v: number): string => Number(v.toFixed(1)).toString();
 const escapeAttr = (v: string): string =>
@@ -77,7 +77,7 @@ function sky(pan: number): string {
 function backdrop(frame: StoryFrame, pan: number): string {
   const parsed = parseSvgDoc(deriveBackdrop(frame));
   if (parsed.inner === '') return '';
-  const zb = GROUND.zMax * 0.85;
+  const zb = SCENE.zMax * 0.85;
   const base = project(0, 0, zb, pan);
   const wm = 6.0; // scene-metres wide; tuned live in Task 4
   const wpx = wm * base.k;

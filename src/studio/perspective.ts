@@ -11,12 +11,15 @@
  * Pure math: no DOM, no React, no SVG strings.
  */
 
-/** Camera intrinsics. Metres for eye/near; px for focal. */
-export const CAMERA = { eyeM: 1.5, nearM: 1.9, focal: 230, horizonRatio: 0.4 } as const;
+import { SCENE, NEAR_M, cameraDepth } from '@/story/projection';
+
+/** Re-exported so the preview modules read the scene from one place. */
+export { SCENE, cameraDepth };
+
+/** Camera intrinsics. Metres for eye height; px for focal length. */
+export const CAMERA = { eyeM: 1.5, nearM: NEAR_M, focal: 230, horizonRatio: 0.4 } as const;
 /** Preview canvas, matching v4's phone. */
 export const VIEW = { w: 302, h: 632 } as const;
-/** Scene extents the ground grid spans, in scene-metres. */
-export const GROUND = { xHalf: 3.4, zMax: 4.6 } as const;
 
 /** A projected point: screen position (px), scale factor, and depth. */
 export interface Projected {
@@ -40,7 +43,7 @@ const HORIZON = Math.round(VIEW.h * CAMERA.horizonRatio);
  * @param pan — Lateral camera pan; 0 is the visitor's viewpoint.
  */
 export function project(x: number, y: number, z: number, pan: number): Projected {
-  const d = Math.max(0.5, CAMERA.nearM + z);
+  const d = cameraDepth(z);
   const k = CAMERA.focal / d;
   return { x: CX + (x - pan) * k, y: HORIZON + (CAMERA.eyeM - y) * k, k, d };
 }
@@ -61,14 +64,14 @@ export interface GridLine {
  */
 export function groundGrid(pan: number): GridLine[] {
   const lines: GridLine[] = [];
-  for (let z = 0; z <= GROUND.zMax; z += 0.5) {
-    const a = project(-GROUND.xHalf, 0, z, pan);
-    const b = project(GROUND.xHalf, 0, z, pan);
-    lines.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, opacity: 0.05 + 0.16 * (1 - z / GROUND.zMax) });
+  for (let z = 0; z <= SCENE.zMax; z += 0.5) {
+    const a = project(-SCENE.xHalf, 0, z, pan);
+    const b = project(SCENE.xHalf, 0, z, pan);
+    lines.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, opacity: 0.05 + 0.16 * (1 - z / SCENE.zMax) });
   }
   for (let x = -3; x <= 3; x++) {
     const a = project(x, 0, 0, pan);
-    const b = project(x, 0, GROUND.zMax, pan);
+    const b = project(x, 0, SCENE.zMax, pan);
     lines.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, opacity: x === 0 ? 0.22 : 0.1 });
   }
   return lines;

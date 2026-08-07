@@ -11,16 +11,42 @@ import {
 } from './stageGeometry';
 import { composeFrame } from '@/story/props/compose';
 import { StoryProp } from '@/story/storyDoc';
+import { depthScale as sharedDepthScale } from '@/story/projection';
+import { project } from './perspective';
 
 describe('depthScale', () => {
   it('is 1 at the front and shrinks with depth', () => {
     expect(depthScale(0)).toBe(1);
     expect(depthScale(3)).toBeLessThan(1);
-    expect(depthScale(6)).toBeLessThan(depthScale(3));
+    expect(depthScale(4.6)).toBeLessThan(depthScale(3));
   });
 
   it('treats negative depth as the front plane', () => {
     expect(depthScale(-5)).toBe(1);
+  });
+
+  it('is the projection module, not a second copy of it', () => {
+    for (const z of [0, 1.15, 2.3, 3.45, 4.6]) {
+      expect(depthScale(z)).toBe(sharedDepthScale(z));
+    }
+  });
+
+  it('matches the phone preview, which used to disagree by about 2x', () => {
+    // The preview reports px-per-metre directly; normalise it against the front
+    // plane to get the same multiplier depthScale returns.
+    for (const z of [0, 1.15, 2.3, 3.45, 4.6]) {
+      const ratio = project(0, 0, z, 0).k / project(0, 0, 0, 0).k;
+      expect(ratio).toBeCloseTo(depthScale(z), 10);
+    }
+  });
+
+  it('matches the stage editor camera view, whose inline copy is gone', () => {
+    // frontProject's horizontal compression IS the depth factor, so a round
+    // trip through it recovers the same multiplier the editor's handles use.
+    for (const z of [0, 2.3, 4.6]) {
+      const offset = frontProject(1, z).x - FRONT.w / 2;
+      expect(offset / FRONT.ppm).toBeCloseTo(depthScale(z), 10);
+    }
   });
 
   it('matches the composer, or previews would lie about placement', () => {
@@ -66,7 +92,7 @@ describe('frontProject', () => {
 
 describe('frontUnprojectX', () => {
   it('round-trips with frontProject at any depth', () => {
-    for (const z of [0, 1.5, 4, 6]) {
+    for (const z of [0, 1.5, 3, 4.6]) {
       for (const x of [-3, -0.5, 0, 1.25, 3]) {
         expect(frontUnprojectX(frontProject(x, z).x, z)).toBeCloseTo(x, 6);
       }
@@ -88,8 +114,8 @@ describe('topProject / topUnproject', () => {
     for (const [x, z] of [
       [0, 0],
       [1.5, 2],
-      [-2.2, 5],
-      [3.4, 6.2],
+      [-2.2, 4],
+      [3.4, 4.6],
     ]) {
       const p = topProject(x, z);
       const back = topUnproject(p.x, p.y);

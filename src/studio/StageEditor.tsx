@@ -27,6 +27,7 @@ import { PROP_LIMITS, duplicateProp } from './propEdit';
 import {
   FRONT,
   TOP,
+  depthScale,
   frontProject,
   frontUnprojectX,
   topProject,
@@ -203,7 +204,7 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
                 <image href={svgToDataUrl(previewSvg)} x="0" y="0" width={FRONT.w} height={FRONT.h} />
                 {props.map((p, i) => {
                   const pt = frontProject(p.x, p.z, p.e);
-                  const s = 1 / (1 + 0.16 * Math.max(0, p.z));
+                  const s = depthScale(p.z);
                   const hpx = p.h * FRONT.ppm * s;
                   const aspect =
                     p.t === 'img'

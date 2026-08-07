@@ -6,18 +6,20 @@
  * story/era/*.svg already holds, and the existing svgTexture -> storyTile path
  * renders it unchanged.
  *
- * The perspective model is ported from the prototype's renderStage
- * (docs/prototypes/arcade-studio-v4.html:825): props further back are drawn
- * smaller and higher up the frame, and are painted far-to-near so nearer props
- * overlap. Metres here are scene-fiction metres — the diorama tile is rendered
- * at a fixed real-world width (TILE_WIDTH_M), so `ppm` is an artistic framing
- * choice, not an AR scale.
+ * Depth comes from story/projection.ts, the one model the stage editor and the
+ * phone preview also use. Props further back are drawn smaller and higher up
+ * the frame, and are painted far-to-near so nearer props overlap. Metres here
+ * are still scene-fiction metres — the diorama tile is rendered at a fixed
+ * real-world width (TILE_WIDTH_M), so `ppm` is an artistic framing choice, not
+ * an AR scale. Retiring TILE_WIDTH_M belongs to the phase that makes props
+ * spatially anchored in AR.
  *
  * Pure string logic: no DOM, no measurement. Prop extents come from the
  * measured constants in library.ts.
  */
 
 import { StoryProp } from '../storyDoc';
+import { depthScale } from '../projection';
 import { MESH_DEF } from './builders';
 import { PROP_LIBRARY } from './library';
 
@@ -85,11 +87,6 @@ export function backdropImage(
 /** Escapes the characters that would break out of a double-quoted attribute. */
 function escapeAttr(v: string): string {
   return v.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-}
-
-/** Depth foreshortening: how much a prop shrinks per metre of depth. */
-function depthScale(z: number): number {
-  return 1 / (1 + 0.16 * Math.max(0, z));
 }
 
 /**

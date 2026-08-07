@@ -11,16 +11,16 @@
  * simulating pointer events.
  */
 
+import { SCENE, depthScale } from '@/story/projection';
+
+/** Re-exported so the stage editor's views read depth from one place. */
+export { depthScale };
+
 /** Camera-view frame, in SVG user units. */
 export const FRONT = { w: 520, h: 300, ppm: 46, groundY: 238 } as const;
 
 /** Top-down map frame. Shows x within +/-xr metres and z from 0 to zr. */
-export const TOP = { w: 520, h: 300, xr: 3.4, zr: 6.2 } as const;
-
-/** Depth foreshortening. Must match compose.ts exactly or previews lie. */
-export function depthScale(z: number): number {
-  return 1 / (1 + 0.16 * Math.max(0, z));
-}
+export const TOP = { w: 520, h: 300, xr: SCENE.xHalf, zr: SCENE.zMax } as const;
 
 /** How much a prop rises up the camera view per metre of depth. */
 const depthRise = FRONT.ppm * 0.3;

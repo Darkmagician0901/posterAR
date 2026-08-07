@@ -12,14 +12,15 @@
  */
 
 import type { StoryProp } from '@/story/storyDoc';
+import { SCENE } from '@/story/projection';
 
 /** Metre-space limits for every editable prop field. */
 export const PROP_LIMITS = {
   /** Half-width of the stage: x runs from -xMax (left) to +xMax (right). */
-  xMax: 3.4,
+  xMax: SCENE.xHalf,
   /** Nearest and furthest depth a prop can sit. */
   zMin: 0.2,
-  zMax: 6.2,
+  zMax: SCENE.zMax,
   /** Real-world height, in metres. */
   hMin: 0.1,
   hMax: 6,

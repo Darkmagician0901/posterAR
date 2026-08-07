@@ -12,6 +12,7 @@
  */
 
 import { isFontId, isTextColor } from './textStyle';
+import { sanitizeMarker, type StoryMarker } from './marker';
 
 /** One staged element within a frame. Positions are in metres. */
 export interface StoryProp {
@@ -95,6 +96,11 @@ export interface StoryDoc {
   frames: StoryFrame[];
   /** Uploaded images keyed by the id that `t: 'img'` props reference. */
   assets?: Record<string, StoryAsset>;
+  /**
+   * The printed poster this story is anchored to. Absent on documents authored
+   * before markers existed; the studio seeds a default on load.
+   */
+  marker?: StoryMarker;
 }
 
 /** Current schema version. Bump only on a breaking shape change. */
@@ -239,5 +245,8 @@ export function validateStoryDoc(raw: unknown, fallback: StoryDoc): StoryDoc {
     frames: frames.length > 0 ? frames : fallback.frames,
   };
   if (assets !== undefined) doc.assets = assets;
+  // Only sanitized when present: an absent marker stays absent so a pre-marker
+  // document is not silently given a poster it never had.
+  if (r.marker !== undefined && r.marker !== null) doc.marker = sanitizeMarker(r.marker);
   return doc;
 }

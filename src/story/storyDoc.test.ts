@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { validateStoryDoc, StoryDoc } from './storyDoc';
 import { DEFAULT_STORY } from './defaultStory';
+import { DEFAULT_MARKER } from './marker';
 
 const FB: StoryDoc = {
   schemaVersion: 3,
@@ -220,5 +221,23 @@ describe('validateStoryDoc', () => {
     );
     expect(doc.frames[0].font).toBeUndefined();
     expect(doc.frames[0].color).toBeUndefined();
+  });
+});
+
+describe('validateStoryDoc — marker', () => {
+  it('leaves a document with no marker without one', () => {
+    // Every story authored before markers existed must keep loading.
+    expect(validateStoryDoc({ ...FB, marker: undefined }, FB).marker).toBeUndefined();
+  });
+
+  it('sanitizes a marker that is present', () => {
+    const doc = validateStoryDoc({ ...FB, marker: { widthM: 0.6, aspect: 'wide' } }, FB);
+    expect(doc.marker?.widthM).toBe(0.6);
+    expect(doc.marker?.aspect).toBe(DEFAULT_MARKER.aspect);
+  });
+
+  it('drops an off-origin marker image', () => {
+    const doc = validateStoryDoc({ ...FB, marker: { image: 'https://example.com/p.png' } }, FB);
+    expect(doc.marker?.image).toBe('');
   });
 });

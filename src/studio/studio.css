@@ -1321,6 +1321,34 @@ svg.drift {
   opacity: 1;
 }
 
+/* ===== stage reference marks ===== */
+.st-ref-human {
+  fill: rgba(18, 14, 14, 0.28);
+  stroke: rgba(18, 14, 14, 0.5);
+  stroke-width: 1;
+}
+.st-ref-bar {
+  stroke: #f4ecd8;
+  stroke-width: 2;
+}
+.st-ref-lbl {
+  font-family: 'VT323', monospace;
+  font-size: 12px;
+  fill: #f4ecd8;
+}
+.st-ref-marker {
+  fill: #e5761f;
+  stroke: #120e0e;
+  stroke-width: 1;
+}
+.st-ref-ring {
+  fill: none;
+  stroke: #e5761f;
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+  opacity: 0.85;
+}
+
 /* ===== marker panel ===== */
 .st-marker-row {
   display: flex;

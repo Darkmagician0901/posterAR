@@ -25,6 +25,16 @@ import { useStudioDraft } from './studioDraftStore';
 import { svgToDataUrl } from './svgPreview';
 import { deriveBackdrop, parseSvgDoc, scaledBackdrop } from '@/story/props/backdrop';
 import { PROP_LIMITS, duplicateProp } from './propEdit';
+import { DEFAULT_MARKER } from '@/story/marker';
+import { SCENE } from '@/story/projection';
+import {
+  markerFrontRect,
+  markerTopRect,
+  humanFrontRect,
+  scaleBarFront,
+  scaleBarTop,
+  outOfRange,
+} from './stageOverlay';
 import {
   FRONT,
   TOP,
@@ -68,6 +78,11 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
   // Memoized because `?? {}` would mint a new object each render and defeat
   // the composition memo below — which re-serializes the whole scene.
   const images = useMemo(() => doc.assets ?? {}, [doc.assets]);
+
+  // The poster every offset is measured from, and any prop that has drifted
+  // outside the room it defines.
+  const marker = doc.marker ?? DEFAULT_MARKER;
+  const strayed = outOfRange(props);
 
   // The backdrop's native size, parsed once. Its inner markup is the layer the
   // preview and the saved art both draw behind the props.
@@ -192,6 +207,43 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
             <div className="st-frontwrap">
               <svg ref={frontRef} viewBox={`0 0 ${FRONT.w} ${FRONT.h}`} className="st-stagesvg">
                 <image href={svgToDataUrl(previewSvg)} x="0" y="0" width={FRONT.w} height={FRONT.h} />
+                {(() => {
+                  const m = markerFrontRect(marker);
+                  const h = humanFrontRect();
+                  const bar = scaleBarFront();
+                  return (
+                    <g className="st-ref" pointerEvents="none">
+                      {/* The person and the bar are what make the poster's real
+                          size read: on its own, true scale just looks like a dot. */}
+                      <rect
+                        x={h.x}
+                        y={h.y}
+                        width={h.w}
+                        height={h.h}
+                        rx={h.w / 2}
+                        className="st-ref-human"
+                      />
+                      <line x1={bar.x1} y1={bar.y} x2={bar.x2} y2={bar.y} className="st-ref-bar" />
+                      <text x={bar.x1} y={bar.y - 4} className="st-ref-lbl">
+                        1 m
+                      </text>
+                      {marker.image === '' ? (
+                        <rect x={m.x} y={m.y} width={m.w} height={m.h} className="st-ref-marker" />
+                      ) : (
+                        <image href={marker.image} x={m.x} y={m.y} width={m.w} height={m.h} />
+                      )}
+                      {/* True scale, then a fixed-width ring so a four-unit
+                          poster stays findable without being drawn as a lie. */}
+                      <rect
+                        x={m.x - 3}
+                        y={m.y - 3}
+                        width={m.w + 6}
+                        height={m.h + 6}
+                        className="st-ref-ring"
+                      />
+                    </g>
+                  );
+                })()}
                 {props.map((p, i) => {
                   const pt = frontProject(p.x, p.z, p.e);
                   const s = depthScale(p.z);
@@ -232,6 +284,12 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
             <div className="st-topwrap">
               <svg ref={topRef} viewBox={`0 0 ${TOP.w} ${TOP.h}`} className="st-stagesvg">
                 <rect x="0" y="0" width={TOP.w} height={TOP.h} fill="#20301a" />
+                {/* The wall the poster hangs on, and the origin every depth is
+                    measured from. */}
+                <rect x="0" y="0" width={TOP.w} height="6" fill="#6a8a58" />
+                <text x="6" y="20" fontSize="11" fill="#8fb27a">
+                  WALL
+                </text>
                 {[1, 2, 3, 4].map((m) => {
                   const y = topProject(0, m).y;
                   return (
@@ -259,6 +317,19 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
                   stroke="#120e0e"
                   strokeWidth="2"
                 />
+                {(() => {
+                  const m = markerTopRect(marker);
+                  const bar = scaleBarTop();
+                  return (
+                    <g pointerEvents="none">
+                      <rect x={m.x} y={m.y} width={m.w} height={m.h} fill="#e5761f" />
+                      <line x1={bar.x1} y1={bar.y} x2={bar.x2} y2={bar.y} className="st-ref-bar" />
+                      <text x={bar.x1} y={bar.y - 4} className="st-ref-lbl">
+                        1 m
+                      </text>
+                    </g>
+                  );
+                })()}
                 {props.map((p, i) => {
                   const pt = topProject(p.x, p.z);
                   return (
@@ -318,6 +389,12 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
         </div>
 
         {uploadError !== null && <div className="st-warn">{uploadError}</div>}
+
+        {strayed.length > 0 && (
+          <div className="st-warn">
+            {`${strayed.length} prop${strayed.length === 1 ? ' sits' : 's sit'} outside the room — behind the wall, or further than ${SCENE.zMax} m out from it. Drag ${strayed.length === 1 ? 'it' : 'them'} back onto the map.`}
+          </div>
+        )}
 
         <div className="st-proppanel">
           {sel === undefined ? (

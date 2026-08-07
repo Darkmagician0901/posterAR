@@ -40,7 +40,9 @@ export const StudioApp: React.FC<StudioAppProps> = ({ demo = IS_DEMO }) => {
   const [publishOpen, setPublishOpen] = useState(false);
 
   return (
-    <div className="st-root">
+    // The demo flag reaches the stylesheet so the rail can reserve room for the
+    // floating RESET DEMO chip, which only exists in that build.
+    <div className={`st-root ${demo ? 'demo' : ''}`}>
       <div className="st-topbar">
         <div className="st-logo">
           <div className="st-eml" aria-label="UBC Emerging Media Lab">

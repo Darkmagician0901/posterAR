@@ -99,7 +99,8 @@ export const FramesRail: React.FC = () => {
   return (
     <div className="st-rail">
       <div className="st-rail-head">
-        FRAMES <span>drag to reorder</span>
+        <span className="st-rail-title">FRAMES</span>
+        <span className="st-rail-hint">drag to reorder</span>
       </div>
 
       <div className="st-frames">

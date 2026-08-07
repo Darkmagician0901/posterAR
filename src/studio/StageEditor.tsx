@@ -232,8 +232,11 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
                       ) : (
                         <image href={marker.image} x={m.x} y={m.y} width={m.w} height={m.h} />
                       )}
-                      {/* True scale, then a fixed-width ring so a four-unit
-                          poster stays findable without being drawn as a lie. */}
+                      {/* True scale is honest but nearly invisible — an A3
+                          poster is about four view units wide here, and it can
+                          land on top of a prop. The ring and leader label are
+                          fixed-size so it stays findable without being drawn
+                          bigger than it is. */}
                       <rect
                         x={m.x - 3}
                         y={m.y - 3}
@@ -241,6 +244,21 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
                         height={m.h + 6}
                         className="st-ref-ring"
                       />
+                      <line
+                        x1={m.x + m.w / 2}
+                        y1={m.y - 4}
+                        x2={m.x + m.w / 2}
+                        y2={m.y - 16}
+                        className="st-ref-lead"
+                      />
+                      <text
+                        x={m.x + m.w / 2}
+                        y={m.y - 20}
+                        className="st-ref-lbl marker"
+                        textAnchor="middle"
+                      >
+                        POSTER
+                      </text>
                     </g>
                   );
                 })()}

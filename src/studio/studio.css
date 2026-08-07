@@ -198,12 +198,21 @@
   letter-spacing: 2px;
   color: #7a6f58;
   display: flex;
+  /* The 212px rail cannot fit both at this face and tracking, so the hint drops
+     to its own spaced line instead of wrapping tight against the label. */
+  flex-wrap: wrap;
+  gap: 4px 10px;
   justify-content: space-between;
-  align-items: center;
+  align-items: baseline;
 }
-.st-rail-head span {
+.st-rail-title {
+  white-space: nowrap;
+}
+.st-rail-hint {
   font-size: 9px;
+  letter-spacing: 1px;
   color: #a89a78;
+  white-space: nowrap;
 }
 .st-frames {
   flex: 1;
@@ -295,9 +304,21 @@
 .st-fop:hover:not(:disabled) {
   background: var(--paper2);
 }
+/* Dim the colours, not the element. The UA stylesheet already gives a disabled
+   button color: rgba(16,16,16,0.3); multiplying that by opacity: 0.35 left the
+   glyph at ~10% alpha — invisible — while the border stayed at 35%, so the
+   control read as an empty box rather than a disabled arrow. */
 .st-fop:disabled {
-  opacity: 0.35;
+  opacity: 1;
+  color: #a89a78;
+  border-color: #cfc4ab;
+  background: var(--paper2);
   cursor: default;
+}
+/* In the demo build the RESET DEMO chip floats at bottom-left, over the rail.
+   Reserve its height so + ADD FRAME stays clickable. */
+.st-root.demo .st-rail {
+  padding-bottom: 50px;
 }
 .st-addframe {
   margin: 0 10px 12px;
@@ -1303,8 +1324,10 @@ svg.drift {
 .st-demo-reset {
   --ink: #120e0e;
 
+  /* Left, not right: the right edge is the inspector column, and a fixed chip
+     there covers whichever section happens to sit at that height. */
   position: fixed;
-  right: 14px;
+  left: 14px;
   bottom: 12px;
   z-index: 350;
   font-family: 'VT323', monospace;
@@ -1346,7 +1369,18 @@ svg.drift {
   stroke: #e5761f;
   stroke-width: 1.5;
   stroke-dasharray: 3 2;
-  opacity: 0.85;
+}
+.st-ref-lead {
+  stroke: #e5761f;
+  stroke-width: 1;
+}
+.st-ref-lbl.marker {
+  fill: #e5761f;
+  font-size: 10px;
+  letter-spacing: 1px;
+  paint-order: stroke;
+  stroke: #12100c;
+  stroke-width: 2.5;
 }
 
 /* ===== marker panel ===== */

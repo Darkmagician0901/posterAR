@@ -15,6 +15,7 @@
  */
 
 import type { StoryFrame, StoryAsset } from '@/story/storyDoc';
+import { DEFAULT_MARKER, markerHeightM, type StoryMarker } from '@/story/marker';
 import { PROP_LIBRARY } from '@/story/props/library';
 import { MESH_DEF } from '@/story/props/builders';
 import { deriveBackdrop, parseSvgDoc, scaledBackdrop } from '@/story/props/backdrop';
@@ -86,6 +87,35 @@ function backdrop(frame: StoryFrame, pan: number): string {
   return `<g opacity=".9" transform="translate(${n(base.x - wpx / 2)},${n(base.y - hpx)})">${inner}</g>`;
 }
 
+/**
+ * The printed poster, standing on the wall at true scale.
+ *
+ * This is the thing the visitor actually scans, so it is drawn from the
+ * marker's real printed width rather than sized to look good — seeing how small
+ * a poster reads from across the room is the point.
+ */
+function marker(m: StoryMarker, pan: number): string {
+  // mountHeight is floor to the poster's centre, and project() measures height
+  // off the ground, so the centre goes straight in.
+  const c = project(0, m.mountHeight, 0, pan);
+  const wpx = m.widthM * c.k;
+  const hpx = markerHeightM(m) * c.k;
+  const x = c.x - wpx / 2;
+  const yTop = c.y - hpx / 2;
+  const box = `class="poster" x="${n(x)}" y="${n(yTop)}" width="${n(wpx)}" height="${n(hpx)}"`;
+  const art =
+    m.image === ''
+      ? `<rect ${box} fill="#e5761f" stroke="#120e0e" stroke-width="1"/>`
+      : `<image ${box} href="${escapeAttr(m.image)}"/>`;
+  // A hairline ring: at this distance a real poster is a few pixels wide and
+  // would otherwise be impossible to find in the preview.
+  return (
+    art +
+    `<rect x="${n(x - 2)}" y="${n(yTop - 2)}" width="${n(wpx + 4)}" height="${n(hpx + 4)}" ` +
+    `fill="none" stroke="#e5761f" stroke-width="1" stroke-dasharray="3 2" opacity=".8"/>`
+  );
+}
+
 /** The converging ground grid. */
 function grid(pan: number): string {
   let s = '<g stroke="#86C24E" fill="none">';
@@ -136,11 +166,13 @@ function props(frame: StoryFrame, pan: number, images: Record<string, StoryAsset
  * @param frame — The frame to draw.
  * @param pan — Lateral camera pan in metres (0 = visitor viewpoint).
  * @param images — Uploaded assets keyed by any `t:'img'` prop's `k`.
+ * @param poster — The story's marker. Defaults to the A3 poster.
  */
 export function phoneScene(
   frame: StoryFrame,
   pan: number,
   images: Record<string, StoryAsset>,
+  poster: StoryMarker = DEFAULT_MARKER,
 ): string {
   const needsMesh = (frame.props ?? []).some((p) => p.t === 'lib' && PROP_LIBRARY[p.k]?.needsMesh);
   return (
@@ -149,6 +181,8 @@ export function phoneScene(
     (needsMesh ? MESH_DEF : '') +
     sky(pan) +
     backdrop(frame, pan) +
+    // On the wall, so after the backdrop and before anything standing in front.
+    marker(poster, pan) +
     grid(pan) +
     props(frame, pan, images) +
     '</svg>'

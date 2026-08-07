@@ -19,6 +19,7 @@ import { useStudioDraft } from './studioDraftStore';
 import { phoneScene } from './phoneScene';
 import { useStoryTypewriter } from '@/components/story/useStoryTypewriter';
 import { resolveFont } from '@/story/textStyle';
+import { DEFAULT_MARKER } from '@/story/marker';
 
 /** Where a playthrough currently is. */
 type PlayStage = 'intro' | 'scanning' | 'placed' | 'outro';
@@ -201,7 +202,11 @@ export const PhonePreview: React.FC<PhonePreviewProps> = ({ playing, onExitPlay 
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
             onKeyDown={onKeyDown}
-            dangerouslySetInnerHTML={frame ? { __html: phoneScene(frame, pan, images) } : undefined}
+            dangerouslySetInnerHTML={
+              frame
+                ? { __html: phoneScene(frame, pan, images, doc.marker ?? DEFAULT_MARKER) }
+                : undefined
+            }
           />
 
           {/* Era mood wash, matching StoryOverlay's vignette. */}

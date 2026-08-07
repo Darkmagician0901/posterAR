@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { phoneScene } from './phoneScene';
+import { DEFAULT_MARKER } from '@/story/marker';
 import type { StoryFrame, StoryProp } from '@/story/storyDoc';
 
 const frame = (props?: StoryProp[]): StoryFrame => ({
@@ -51,5 +52,48 @@ describe('phoneScene', () => {
     const snap = JSON.stringify(f);
     phoneScene(f, 0, {});
     expect(JSON.stringify(f)).toBe(snap);
+  });
+});
+
+describe('phoneScene — the poster', () => {
+  const poster = (over = {}) => ({ ...DEFAULT_MARKER, ...over });
+  // The leading \s matters: without it these also match stroke-width="1".
+  const w = (s: string): number => Number(/class="poster"[^>]*\swidth="([\d.]+)"/.exec(s)![1]);
+  const y = (s: string): number => Number(/class="poster"[^>]*\sy="([-\d.]+)"/.exec(s)![1]);
+
+  it('draws the marker image on the wall when there is one', () => {
+    const svg = phoneScene(frame(), 0, {}, poster({ image: 'data:image/webp;base64,AAA' }));
+    expect(svg).toContain('data:image/webp;base64,AAA');
+  });
+
+  it('draws a placeholder rather than nothing when there is no image', () => {
+    expect(phoneScene(frame(), 0, {}, poster())).toContain('class="poster"');
+  });
+
+  it('draws a wider poster wider', () => {
+    expect(w(phoneScene(frame(), 0, {}, poster({ widthM: 1.2 })))).toBeGreaterThan(
+      w(phoneScene(frame(), 0, {}, poster())),
+    );
+  });
+
+  it('hangs a higher-mounted poster higher up the view', () => {
+    const low = phoneScene(frame(), 0, {}, poster({ mountHeight: 1 }));
+    const high = phoneScene(frame(), 0, {}, poster({ mountHeight: 2.4 }));
+    expect(y(high)).toBeLessThan(y(low));
+  });
+
+  it('defaults to the A3 poster when no marker is passed', () => {
+    expect(phoneScene(frame(), 0, {})).toContain('class="poster"');
+  });
+
+  it('escapes the image href so it cannot break out of the attribute', () => {
+    const svg = phoneScene(
+      frame(),
+      0,
+      {},
+      poster({ image: 'data:image/png;base64,AA"><script>x()</script>' }),
+    );
+    expect(svg).not.toContain('<script>');
+    expect(svg).toContain('&quot;');
   });
 });

@@ -6,14 +6,16 @@
  * mood tint applied over the whole HUD, and arbitrary values are far easier to
  * get wrong than to get right.
  *
- * Story-level copy (intro and outro cards) lives here too, since it is short
- * and there is nowhere better for it until a settings modal exists.
+ * Story-level settings — the printed poster the whole story anchors to, and the
+ * intro and outro cards — live here too, since there is nowhere better for them
+ * until a settings modal exists.
  */
 
 import React, { useRef, useState } from 'react';
 import { validateAudioUpload } from './audioUpload';
 import { FONT_OPTIONS, COLOR_OPTIONS, DEFAULT_FONT_ID } from '@/story/textStyle';
 import { useStudioDraft } from './studioDraftStore';
+import { MarkerPanel } from './MarkerPanel';
 
 /** Era mood tints, taken from the shipped story's five eras. */
 const WASHES: Array<{ label: string; value: string }> = [
@@ -251,6 +253,8 @@ export const Inspector: React.FC<InspectorProps> = ({ onOpenStage }) => {
             : 'This frame uses fixed art. Staging props replaces it with a composed scene.'}
         </div>
       </div>
+
+      <MarkerPanel />
 
       <div className="st-sec">
         <h3>STORY CARDS</h3>

@@ -1320,3 +1320,43 @@ svg.drift {
 .st-demo-reset:hover {
   opacity: 1;
 }
+
+/* ===== marker panel ===== */
+.st-marker-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+.st-marker-thumb {
+  width: 62px;
+  min-height: 62px;
+  flex: 0 0 auto;
+  border: 3px solid var(--ink);
+  border-radius: 8px;
+  background: var(--paper2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.st-marker-thumb img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.st-marker-empty {
+  font-family: 'VT323', monospace;
+  font-size: 13px;
+  color: #a89a78;
+  text-align: center;
+  padding: 6px;
+}
+.st-marker-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: 'VT323', monospace;
+  font-size: 16px;
+  color: var(--ink);
+}

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_MARKER, MARKER_LIMITS, markerHeightM, sanitizeMarker } from './marker';
+import {
+  applyMarkerEdit,
+  DEFAULT_MARKER,
+  MARKER_LIMITS,
+  markerHeightM,
+  sanitizeMarker,
+} from './marker';
 
 describe('DEFAULT_MARKER', () => {
   it('is an A3 portrait poster at eye height', () => {
@@ -54,5 +60,38 @@ describe('sanitizeMarker', () => {
     expect(sanitizeMarker({ aspect: 0 }).aspect).toBe(DEFAULT_MARKER.aspect);
     expect(sanitizeMarker({ mountHeight: -1 }).mountHeight).toBe(MARKER_LIMITS.mountMin);
     expect(sanitizeMarker({ mountHeight: 99 }).mountHeight).toBe(MARKER_LIMITS.mountMax);
+  });
+});
+
+describe('applyMarkerEdit', () => {
+  const base = { ...DEFAULT_MARKER, image: 'data:image/webp;base64,AAA', widthM: 0.6 };
+
+  it('applies one field and leaves the rest', () => {
+    const out = applyMarkerEdit(base, { mountHeight: 1.2 });
+    expect(out.mountHeight).toBe(1.2);
+    expect(out.widthM).toBe(0.6);
+    expect(out.image).toBe(base.image);
+  });
+
+  it('clamps an edit past the limits', () => {
+    expect(applyMarkerEdit(base, { widthM: 99 }).widthM).toBe(MARKER_LIMITS.widthMax);
+    expect(applyMarkerEdit(base, { mountHeight: -4 }).mountHeight).toBe(MARKER_LIMITS.mountMin);
+  });
+
+  it('keeps the current value when a number field is cleared mid-edit', () => {
+    // An emptied number input reads as NaN. Falling back to the A3 default here
+    // would yank the field out from under the author as they retype.
+    expect(applyMarkerEdit(base, { widthM: NaN }).widthM).toBe(0.6);
+    expect(applyMarkerEdit(base, { mountHeight: NaN }).mountHeight).toBe(base.mountHeight);
+  });
+
+  it('takes a new image and its aspect together', () => {
+    const out = applyMarkerEdit(base, { image: 'data:image/webp;base64,BBB', aspect: 0.7 });
+    expect(out.image).toBe('data:image/webp;base64,BBB');
+    expect(out.aspect).toBe(0.7);
+  });
+
+  it('still refuses an off-origin image', () => {
+    expect(applyMarkerEdit(base, { image: 'https://example.com/p.png' }).image).toBe('');
   });
 });

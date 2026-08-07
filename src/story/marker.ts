@@ -103,3 +103,26 @@ export function sanitizeMarker(raw: unknown): StoryMarker {
     ),
   };
 }
+
+/**
+ * Applies an edit to a marker, keeping the result valid.
+ *
+ * Unlike sanitizeMarker, an unusable field falls back to the marker's *own*
+ * current value rather than the A3 default: an emptied number input reads as
+ * NaN mid-keystroke, and snapping the field to 0.297 while the author is still
+ * typing would fight them.
+ *
+ * @param marker — The marker being edited.
+ * @param patch — The fields to change.
+ * @returns A new, valid marker.
+ */
+export function applyMarkerEdit(marker: StoryMarker, patch: Partial<StoryMarker>): StoryMarker {
+  const base = sanitizeMarker(marker);
+  const merged = { ...marker, ...patch };
+  return sanitizeMarker({
+    image: typeof merged.image === 'string' ? merged.image : base.image,
+    widthM: Number.isFinite(merged.widthM) ? merged.widthM : base.widthM,
+    aspect: Number.isFinite(merged.aspect) && merged.aspect > 0 ? merged.aspect : base.aspect,
+    mountHeight: Number.isFinite(merged.mountHeight) ? merged.mountHeight : base.mountHeight,
+  });
+}

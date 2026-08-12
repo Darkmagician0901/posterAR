@@ -21,6 +21,13 @@ frontend:
   phases:
     preBuild:
       commands:
+        # Printed so the build log records which Node actually ran. Amplify
+        # picks the version from its build image, NOT from .nvmrc — that file is
+        # for local shells and CI. If a version difference ever matters, pin it
+        # in the console: Hosting -> Build settings -> Build image settings ->
+        # Live package updates -> Node.js -> an exact version (never "latest",
+        # which AWS documents as causing build failures).
+        - node -v && npm -v
         - npm ci
     build:
       commands:

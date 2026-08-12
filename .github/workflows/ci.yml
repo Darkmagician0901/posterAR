@@ -1,0 +1,72 @@
+# Continuous integration only — this workflow does not deploy anything.
+#
+# Amplify Hosting builds and deploys straight from the connected branch, the
+# same way Vercel used to, so a deploy job here would either duplicate that or
+# fight with it. What CI is for is catching what Amplify's build won't: types,
+# lint, the test suite, and the Lambda bundle, which Amplify never touches
+# because the API deploys separately.
+#
+# This replaces the old deploy.yml, which had been failing to parse on every
+# push since it was written — a job-level `if:` referenced `secrets`, which
+# GitHub does not expose in that context, so the whole file was rejected and no
+# checks ever ran.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # Matches the Lambda runtime the bundle targets, so a syntax or API
+          # difference shows up here rather than on cold start in AWS.
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Build frontend
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      # The build script imports its own output and invokes it before zipping,
+      # so this fails loudly on a bundle that cannot start. Unit tests cannot
+      # catch that class of break — they exercise the TypeScript sources, not
+      # the bundle.
+      - name: Build and self-check the Lambda bundle
+        run: npm run build:lambda
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7

@@ -1,9 +1,10 @@
 /**
  * _s3.ts — S3 access for the API functions.
  *
- * The leading underscore marks this as a helper rather than a route: on Vercel
- * it keeps the file out of the route table, and the same convention carries
- * over unchanged.
+ * The leading underscore marks this as a helper rather than a route. That began
+ * as a filesystem-routing convention on the previous host; the Lambda router
+ * lists its routes explicitly and does not need it, but the naming still says
+ * "not an endpoint" at a glance, so it stays.
  *
  * S3 is the whole storage layer for v1 — there is no database. An object's
  * existence is the record that it was uploaded, and because the key is the

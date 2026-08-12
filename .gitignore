@@ -44,7 +44,6 @@ coverage
 .nyc_output
 
 # Misc
-.vercel
 .netlify
 # .claude/ is local-only, EXCEPT the committed 8th Wall engine-docs skill below.
 .claude/*

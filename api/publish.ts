@@ -9,8 +9,8 @@
  * Reads stay unauthenticated — published documents are public by design and are
  * fetched straight from the bucket, not through this function.
  *
- * Deployed by Vercel from the api/ directory. Uses the Web handler signature,
- * so it needs no platform-specific types.
+ * Bundled into the Lambda by scripts/build-lambda.mjs. Uses the Web handler
+ * signature, so it needs no platform-specific types.
  */
 
 import { timingSafeEqual } from 'node:crypto';

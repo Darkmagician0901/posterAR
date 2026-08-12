@@ -20,9 +20,9 @@
  *   --name, -n      Output filename (default: qr-code)
  * 
  * Examples:
- *   node scripts/generate-qr.js https://xr-poster.vercel.app
- *   node scripts/generate-qr.js https://xr-poster.vercel.app --format png --size 500
- *   npm run generate-qr -- https://xr-poster.vercel.app --output ./dist/qr-codes
+ *   node scripts/generate-qr.js https://main.dxxxxxxxxxxxxx.amplifyapp.com
+ *   node scripts/generate-qr.js https://main.dxxxxxxxxxxxxx.amplifyapp.com --format png --size 500
+ *   npm run generate-qr -- https://main.dxxxxxxxxxxxxx.amplifyapp.com --output ./dist/qr-codes
  */
 
 const fs = require('fs');
@@ -49,8 +49,8 @@ Options:
   --help, -h      Show this help message
 
 Examples:
-  node scripts/generate-qr.js https://xr-poster.vercel.app
-  node scripts/generate-qr.js https://xr-poster.vercel.app --format png --size 500
+  node scripts/generate-qr.js https://main.dxxxxxxxxxxxxx.amplifyapp.com
+  node scripts/generate-qr.js https://main.dxxxxxxxxxxxxx.amplifyapp.com --format png --size 500
     `);
     process.exit(0);
   }

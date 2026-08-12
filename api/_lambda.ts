@@ -2,10 +2,10 @@
  * _lambda.ts — one Lambda entry point in front of the API routes.
  *
  * The route handlers are written against the Web Fetch API: they take a
- * `Request` and return a `Response`. That is what a Vercel function receives
- * directly, and it is deliberately kept that way — the handlers hold the actual
- * logic and should not know what invoked them. This file is the only place that
- * knows about Lambda.
+ * `Request` and return a `Response`. That is deliberately kept platform-neutral
+ * — the handlers hold the actual logic and should not know what invoked them.
+ * This file is the only place that knows about Lambda, which is why moving off
+ * the previous host touched it and nothing else.
  *
  * ONE function serves BOTH routes rather than one function each. A Lambda
  * function URL is per-function, so two functions would mean two URLs and two

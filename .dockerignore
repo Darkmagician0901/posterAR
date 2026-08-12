@@ -52,7 +52,6 @@ __tests__
 *.spec.tsx
 
 # Deployment configs
-vercel.json
 netlify.toml
 wrangler.toml
 

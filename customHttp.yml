@@ -1,0 +1,69 @@
+# Custom response headers for Amplify Hosting.
+#
+# Amplify reads THIS file. It does not read `public/_headers` (Cloudflare /
+# Netlify) or the `headers` block in `vercel.json` — both of those still exist
+# for the hosts they were written for, and both are silently ignored here.
+# Without this file Amplify serves no security headers at all: the site works,
+# which is exactly why the omission is easy to miss.
+#
+# The CSP is the one entry that is load-bearing rather than defensive:
+# `script-src` must allow https://cdn.jsdelivr.net or the 8th Wall engine will
+# not load and AR fails outright. `blob:` and 'unsafe-eval' are required by the
+# engine's own loader, which fetches runtime chunks (slam.js) dynamically.
+customHeaders:
+  - pattern: '**'
+    headers:
+      - key: 'X-Frame-Options'
+        value: 'DENY'
+      - key: 'X-Content-Type-Options'
+        value: 'nosniff'
+      - key: 'Referrer-Policy'
+        value: 'strict-origin-when-cross-origin'
+      # camera=* is required: the AR experience cannot run without it.
+      - key: 'Permissions-Policy'
+        value: 'camera=*, microphone=(), geolocation=(), interest-cohort=()'
+      - key: 'Strict-Transport-Security'
+        value: 'max-age=63072000; includeSubDomains; preload'
+      # font-src must name cdn.jsdelivr.net explicitly. 8th Wall's xrextras and
+      # landing-page bundles fetch Nunito (.woff/.ttf) from that CDN, and
+      # allowing the host in script-src does NOT cover fonts — CSP fetch
+      # directives are per resource type. Without it the browser blocks eight
+      # font requests on every page load: 8th Wall's own overlay UI silently
+      # falls back to a system face, and the console noise buries real errors.
+      # Observed 2026-08-13 in DevTools on /studio.
+      #
+      # connect-src carries three non-obvious requirements:
+      #   https:  so the browser can reach the S3 bucket for stories and assets
+      #   blob:   the engine streams some resources through blob URLs
+      #   data:   the 8th Wall engine fetches its WASM as a data: URL. Omitting
+      #           this blocks xr.js and xr-slam.js at load with "Refused to
+      #           connect because it violates the document's Content Security
+      #           Policy" — AR never starts, and nothing else looks wrong.
+      #
+      # `data:` belongs in connect-src ONLY. It must never be added to
+      # script-src: that would let any injected `<script src="data:...">`
+      # execute, turning a single HTML-injection bug into arbitrary script
+      # execution. The engine has never asked for it — the only observed
+      # violation was a fetch, which connect-src governs. Widen this on
+      # evidence from a real console error, never pre-emptively.
+      - key: 'Content-Security-Policy'
+        value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self' https: blob: data:; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'none'"
+
+  # Vite fingerprints everything under /assets, so those filenames can never
+  # point at different bytes.
+  - pattern: '/assets/**'
+    headers:
+      - key: 'Cache-Control'
+        value: 'public, max-age=31536000, immutable'
+
+  - pattern: '/posters/**'
+    headers:
+      - key: 'Cache-Control'
+        value: 'public, max-age=604800'
+
+  # The entry point is NOT fingerprinted. Caching it would pin visitors to a
+  # stale build that references asset filenames the new deploy no longer has.
+  - pattern: '/index.html'
+    headers:
+      - key: 'Cache-Control'
+        value: 'public, max-age=0, must-revalidate'

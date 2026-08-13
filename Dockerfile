@@ -52,7 +52,7 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "camera=*, microphone=(), geolocation=(), interest-cohort=()" always;
     # script-src must allow the 8th Wall engine CDN (cdn.jsdelivr.net) + blob:,
-    # matching vercel.json and public/_headers — otherwise the engine is blocked.
+    # matching customHttp.yml and public/_headers — otherwise the engine is blocked.
     add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: blob:; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'none';" always;
 
     # CORS headers (engine scripts are loaded crossorigin from the CDN)

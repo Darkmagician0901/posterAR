@@ -229,10 +229,16 @@ how `feat/admin-panel-ui`'s `VITE_ADMIN_PASSPHRASE` failed.
 | `STUDIO_PUBLISH_SECRET` | Bearer secret for `POST /api/publish` |
 | `AWS_ROLE_ARN` | If using OIDC (OPS-6) |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Only if **not** using OIDC |
-| `S3_BUCKET`, `S3_REGION` | Required — the presign and publish functions both 503 without them |
-| `STORY_PUBLIC_BASE_URL` | Returned in the publish response so the studio can show a link |
+| `S3_BUCKET` | **Required.** Both the presign and publish functions 503 without it |
+| `S3_REGION` | **Silently defaults to `us-east-1`** rather than 503ing — a wrong value misroutes instead of failing loudly, so set it deliberately |
+| `STORY_PUBLIC_BASE_URL` | Origin prefixed onto the returned publish URL. Unset, publishing still **succeeds** and the artifact is still correct, but the studio has no real origin to show and prompts for this instead of guessing |
 
 No `DATABASE_URL`: v1 uses no database (OPS-0).
+
+**The publish dialog now names what is missing.** With `VITE_STORY_BASE_URL` or
+`VITE_ASSET_BASE_URL` unset it shows a "setup steps left" panel naming each one,
+rather than failing quietly — so a misconfigured deploy is visible at publish
+time instead of at exhibit time.
 
 - [ ] No secret carries a `VITE_` prefix
 - [ ] `BLOB_READ_WRITE_TOKEN` retained until Plan B Phase 4 completes, then removed

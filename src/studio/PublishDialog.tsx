@@ -17,6 +17,7 @@ import {
   slugifyStoryId,
   type PublishOutcome,
 } from '@/services/storyApi';
+import { isAssetHostConfigured } from '@/story/assetResolver';
 import { useStudioDraft } from './studioDraftStore';
 
 /** sessionStorage key for the publish secret. */
@@ -42,6 +43,27 @@ function rememberSecret(value: string): void {
   } catch {
     // Private mode or a full store: publishing still works this session, the
     // secret just has to be retyped next time.
+  }
+}
+
+/**
+ * The origin the "set VITE_STORY_BASE_URL to..." hint can show — only when
+ * the server actually gave us an absolute one.
+ *
+ * `result.url` is absolute when the server's STORY_PUBLIC_BASE_URL is
+ * configured, and relative (e.g. "/stories/x.json") when it isn't. Deliberately
+ * does NOT fall back to resolving against `window.location.origin`: that would
+ * synthesise the *studio's own* domain and hand the operator a plausible-
+ * looking but wrong value — the studio is never the bucket host. A copied
+ * misconfiguration fails silently later, once every published story 404s and
+ * renders as a transparent gap. Returning null instead lets the caller show
+ * the true state (the server isn't configured either) rather than a guess.
+ */
+function originOf(url: string): string | null {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
   }
 }
 
@@ -78,11 +100,27 @@ export const PublishDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
 
   const publish = async (): Promise<void> => {
     setBusy(true);
-    rememberSecret(secret);
     const outcome = await publishStory(doc, id, secret);
+    // Remember the passphrase only once the server has accepted it. Saving it
+    // before the attempt meant a mistyped secret was persisted and pre-filled
+    // on every retry, so the operator kept re-submitting the same wrong value
+    // and the dialog looked broken rather than merely unauthorised.
+    if (outcome.ok) rememberSecret(secret);
     setResult(outcome);
     setBusy(false);
   };
+
+  // Only meaningful (and only computed) once a publish has actually succeeded.
+  const originHint = result?.ok === true ? originOf(result.url) : null;
+
+  // Two build-time origins the viewer needs, and neither fails loudly on its
+  // own: without VITE_STORY_BASE_URL visitors see the bundled demo, and without
+  // VITE_ASSET_BASE_URL every uploaded image resolves same-origin, 404s, and
+  // renders as a transparent gap whose only signal is one console.warn. This
+  // dialog is the last moment anyone is looking, so it names both.
+  const storyHostMissing = !isStoryHostConfigured();
+  const assetHostMissing = !isAssetHostConfigured();
+  const setupStepsLeft = (storyHostMissing ? 1 : 0) + (assetHostMissing ? 1 : 0);
 
   const copy = async (text: string): Promise<void> => {
     try {
@@ -118,24 +156,39 @@ export const PublishDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 {copied ? 'COPIED' : 'COPY'}
               </button>
             </div>
-            {!isStoryHostConfigured() && (
+            {setupStepsLeft > 0 && (
               <div className="st-warn">
-                <b>One setup step left.</b> The story is saved, but visitors opening the link will
-                still see the bundled demo until the app knows where published stories live. Set{' '}
-                <code>VITE_STORY_BASE_URL</code> to the origin below, then redeploy.
-                <div className="st-linkrow st-mt">
-                  <input
-                    readOnly
-                    value={new URL(result.url).origin}
-                    onFocus={(e) => e.target.select()}
-                  />
-                  <button
-                    className="st-btn green"
-                    onClick={() => void copy(new URL(result.url).origin)}
-                  >
-                    COPY
-                  </button>
-                </div>
+                <b>
+                  {setupStepsLeft === 1 ? 'One setup step left.' : `${setupStepsLeft} setup steps left.`}
+                </b>{' '}
+                {storyHostMissing &&
+                  (originHint !== null ? (
+                    <>
+                      The story is saved, but visitors opening the link will still see the bundled
+                      demo until the app knows where published stories live. Set{' '}
+                      <code>VITE_STORY_BASE_URL</code> to the origin below, then redeploy.
+                      <div className="st-linkrow st-mt">
+                        <input readOnly value={originHint} onFocus={(e) => e.target.select()} />
+                        <button className="st-btn green" onClick={() => void copy(originHint)}>
+                          COPY
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      The story is saved, but the server doesn't know its own public URL yet, so
+                      this dialog can't show it either. Set <code>STORY_PUBLIC_BASE_URL</code> in
+                      the server environment, then republish.
+                    </>
+                  ))}
+                {assetHostMissing && (
+                  <div className={storyHostMissing ? 'st-mt' : undefined}>
+                    This build doesn't know where uploaded images are served from, so every one of
+                    them will render as a blank gap — with no error a visitor or an operator would
+                    ever see. Set <code>VITE_ASSET_BASE_URL</code> to the origin serving{' '}
+                    <code>assets/</code>, then redeploy.
+                  </div>
+                )}
               </div>
             )}
 

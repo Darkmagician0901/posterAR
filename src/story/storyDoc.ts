@@ -74,6 +74,17 @@ export interface StoryAssetRef {
   aspect: number;
   /** Original filename, shown in the studio. */
   name?: string;
+  /**
+   * Optional display derivative: the same image re-encoded at the rasterizer's
+   * budget, stored as an ORDINARY asset under its own content address.
+   *
+   * It is a second id rather than a second slot under `assetId` on purpose.
+   * A derivative addressed by its parent's hash would be an address whose
+   * content nothing could verify — and the presign endpoint is
+   * unauthenticated, so an unverifiable address is a public write token. Same
+   * 64-hex rule as `assetId`, for the same reason: it becomes a path segment.
+   */
+  r1024Id?: string;
 }
 
 /**
@@ -182,8 +193,9 @@ function sanitizeFrame(raw: unknown): StoryFrame | null {
  * Sanitizes the asset map, accepting both schema versions.
  *
  * A published document is untrusted input, so each entry must prove its shape:
- * a v4 entry's `assetId` must be exactly 64 lowercase hex characters — which
- * cannot express a scheme, a host, or a traversal — and a v3 entry's `href`
+ * a v4 entry's `assetId` — and its optional `r1024Id`, by the same rule, since
+ * both become path segments — must be exactly 64 lowercase hex characters,
+ * which cannot express a scheme, a host, or a traversal; a v3 entry's `href`
  * must still be a `data:` URL. The alias (the map key) is checked too, because
  * it is interpolated into an SVG attribute as `asset:<alias>`.
  *
@@ -207,7 +219,15 @@ function sanitizeAssets(raw: unknown): Record<string, StoryAsset> | undefined {
 
     if (assetId !== '') {
       if (!ASSET_ID_RE.test(assetId)) continue;
-      out[alias] = name === '' ? { assetId, aspect } : { assetId, aspect, name };
+      const ref: StoryAssetRef = { assetId, aspect };
+      if (name !== '') ref.name = name;
+      // A bad derivative id is dropped on its own rather than taking the entry
+      // with it: the asset still resolves from `assetId`, so losing the
+      // derivative costs a few kilobytes, while dropping the entry would cost
+      // the image entirely.
+      const r1024Id = str(v.r1024Id, '');
+      if (ASSET_ID_RE.test(r1024Id)) ref.r1024Id = r1024Id;
+      out[alias] = ref;
       continue;
     }
 

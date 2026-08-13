@@ -18,16 +18,17 @@
  */
 
 import React, { useMemo, useRef, useState } from 'react';
-import { StoryProp } from '@/story/storyDoc';
+import { StoryProp, type StoryAssetRef } from '@/story/storyDoc';
 import { PROP_LIBRARY } from '@/story/props/library';
 import { composeFrame, COMPOSE_DEFAULTS } from '@/story/props/compose';
-import { validateAndProcessImage, formatBytes } from '@/utils/imageUpload';
+import { validateAndProcessImage, downscaleToWebp, formatBytes } from '@/utils/imageUpload';
+import { RASTER_LONGEST_AXIS } from '@/story/assetStorage';
 import { useStudioDraft } from './studioDraftStore';
 import { svgToDataUrl } from './svgPreview';
 import { deriveBackdrop, parseSvgDoc, scaledBackdrop } from './backdrop';
 import { PROP_LIMITS, duplicateProp } from './propEdit';
 import { checkComposable } from './assetGuard';
-import { uploadStoryAsset, type AssetContentType } from '@/services/assetApi';
+import { uploadStoryAsset, type AssetContentType, type UploadedAsset } from '@/services/assetApi';
 import { toComposeImages, assertPersistable } from './composeImages';
 import { useResolvedAssets } from './useResolvedAssets';
 import {
@@ -42,6 +43,38 @@ import {
 
 /** Where a newly added prop lands. */
 const DROP_IN = { x: 0, z: 1.5 };
+
+/**
+ * Best-effort display derivative for an already-compressed upload blob.
+ *
+ * Re-decodes the blob (createImageBitmap is the same decode route
+ * `imageUpload.ts` uses) and shrinks it to the rasterizer's budget via
+ * `downscaleToWebp`. Exported (rather than inlined in `onUpload`) so the two
+ * branches it must get right — an oversized source producing bytes, an
+ * undersized one correctly yielding null rather than an error — are pinned
+ * directly, without needing to exercise real canvas encoding.
+ *
+ * Never throws: a decode or encode failure here must not fail the surrounding
+ * upload. `null` covers both "already within the cap" (the normal case for a
+ * small image) and "could not be produced" — `uploadStoryAsset` treats both
+ * identically as "no derivative", and the resolver already falls back to
+ * full.webp.
+ *
+ * @param blob — The processed (already-compressed) upload payload.
+ * @returns WebP bytes capped at {@link RASTER_LONGEST_AXIS}, or null.
+ */
+export async function buildDisplayDerivative(blob: Blob): Promise<Blob | null> {
+  try {
+    const bitmap = await createImageBitmap(blob);
+    try {
+      return await downscaleToWebp(bitmap, RASTER_LONGEST_AXIS);
+    } finally {
+      bitmap.close();
+    }
+  } catch {
+    return null;
+  }
+}
 
 interface StageEditorProps {
   /** Index of the frame being staged. */
@@ -134,26 +167,34 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
       // original file.
       const blob = await (await fetch(processed.dataUrl)).blob();
 
-      let assetId: string;
+      // Best-effort display derivative. Deliberately outside the upload
+      // try/catch below — buildDisplayDerivative never throws, but even if
+      // it did, a derivative problem must never surface as an upload failure.
+      const derivative = await buildDisplayDerivative(blob);
+
+      let uploaded: UploadedAsset;
       try {
         // checkComposable above refuses every GIF, so processed.mimeType is
         // always 'image/webp' (see processImage) by the time we get here —
         // the only member of AssetContentType.
-        assetId = await uploadStoryAsset(blob, processed.mimeType as AssetContentType);
+        uploaded = await uploadStoryAsset(blob, processed.mimeType as AssetContentType, derivative);
       } catch (err) {
         setUploadError(err instanceof Error ? err.message : 'Upload failed. Check your connection.');
         return;
       }
 
-      // The document records only the content address. No bytes ever reach
-      // the draft, which is what keeps it inside the localStorage budget.
-      // addAsset resolves any filename collision itself and returns the
-      // alias it actually used.
-      const alias = addAsset(processed.originalName, {
-        assetId,
+      // The document records only content addresses. No bytes ever reach the
+      // draft, which is what keeps it inside the localStorage budget. Both ids
+      // are recorded: the derivative is a separate asset with its own address,
+      // so without r1024Id nothing could ever find it. addAsset resolves any
+      // filename collision itself and returns the alias it actually used.
+      const ref: StoryAssetRef = {
+        assetId: uploaded.assetId,
         aspect: processed.width / processed.height,
         name: processed.originalName,
-      });
+      };
+      if (uploaded.r1024Id !== undefined) ref.r1024Id = uploaded.r1024Id;
+      const alias = addAsset(processed.originalName, ref);
       // Size it so the image's real proportions read at a sensible scale.
       setLocal((list) => [...list, { t: 'img', k: alias, ...DROP_IN, h: 1.8, f: false, e: 0 }]);
       setSelected(props.length);

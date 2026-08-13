@@ -1,9 +1,21 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import React from 'react';
-import { StageEditor } from './StageEditor';
+import { StageEditor, buildDisplayDerivative } from './StageEditor';
 import { useStudioDraft } from './studioDraftStore';
 import { PROP_LIBRARY } from '@/story/props/library';
+import { downscaleToWebp } from '@/utils/imageUpload';
+import { RASTER_LONGEST_AXIS } from '@/story/assetStorage';
+
+// downscaleToWebp does real canvas encoding — not available in happy-dom, and
+// not what these tests are pinning. What matters here is the WIRING: that
+// buildDisplayDerivative decodes via createImageBitmap, calls downscaleToWebp
+// with RASTER_LONGEST_AXIS, releases the bitmap, and never lets a decode or
+// encode failure escape as a thrown error.
+vi.mock('@/utils/imageUpload', async () => {
+  const actual = await vi.importActual<typeof import('@/utils/imageUpload')>('@/utils/imageUpload');
+  return { ...actual, downscaleToWebp: vi.fn() };
+});
 
 /**
  * Crash-on-mount coverage for the stage editor's chrome.
@@ -54,5 +66,69 @@ describe('StageEditor', () => {
     const thumbs = html.match(/data:image\/svg\+xml/g) ?? [];
     // One per library prop, plus the camera view's composed preview.
     expect(thumbs.length).toBeGreaterThanOrEqual(Object.keys(PROP_LIBRARY).length);
+  });
+});
+
+// This is the step onUpload calls before uploadStoryAsset — see task 4's
+// "wire it up" fix. uploadStoryAsset's own handling of a provided/omitted
+// derivative is covered in src/services/assetApi.test.ts; what's pinned here
+// is that StageEditor actually produces one (or correctly doesn't) rather
+// than the parameter sitting unused.
+describe('buildDisplayDerivative', () => {
+  const blob = () => new Blob([new Uint8Array([1, 2, 3])], { type: 'image/webp' });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.mocked(downscaleToWebp).mockReset();
+  });
+
+  it('generates and returns bytes for an oversized source', async () => {
+    const bitmap = { close: vi.fn() };
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => bitmap));
+    const derivativeBlob = new Blob([new Uint8Array([9, 9])], { type: 'image/webp' });
+    vi.mocked(downscaleToWebp).mockResolvedValue(derivativeBlob);
+
+    const result = await buildDisplayDerivative(blob());
+
+    expect(result).toBe(derivativeBlob);
+    // The cap has one home: RASTER_LONGEST_AXIS, not a repeated literal.
+    expect(downscaleToWebp).toHaveBeenCalledWith(bitmap, RASTER_LONGEST_AXIS);
+    // The bitmap is released once downscaleToWebp is done with it.
+    expect(bitmap.close).toHaveBeenCalledTimes(1);
+  });
+
+  // downscaleToWebp returning null means "already within the cap" — the
+  // normal case for a small image, not an error. uploadStoryAsset treats
+  // this identically to no derivative being passed at all (see
+  // assetApi.test.ts: "skips the derivative step entirely when none is
+  // passed"), so together these pin that an undersized source still uploads
+  // successfully, just without a derivative riding along.
+  it('returns null for an undersized source instead of an error', async () => {
+    const bitmap = { close: vi.fn() };
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => bitmap));
+    vi.mocked(downscaleToWebp).mockResolvedValue(null);
+
+    await expect(buildDisplayDerivative(blob())).resolves.toBeNull();
+    expect(bitmap.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('swallows a decode failure — returns null rather than throwing', async () => {
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => {
+        throw new Error('decode failed');
+      }),
+    );
+    await expect(buildDisplayDerivative(blob())).resolves.toBeNull();
+  });
+
+  it('swallows a downscale failure — returns null rather than throwing', async () => {
+    const bitmap = { close: vi.fn() };
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => bitmap));
+    vi.mocked(downscaleToWebp).mockRejectedValue(new Error('encode failed'));
+
+    await expect(buildDisplayDerivative(blob())).resolves.toBeNull();
+    // Still released even though downscaleToWebp rejected.
+    expect(bitmap.close).toHaveBeenCalledTimes(1);
   });
 });

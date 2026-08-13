@@ -15,11 +15,25 @@
  * in one frame is recoverable; a rejected promise on the render path is not.
  */
 
-import { isAssetRef, type StoryAsset } from './storyDoc';
+import { isAssetRef, type StoryAsset, type StoryAssetRef } from './storyDoc';
 import { TRANSPARENT_PIXEL } from './artTokens';
+import { assetKey } from './assetStorage';
 
 /** Origin serving `assets/`. Empty means same-origin, which is the default. */
 const ASSET_BASE_URL: string = import.meta.env.VITE_ASSET_BASE_URL || '';
+
+/**
+ * Whether an origin for `assets/` has been configured at build time.
+ *
+ * Exported so the studio can say so before an operator walks away: unset, every
+ * uploaded image in every published story renders as a transparent gap, and the
+ * only other signal is one console.warn nobody is looking at.
+ *
+ * @returns True when VITE_ASSET_BASE_URL was set for this build.
+ */
+export function isAssetHostConfigured(): boolean {
+  return ASSET_BASE_URL !== '';
+}
 
 /**
  * Whether the one-time "unset asset base URL" warning has already fired.
@@ -71,14 +85,33 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 }
 
 /**
+ * The id whose bytes this reference would rather have.
+ *
+ * The derivative is preferred because every hydrated byte inflates the `data:`
+ * URL assigned to img.src, which is the one device limit this design carries
+ * unquantified. It doubles as the cache key: two references wanting the same
+ * bytes want the same id.
+ *
+ * @param asset — A v4 reference.
+ * @returns `r1024Id` when the reference carries one, else `assetId`.
+ */
+function preferredId(asset: StoryAssetRef): string {
+  return asset.r1024Id ?? asset.assetId;
+}
+
+/**
  * Fetches one asset's bytes and encodes them inline.
  *
- * @param assetId — 64-hex content address, already validated by the document
- *   validator. Interpolated into a path, never into a host.
+ * Both ids are 64-hex content addresses already validated by the document
+ * validator, and are interpolated into a path, never into a host.
+ *
+ * @param asset — The reference to resolve. Its derivative is tried first; a
+ *   non-2xx or a network failure falls through to the canonical bytes, which
+ *   is also what a pre-derivative asset looks like.
  * @returns The bytes as a `data:` URL, or {@link TRANSPARENT_PIXEL} on any
- *   failure.
+ *   failure. Never rejects.
  */
-async function fetchAsDataUrl(assetId: string): Promise<string> {
+async function fetchAsDataUrl(asset: StoryAssetRef): Promise<string> {
   if (ASSET_BASE_URL === '' && !warnedUnsetBaseUrl) {
     warnedUnsetBaseUrl = true;
     // Not fatal — the fetch below still runs same-origin — but it will 404 in
@@ -91,13 +124,22 @@ async function fetchAsDataUrl(assetId: string): Promise<string> {
     );
   }
   const base = ASSET_BASE_URL.replace(/\/$/, '');
-  try {
-    const res = await fetch(`${base}/assets/${assetId}/full.webp`, { credentials: 'omit' });
-    if (!res.ok) return TRANSPARENT_PIXEL;
-    return await blobToDataUrl(await res.blob());
-  } catch {
-    return TRANSPARENT_PIXEL;
+  // Prefer the display derivative; fall back to the canonical bytes so an
+  // asset with no derivative — or one whose derivative never landed — still
+  // resolves. A failure on one tries the next rather than giving up
+  // immediately; only exhausting both falls through to the transparent pixel.
+  const candidates =
+    asset.r1024Id === undefined ? [asset.assetId] : [asset.r1024Id, asset.assetId];
+  for (const id of candidates) {
+    try {
+      const res = await fetch(`${base}/${assetKey(id)}`, { credentials: 'omit' });
+      if (!res.ok) continue;
+      return await blobToDataUrl(await res.blob());
+    } catch {
+      // Try the next candidate; a transparent pixel is the last resort only.
+    }
   }
+  return TRANSPARENT_PIXEL;
 }
 
 /**
@@ -112,7 +154,7 @@ export async function resolveAssets(
 ): Promise<Map<string, string>> {
   const out = new Map<string, string>();
 
-  // Fetch each distinct assetId once even when several aliases share it.
+  // Fetch each distinct set of bytes once even when several aliases share it.
   const pending = new Map<string, Promise<string>>();
 
   for (const [alias, asset] of Object.entries(assets)) {
@@ -120,13 +162,13 @@ export async function resolveAssets(
       out.set(alias, asset.href);
       continue;
     }
-    const { assetId } = asset;
-    const cached = cache.get(assetId);
+    const id = preferredId(asset);
+    const cached = cache.get(id);
     if (cached !== undefined) {
       out.set(alias, cached);
       continue;
     }
-    if (!pending.has(assetId)) pending.set(assetId, fetchAsDataUrl(assetId));
+    if (!pending.has(id)) pending.set(id, fetchAsDataUrl(asset));
   }
 
   const ids = [...pending.keys()];
@@ -137,8 +179,9 @@ export async function resolveAssets(
 
   for (const [alias, asset] of Object.entries(assets)) {
     if (!isAssetRef(asset) || out.has(alias)) continue;
-    const i = ids.indexOf(asset.assetId);
-    out.set(alias, i >= 0 ? results[i] : (cache.get(asset.assetId) ?? TRANSPARENT_PIXEL));
+    const id = preferredId(asset);
+    const i = ids.indexOf(id);
+    out.set(alias, i >= 0 ? results[i] : (cache.get(id) ?? TRANSPARENT_PIXEL));
   }
 
   return out;

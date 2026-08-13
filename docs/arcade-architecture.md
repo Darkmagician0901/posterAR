@@ -47,7 +47,7 @@ Everything settled, in one place.
 | **Asset identity** | Content-addressed: `assetId` = SHA-256 of the stored bytes |
 | **Assets in documents** | Opaque id only. Never a URL, never bytes (§6.2) |
 | **Marker cardinality** | Schema supports many; v1 runtime resolves one |
-| **Animated GIFs in frame art** | Refused. The existing GIF poster pipeline is untouched (§9.4) |
+| **GIFs in frame art** | Refused entirely — the upload allowlist is `image/webp` only. The GIF poster pipeline is untouched (§9.4) |
 | **Undo** | Snapshots retained. Event sourcing solves a problem this design deletes |
 | **Read authorization** | None. Published exhibits are public by design (§10) |
 | **Build order** | Storage first; marker device-verification in parallel; anchoring last |
@@ -83,7 +83,7 @@ unauthenticated by design."*
 ┌── S3  (the whole storage layer) ──────────────────────────────────┐
 │  stories/<id>.json          mutable at a stable key · 60 s TTL    │
 │  assets/<sha256>/full.webp  immutable · cached indefinitely       │
-│  assets/<sha256>/r1024.webp immutable · the display derivative    │
+│    (a display derivative is an ORDINARY asset at its own address) │
 │  markers/<id>/target.json   immutable · fingerprint               │
 │  markers/<id>/luminance.png immutable · what the tracker matches  │
 │  tmp/                       scratch · expires after 90 days       │
@@ -267,6 +267,16 @@ interface StoryAssetRef {
   assetId: string;   // /^[a-f0-9]{64}$/ — enforced by the validator
   aspect: number;
   name?: string;
+  /**
+   * Optional display derivative — the same image re-encoded at the
+   * rasterizer's budget, stored as an ORDINARY asset under its OWN content
+   * address. Same 64-hex validation as assetId; dropped if it fails.
+   *
+   * It is deliberately not a "variant" living beside the parent. An earlier
+   * draft put it at assets/<parentSha>/r1024.webp, which created an empty,
+   * publicly-writable slot beside every asset — see §11.
+   */
+  r1024Id?: string;
 }
 
 /** v3: retained so documents published before the move still render. */
@@ -347,7 +357,6 @@ dispatch would not.
 |---|---|---|---|
 | `stories/<id>.json` | **mutable at a stable key** | `public, max-age=60, must-revalidate` | permanent |
 | `assets/<sha>/full.webp` | immutable by construction | `public, max-age=31536000, immutable` | GC by reachability |
-| `assets/<sha>/r1024.webp` | immutable by construction | `public, max-age=31536000, immutable` | GC by reachability |
 | `markers/<id>/target.json` | immutable per marker | `public, max-age=31536000, immutable` | permanent |
 | `markers/<id>/luminance.png` | immutable per marker | `public, max-age=31536000, immutable` | permanent |
 | `tmp/` | scratch | `no-store` | 90 days |
@@ -370,16 +379,29 @@ or write-once, which is what makes `immutable` safe.
 4. **Republishing is safe mid-visit.** A visitor already holding resolved
    assets keeps valid ones, because an address never changes meaning.
 
-### 7.3 Upload integrity
+### 7.3 Upload integrity — every address is self-enforcing
 
-The client hashes before upload, so the presigned PUT binds two headers, both
-**signed** — a client that drops or alters one gets a signature mismatch, not a
-silent success:
+Three mechanisms, and they only work together.
+
+**The server cross-checks the claimed address against the claimed checksum.**
+`api/story-assets.ts` rejects any request where `sha256Base64` is not the base64
+of `sha256`. This is the load-bearing one: a caller can only obtain a presign
+for bytes that genuinely hash to the key being written, so an address can never
+be claimed for content that does not belong to it.
+
+**Two signed headers on the presigned PUT** — a client that drops or alters
+either gets a signature mismatch, not a silent success:
 
 | Header | Purpose |
 |---|---|
 | `If-None-Match: *` | Conditional write. A concurrent upload of identical bytes cannot clobber a completed object; S3 answers **412**, which the client treats as a successful dedup |
-| `x-amz-checksum-sha256` | Integrity. Without it a dishonest client could store bytes X under the key `SHA256(Y)` — and because dedup is **global**, that would poison the address for every story |
+| `x-amz-checksum-sha256` | S3 itself verifies the bytes against the digest, so the address cannot be claimed for other content |
+
+Note this is a *narrowing* of an earlier design. The upload allowlist is
+**`image/webp` only** — not webp/gif/png/jpeg — because the reader derives the
+key from a single `assetKey()` builder and any second extension would produce a
+key nothing reads. That divergence was a real defect twice; the single builder
+is now the structural fix.
 
 ### 7.4 Garbage collection
 
@@ -488,7 +510,7 @@ operator drops an image
       ▼  validateAndProcessImage — WebP, ≤2048 px, ≤2 MB (GIFs kept as GIFs)
 canonical bytes
       │
-      ▼  checkComposable — refuses animated GIFs (§9.4)
+      ▼  checkComposable — refuses GIFs (§9.4)
       │
       ▼  sha256Hex(bytes)                       [secure context: already required]
   assetId
@@ -551,7 +573,7 @@ PutObject stories/<id>.json    Cache-Control: public, max-age=60, must-revalidat
 validateStoryDoc()
       │
       ▼  collectAssetRefs over every frame → unique assetIds
-      ▼  for each: GET assets/<sha>/r1024.webp  (404 ⇒ full.webp)
+      ▼  for each: GET assets/<r1024Id or assetId>/full.webp  (404 ⇒ assetId)
       │     blob → FileReader.readAsDataURL
       │     bounded LRU cache — N frames sharing an asset cost ONE fetch
       ▼
@@ -718,7 +740,8 @@ tracking and blame the software.
 | Concern | Position |
 |---|---|
 | Off-origin references in published art | **Structurally impossible** — §6.2 |
-| Content-address poisoning | Prevented by signed `x-amz-checksum-sha256` — §7.3 |
+| Content-address poisoning | **Structurally impossible** — the server rejects a checksum that is not the base64 of the claimed address, so bytes can only be written to the key they hash to (§7.3) |
+| Asset upload authorization | **None.** The presign endpoint is unauthenticated. With the address self-enforcing there is no defacement path — a caller can only mint *new* objects at unguessable content addresses, never overwrite. What remains is cost/abuse: creation is unrate-limited, and no reclaim shell is built (§7.4). **Open follow-up.** |
 | Stored XSS via upload | Content-type allowlist; `image/svg+xml` deliberately excluded, since an SVG served from the bucket origin is active content |
 | Publish authorization | Bearer shared secret, `timingSafeEqual`, in-memory rate limit |
 | `/studio` route gate | **UX only, not a security control** |

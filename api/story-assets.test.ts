@@ -1,4 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { hexToBase64 } from '../src/story/assetHash';
+import { assetKey } from '../src/story/assetStorage';
 
 const present = new Set<string>();
 const presigned: string[] = [];
@@ -25,7 +27,10 @@ const SHA = 'a'.repeat(64);
 
 const body = {
   sha256: SHA,
-  sha256Base64: 'qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqo=',
+  // Derived, never a literal: the endpoint now requires this to be exactly the
+  // base64 form of `sha256`, so a hand-copied constant here would be pinning a
+  // second, drifting definition of the same value.
+  sha256Base64: hexToBase64(SHA),
   contentType: 'image/webp',
 };
 
@@ -53,7 +58,7 @@ describe('POST /api/story-assets', () => {
     expect(res.status).toBe(201);
     const json = await res.json();
     expect(json.exists).toBe(false);
-    expect(json.uploadUrl).toContain(`assets/${SHA}/full.webp`);
+    expect(json.uploadUrl).toContain(assetKey(SHA));
     expect(json.requiredHeaders['If-None-Match']).toBe('*');
     expect(json.requiredHeaders['x-amz-checksum-sha256']).toBe(body.sha256Base64);
   });
@@ -61,7 +66,7 @@ describe('POST /api/story-assets', () => {
   // The dedup win: the bytes are already stored, so there is nothing to upload
   // and — with no database — nothing to record either.
   it('reports a dedup hit without presigning anything', async () => {
-    present.add(`assets/${SHA}/full.webp`);
+    present.add(assetKey(SHA));
     const res = await post(body);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ exists: true });
@@ -94,10 +99,10 @@ describe('POST /api/story-assets', () => {
   // URL must target exactly the key the reader will later request. A
   // divergence here (e.g. a reintroduced per-type extension) fails this
   // assertion instead of going silent behind a 404 -> transparent pixel.
-  it('presigns a key at exactly assets/<sha256>/full.webp', async () => {
+  it('presigns exactly the key the shared builder produces', async () => {
     const res = await post(body);
     const json = await res.json();
-    const expectedKey = `assets/${SHA}/full.webp`;
+    const expectedKey = assetKey(SHA);
     expect(presigned).toEqual([expectedKey]);
     expect(json.uploadUrl).toBe(`https://store.example/${expectedKey}?X-Amz-Signature=abc`);
   });
@@ -116,5 +121,51 @@ describe('POST /api/story-assets', () => {
     const { default: handler } = await import('./story-assets');
     const res = await handler(new Request('https://x/api/story-assets', { method: 'GET' }));
     expect(res.status).toBe(405);
+  });
+});
+
+/**
+ * The security property this endpoint rests on, pinned directly.
+ *
+ * The endpoint is unauthenticated by design, so the ONLY thing standing between
+ * a public assetId and a permanent overwrite of that asset is the requirement
+ * that the checksum S3 will enforce matches the address being written. Without
+ * it, the attack is: read any public stories/<id>.json, take an assetId, ask
+ * for a presign naming that id with the digest of your OWN image, and upload.
+ * `If-None-Match: '*'` plus an immutable cache directive makes the result
+ * unfixable by re-uploading the real bytes.
+ */
+describe('POST /api/story-assets — the checksum must match the address', () => {
+  const ATTACKER_BYTES_DIGEST = hexToBase64('b'.repeat(64));
+
+  it('rejects a sha256Base64 that is not the base64 form of sha256', async () => {
+    const res = await post({ ...body, sha256Base64: ATTACKER_BYTES_DIGEST });
+    expect(res.status).toBe(400);
+    // Nothing presigned: no write token of any kind is handed out.
+    expect(presigned).toHaveLength(0);
+  });
+
+  it('rejects a well-formed but unrelated base64 digest', async () => {
+    // Right length, right alphabet, wrong bytes — the length check this
+    // replaced accepted exactly this.
+    const res = await post({ ...body, sha256Base64: 'ZGVyaXZhdGl2ZS1oYXNoLWJhc2U2NDAwMDAwMDAwMDA=' });
+    expect(res.status).toBe(400);
+    expect(presigned).toHaveLength(0);
+  });
+
+  it('rejects an empty or non-string sha256Base64', async () => {
+    expect((await post({ ...body, sha256Base64: '' })).status).toBe(400);
+    expect((await post({ ...body, sha256Base64: 42 })).status).toBe(400);
+    expect(presigned).toHaveLength(0);
+  });
+
+  // The variant parameter WAS the hole: it wrote a second key under the
+  // parent's address holding bytes that were, by construction, not the
+  // parent's hash. It must not come back — an unknown field is inert, and the
+  // key must stay the parent's own.
+  it('ignores a leftover variant field rather than honouring it', async () => {
+    const res = await post({ ...body, variant: 'r1024' });
+    expect(res.status).toBe(201);
+    expect(presigned).toEqual([assetKey(SHA)]);
   });
 });

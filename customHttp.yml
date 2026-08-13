@@ -31,8 +31,15 @@ customHeaders:
       #           this blocks xr.js and xr-slam.js at load with "Refused to
       #           connect because it violates the document's Content Security
       #           Policy" — AR never starts, and nothing else looks wrong.
+      #
+      # `data:` belongs in connect-src ONLY. It must never be added to
+      # script-src: that would let any injected `<script src="data:...">`
+      # execute, turning a single HTML-injection bug into arbitrary script
+      # execution. The engine has never asked for it — the only observed
+      # violation was a fetch, which connect-src governs. Widen this on
+      # evidence from a real console error, never pre-emptively.
       - key: 'Content-Security-Policy'
-        value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: blob:; connect-src 'self' https: blob: data:; media-src 'self' blob: data:; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'none'"
+        value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: blob: data:; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'none'"
 
   # Vite fingerprints everything under /assets, so those filenames can never
   # point at different bytes.

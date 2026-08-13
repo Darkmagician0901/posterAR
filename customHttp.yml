@@ -24,10 +24,15 @@ customHeaders:
         value: 'camera=*, microphone=(), geolocation=(), interest-cohort=()'
       - key: 'Strict-Transport-Security'
         value: 'max-age=63072000; includeSubDomains; preload'
-      # connect-src must permit https: so the browser can reach the S3 bucket
-      # for published stories and assets.
+      # connect-src carries three non-obvious requirements:
+      #   https:  so the browser can reach the S3 bucket for stories and assets
+      #   blob:   the engine streams some resources through blob URLs
+      #   data:   the 8th Wall engine fetches its WASM as a data: URL. Omitting
+      #           this blocks xr.js and xr-slam.js at load with "Refused to
+      #           connect because it violates the document's Content Security
+      #           Policy" — AR never starts, and nothing else looks wrong.
       - key: 'Content-Security-Policy'
-        value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: blob:; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'none'"
+        value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: blob:; connect-src 'self' https: blob: data:; media-src 'self' blob: data:; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'none'"
 
   # Vite fingerprints everything under /assets, so those filenames can never
   # point at different bytes.

@@ -24,6 +24,14 @@ customHeaders:
         value: 'camera=*, microphone=(), geolocation=(), interest-cohort=()'
       - key: 'Strict-Transport-Security'
         value: 'max-age=63072000; includeSubDomains; preload'
+      # font-src must name cdn.jsdelivr.net explicitly. 8th Wall's xrextras and
+      # landing-page bundles fetch Nunito (.woff/.ttf) from that CDN, and
+      # allowing the host in script-src does NOT cover fonts — CSP fetch
+      # directives are per resource type. Without it the browser blocks eight
+      # font requests on every page load: 8th Wall's own overlay UI silently
+      # falls back to a system face, and the console noise buries real errors.
+      # Observed 2026-08-13 in DevTools on /studio.
+      #
       # connect-src carries three non-obvious requirements:
       #   https:  so the browser can reach the S3 bucket for stories and assets
       #   blob:   the engine streams some resources through blob URLs
@@ -39,7 +47,7 @@ customHeaders:
       # violation was a fetch, which connect-src governs. Widen this on
       # evidence from a real console error, never pre-emptively.
       - key: 'Content-Security-Policy'
-        value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: blob: data:; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'none'"
+        value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self' https: blob: data:; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'none'"
 
   # Vite fingerprints everything under /assets, so those filenames can never
   # point at different bytes.

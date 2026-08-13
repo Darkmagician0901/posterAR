@@ -60,3 +60,14 @@ docs/superpowers/
 task_plan.md
 findings.md
 progress.md
+
+# Handover and poster source material — circulated directly to the PI and the
+# lab, never through the repo. These carry names, sign-off lines, and
+# print-resolution artwork that have no reason to be in version control.
+# Image patterns are root-anchored so public/ and src/ artwork stays tracked.
+*.docx
+*.doc
+*.pptx
+/*.jpg
+/*.jpeg
+/*.png

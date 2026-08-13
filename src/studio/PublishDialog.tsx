@@ -100,8 +100,12 @@ export const PublishDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
 
   const publish = async (): Promise<void> => {
     setBusy(true);
-    rememberSecret(secret);
     const outcome = await publishStory(doc, id, secret);
+    // Remember the passphrase only once the server has accepted it. Saving it
+    // before the attempt meant a mistyped secret was persisted and pre-filled
+    // on every retry, so the operator kept re-submitting the same wrong value
+    // and the dialog looked broken rather than merely unauthorised.
+    if (outcome.ok) rememberSecret(secret);
     setResult(outcome);
     setBusy(false);
   };

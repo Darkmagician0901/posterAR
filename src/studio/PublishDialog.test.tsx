@@ -28,6 +28,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PublishDialog } from './PublishDialog';
 import { useStudioDraft } from './studioDraftStore';
+import { publishStory } from '@/services/storyApi';
 
 // Scoped to this file only: tells React's `act` it may batch and flush
 // synchronously in this happy-dom environment, suppressing an otherwise
@@ -70,7 +71,67 @@ afterEach(() => {
 describe('PublishDialog', () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
     useStudioDraft.getState().reset();
+  });
+
+  /**
+   * The passphrase was previously saved to sessionStorage *before* the request
+   * went out, so a mistyped one was persisted and pre-filled on every retry.
+   * The operator then resubmitted the same wrong value and read the repeated
+   * "Not authorised." as the pipeline being broken rather than the secret being
+   * wrong — which is exactly how it played out on 2026-08-13.
+   */
+  it('does not remember the passphrase when the server rejects it', async () => {
+    vi.mocked(publishStory).mockResolvedValueOnce({ ok: false, error: 'Not authorised.' });
+
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    act(() => {
+      root!.render(<PublishDialog onClose={() => {}} />);
+    });
+
+    const secretInput = container.querySelector<HTMLInputElement>('#st-pub-secret')!;
+    act(() => setInputValue(secretInput, 'wrong-passphrase'));
+
+    const publishBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('PUBLISH'),
+    )!;
+
+    await act(async () => {
+      publishBtn.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(window.sessionStorage.getItem('arcade.studio.secret')).toBeNull();
+  });
+
+  it('remembers the passphrase once the server accepts it', async () => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    act(() => {
+      root!.render(<PublishDialog onClose={() => {}} />);
+    });
+
+    const secretInput = container.querySelector<HTMLInputElement>('#st-pub-secret')!;
+    act(() => setInputValue(secretInput, 'correct-passphrase'));
+
+    const publishBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('PUBLISH'),
+    )!;
+
+    await act(async () => {
+      publishBtn.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(window.sessionStorage.getItem('arcade.studio.secret')).toBe('correct-passphrase');
   });
 
   it('names STORY_PUBLIC_BASE_URL — and never the studio origin — when the server returns a relative story URL', async () => {

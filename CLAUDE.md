@@ -6,7 +6,7 @@ Quick reference for Claude Code sessions. See README.md / ARCHITECTURE.md / TEST
 
 ```bash
 npm run dev           # Vite dev server — HTTPS, --host (required for camera + 8th Wall)
-npm run test          # vitest run — 405 tests, < 3 s
+npm run test          # vitest run — 407 tests, < 3 s
 npm run test:watch    # vitest interactive watch
 npm run type-check    # tsc --noEmit
 npm run lint          # eslint src server/src
@@ -58,7 +58,11 @@ GIFs are decoded from data: URLs without fetch. `posterTextureCache` releases ac
 - **Screenshots on live AR can be blank.** The XR8 canvas has no `preserveDrawingBuffer`; `canvas.toDataURL()` outside the render loop reads an empty frame. Desktop mock is unaffected.
 - **No move/pinch/twist gestures.** Interaction is tap-to-place + **scale & rotation sliders** (on the auto-selected poster) + delete. The old gesture stack (`@use-gesture/*`) was removed in the 8th Wall migration.
 - **Placed posters are ambient-tinted.** `ambientProbe` samples the camera feed (no native 8th Wall light estimation) and multiplies an approximate room color into each poster's material; posters also honor PNG/GIF alpha. Pure math (`estimateAmbient`) is unit-tested; engine wiring reads `XR8.CameraPixelArray`.
-- **The SPA catch-all rewrite is load-bearing — its ORDER and its STATUS both matter.** Amplify needs `/api/<*>` → the Lambda function URL at status **200**, **above** `/<*>` → `/index.html` at status **404-200**. The two statuses are not interchangeable: `200` rewrites unconditionally, so a `200` catch-all also swallows `/assets/*.js` and every script comes back as `index.html` (observed 2026-08-13 — `/studio` died with a MIME-type error while the root page appeared fine from cache). `404-200` fires only when the path resolves to nothing, so real files still serve as themselves; plain `404` renders the app but reports HTTP 404. Order matters separately: catch-all first swallows every API call and returns `index.html` to a caller expecting JSON. Both rules live in the Amplify console, not in the repo. (The same class of bug bit this project before, via `cleanUrls` on the previous host.)
+- **The SPA rewrite must use AWS's extension-excluding regex, not a bare `/<*>` catch-all.** The working configuration (verified end-to-end 2026-08-13) is exactly two rules, in this order:
+  1. `/api/<*>` → `https://<function-url>/api/<*>` at status **200** — no slash between `.on.aws` and `/api/`, or the router receives `//api/...` and 404s.
+  2. `</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json|webp)$)([^.]+$)/>` → `/index.html` at status **200** — [AWS's documented SPA rule](https://docs.aws.amazon.com/amplify/latest/userguide/redirect-rewrite-examples.html). Keep `webp` in that list; uploaded images are WebP.
+
+  Why not the simpler forms: a bare `/<*>` → `/index.html` at **200** rewrites unconditionally and swallows `/assets/*.js`, so every script returns `index.html` and the app dies with a MIME-type error. At **404-200** it doesn't swallow assets, but extensionless routes still break — Amplify's clean-URL handling runs first, redirecting `/studio` → `/studio/`, looking for `/studio/index.html`, and returning **HTTP 404** with the app's HTML as the body. The regex sidesteps both by matching extensionless paths directly. Order matters separately: the catch-all first swallows every API call and returns `index.html` to a caller expecting JSON. Both rules live in the Amplify console, not in the repo — read them back with `aws amplify get-app --app-id <id> --query "app.customRules"`. (The same class of bug bit this project before, via `cleanUrls` on the previous host.)
 - **A bad deploy poisons `/assets/` URLs for a year, and redeploying does NOT fix it.** `customHttp.yml` marks them `immutable, max-age=31536000` — correct, because Vite hashes filenames by content. But `immutable` tells browsers not to revalidate even on reload, so if the server ever answers one of those URLs with wrong content, that response sticks. Unchanged source rebuilds to the same hash, so the fix requests the same poisoned URL. There is no remote cure for a visitor's phone. **Verify a deploy by content type, not by whether a page appears** — `curl -o /dev/null -w "%{content_type}" <origin>/assets/<hashed>.js` must say `text/javascript` — and do it before sharing the URL or printing a QR code. Locally, Ctrl+Shift+R or DevTools → Application → Clear site data.
 - **The Lambda function URL's auth type must be `NONE`.** `AWS_IAM` is the console default, and Amplify's rewrite cannot SigV4-sign, so the proxy gets `403 {"Message":null}` from the origin. Also: the target must have no slash between the function URL and `/api/`, or the router receives `//api/...` and 404s.
 - **CSP:** `script-src` must allow `https://cdn.jsdelivr.net`. Amplify serves headers from **`customHttp.yml`** — it ignores `public/_headers`, which is retained only for Cloudflare/Docker.
@@ -70,7 +74,7 @@ GIFs are decoded from data: URLs without fetch. `posterTextureCache` releases ac
 
 Stack: **vitest ^4.1.8** + **happy-dom ^20.9.0** (configured in `vitest.config.ts`).
 
-**46 test files, 405 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation, story state, StoryDoc validation, default-story provenance, content store, SVG-texture generation, asset persistence & upload hydration, device-token). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
+**46 test files, 407 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation, story state, StoryDoc validation, default-story provenance, content store, SVG-texture generation, asset persistence & upload hydration, device-token). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
 
 ## Conventions
 

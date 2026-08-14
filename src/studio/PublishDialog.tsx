@@ -246,12 +246,33 @@ export const PublishDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
               className="st-in"
               type="password"
               value={secret}
-              placeholder="Set by whoever configured the project"
+              placeholder="The key already set on the server"
               onChange={(e) => setSecret(e.target.value)}
               autoComplete="off"
+              aria-describedby="st-pub-secret-help"
             />
+            {/*
+              A password-styled box labelled "key" reads as "choose one", and an
+              operator who assumed that lost hours to a working pipeline before
+              realising the value has to match something already on the server.
+              Say so on the screen rather than leaving it to be inferred.
+            */}
+            <div className="st-hintline" id="st-pub-secret-help">
+              This isn&rsquo;t a password you pick here — it has to match the key already set on
+              the server. Ask whoever set the project up.
+            </div>
 
-            {result?.ok === false && <div className="st-warn st-mt">{result.error}</div>}
+            {result?.ok === false && (
+              <div className="st-warn st-mt">
+                {result.error}
+                {result.unauthorised === true && (
+                  <>
+                    {' '}
+                    That key doesn&rsquo;t match the server&rsquo;s, so the field has been cleared.
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="st-modalfoot">
               <button className="st-btn paper" onClick={onClose}>

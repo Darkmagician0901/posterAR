@@ -184,6 +184,62 @@ describe('PublishDialog', () => {
     expect(window.sessionStorage.getItem('arcade.studio.secret')).toBe('good-passphrase');
   });
 
+  /**
+   * The field is a password box labelled "Publish key", which reads as "choose
+   * one". An operator who assumed that spent hours debugging a pipeline that
+   * was working the whole time. The dialog has to say, on screen, that the
+   * value must match something already configured server-side.
+   */
+  it('says on screen that the key is not chosen here', async () => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    act(() => {
+      root!.render(<PublishDialog onClose={() => {}} />);
+    });
+
+    const help = container.querySelector('#st-pub-secret-help');
+    expect(help?.textContent).toMatch(/match the key already set on the server/i);
+
+    // The hint must be announced with the field, not just visually adjacent.
+    const input = container.querySelector<HTMLInputElement>('#st-pub-secret')!;
+    expect(input.getAttribute('aria-describedby')).toBe('st-pub-secret-help');
+  });
+
+  it('explains a rejected key rather than only saying "Not authorised."', async () => {
+    vi.mocked(publishStory).mockResolvedValueOnce({
+      ok: false,
+      error: 'Not authorised.',
+      unauthorised: true,
+    });
+
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    act(() => {
+      root!.render(<PublishDialog onClose={() => {}} />);
+    });
+
+    const secretInput = container.querySelector<HTMLInputElement>('#st-pub-secret')!;
+    act(() => setInputValue(secretInput, 'wrong'));
+
+    const publishBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('PUBLISH'),
+    )!;
+
+    await act(async () => {
+      publishBtn.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const warn = container.querySelector('.st-warn');
+    expect(warn?.textContent).toMatch(/doesn’t match the server’s/);
+    expect(warn?.textContent).toMatch(/cleared/);
+  });
+
   it('remembers the passphrase once the server accepts it', async () => {
     container = document.createElement('div');
     document.body.appendChild(container);

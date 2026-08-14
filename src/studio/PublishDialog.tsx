@@ -46,6 +46,14 @@ function rememberSecret(value: string): void {
   }
 }
 
+function forgetSecret(): void {
+  try {
+    window.sessionStorage.removeItem(SECRET_KEY);
+  } catch {
+    // Same as rememberSecret: an unavailable store is not worth failing on.
+  }
+}
+
 /**
  * The origin the "set VITE_STORY_BASE_URL to..." hint can show — only when
  * the server actually gave us an absolute one.
@@ -101,11 +109,21 @@ export const PublishDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
   const publish = async (): Promise<void> => {
     setBusy(true);
     const outcome = await publishStory(doc, id, secret);
-    // Remember the passphrase only once the server has accepted it. Saving it
-    // before the attempt meant a mistyped secret was persisted and pre-filled
-    // on every retry, so the operator kept re-submitting the same wrong value
-    // and the dialog looked broken rather than merely unauthorised.
-    if (outcome.ok) rememberSecret(secret);
+    // Remember the passphrase only once the server has accepted it, and discard
+    // it the moment the server rejects it.
+    //
+    // The field is pre-filled from sessionStorage, so a wrong passphrase that
+    // was stored once reappears on every subsequent attempt looking exactly
+    // like a correct one. The operator presses PUBLISH, gets "Not authorised."
+    // again, and reasonably concludes the backend is broken — which is how a
+    // fully working pipeline was misdiagnosed for hours on 2026-08-13.
+    // Clearing on 401 makes the empty field itself the signal.
+    if (outcome.ok) {
+      rememberSecret(secret);
+    } else if (outcome.unauthorised) {
+      forgetSecret();
+      setSecret('');
+    }
     setResult(outcome);
     setBusy(false);
   };

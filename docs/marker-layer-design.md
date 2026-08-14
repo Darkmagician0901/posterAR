@@ -81,6 +81,7 @@ Two consequences follow, and they shape everything below:
 | **Fingerprint generation** | **Client-side canvas** in Studio, a port of the CLI's PLANAR path | §4 |
 | **Concurrency** | **One story live at a time**, selected by the marker you are looking at | §6.2 |
 | **Marker identity** | Content-addressed: `markerId = SHA-256(luminance bytes)` | §3.3 |
+| **Marker storage** | `markers/<sha>.png`, every object under **its own** hash. No stored `target.json` — the viewer synthesizes it | §3.4, §3.5 |
 | **Anchor mode** | `follow` in v1. `latch` stays in the type, unbuilt | §5.2 |
 
 ### The one decision that would invalidate rather than extend this
@@ -143,12 +144,21 @@ Adopted from `arcade-architecture.md` §6.4, narrowed to what v1 builds:
 ```ts
 interface StoryAnchor {
   type: 'marker';
+  /** SHA-256 of the luminance PNG — the image the tracker matches. */
   markerId: string;          // ASSET_ID_RE — /^[a-f0-9]{64}$/
+  /** SHA-256 of the thumbnail PNG, addressed on its own bytes (§3.4). */
+  thumbId: string;           // ASSET_ID_RE
+  /** The CLI's `properties` block; feeds the synthesized target (§3.5). */
+  crop: MarkerCrop;
   local: LocalTransform;     // identity in v1
   widthInMarkers: 1;
   mode: 'follow';
 }
 ```
+
+`crop` is the `MarkerCrop` produced by `src/markers/markerCrop.ts` — the CLI's
+crop rectangle plus `isRotated`, `originalWidth` and `originalHeight`. It lives
+in the story rather than in a stored file for the reason §3.4 gives.
 
 Absent ⇒ today's tap-to-place ground hit-test, unchanged. The five-era landscape
 story has no anchor and is untouched by every part of this design.
@@ -167,9 +177,29 @@ would make offset placement a schema migration instead of a UI addition.
 
 | Key | Contents |
 |---|---|
-| `markers/<markerId>/target.json` | The fingerprint document |
-| `markers/<markerId>/luminance.png` | 480×640 grayscale — what the tracker matches |
-| `markers/<markerId>/thumbnail.png` | 263×350 — Studio library and the viewer's scan hint |
+| `markers/<markerId>.png` | 480×640 grayscale — what the tracker matches |
+| `markers/<thumbId>.png` | 263×350 — Studio library and the viewer's scan hint |
+
+**Every stored object is addressed by the hash of its own bytes, and there is
+no stored `target.json`.**
+
+That is not a stylistic choice. `api/story-assets.ts` is unauthenticated, and
+its entire safety model is that the key is derived server-side from the
+submitted digest, which is then bound into a *signed* `x-amz-checksum-sha256`
+header — so a caller can only ever write bytes that match their own address.
+Grouping a marker's files under `markers/<markerId>/` would put a thumbnail and
+a JSON document at addresses derived from a *different* object's hash. Nothing
+could verify those bytes, and with `If-None-Match: *` making writes first-come,
+an unauthenticated caller could squat them ahead of the operator.
+
+The codebase has already met this problem and already solved it: `r1024Id` is a
+second content address rather than a slot under its parent's, for exactly this
+reason — see the comment in `src/story/assetApi.ts`. This design follows that
+precedent instead of re-opening the hole.
+
+A poisoned `target.json` would be the worst of the three, because
+`resolveImagePath` deliberately leaves absolute URLs alone, so an
+attacker-chosen `imagePath` would reach the engine untouched.
 
 `markerId = SHA-256(luminance bytes)` — the same content addressing assets use
 (`arcade-architecture.md` §7.2), buying the same four things: automatic dedup,
@@ -186,23 +216,49 @@ reads them — the tracker uses the luminance image and the UI uses the thumbnai
 — and keeping the operator's full-resolution original in a public bucket is a
 cost with no benefit.
 
-Three details of the stored document differ from what the CLI writes to disk,
-all of them consequences of the storage layout rather than changes to the
-format:
+### 3.5 The synthesized target.json
 
+The fingerprint document is **built on the client at load time** rather than
+stored. Everything in it is either a constant, derivable from the `markerId`, or
+carried by `StoryAnchor.crop`:
+
+```ts
+function markerTargetData(anchor: StoryAnchor): ImageTargetData {
+  return {
+    imagePath: `/image-targets/${anchor.markerId}.png`,   // page-relative — §9
+    metadata: null,
+    name: anchor.markerId,
+    type: 'PLANAR',
+    properties: anchor.crop,
+    resources: { luminanceImage: `${anchor.markerId}.png` },
+    created: 0,
+    updated: 0,
+  };
+}
+```
+
+Three things follow, and each one removes a failure mode rather than adding a
+capability:
+
+- **There is no unverifiable object to poison.** The document is constructed
+  from a story that already passed `validateStoryDoc`, so `imagePath` is built
+  from a value that matched `ASSET_ID_RE` and cannot name a host.
+- **`name` is the `markerId`.** `imagefound` events carry `name`, so a
+  detection keys into §3.2's map directly — no second lookup, and two markers
+  cannot collide on a human-chosen label. The operator's own name for a marker
+  is Studio-side metadata that never reaches the engine.
 - **Both images are PNG**, whatever the source photo was. The CLI mirrors the
-  source extension (`_luminance.jpg` for a JPEG input); a fixed key is simpler
-  to address and lossless is the right choice for an image the tracker matches
-  against. `resources` names the `.png` files consistently.
-- **`imagePath` is stored bare** as `luminance.png`. The existing
-  `resolveImagePath(target, dir)` then prefixes the directory at load time,
-  yielding `/image-targets/<markerId>/luminance.png` — which is exactly the
-  page-relative form §9 requires.
-- **`name` is set to the `markerId`.** `imagefound` events carry `name`, so
-  making it the marker's content address means a detection resolves through the
-  §3.2 map directly, with no second lookup and no chance of two markers sharing
-  a human-chosen name. The operator's own label for a marker is Studio-side
-  metadata and never reaches the engine.
+  source extension; a fixed extension makes the key derivable from the hash
+  alone, and lossless is the right choice for an image the tracker matches
+  against.
+
+`created` and `updated` are zeroed because nothing reads them and a wall-clock
+value would make the derived document differ between loads for no reason.
+
+Both `resolveImagePath` and the manifest-loading half of
+`src/xr8/imageTargetData.ts` become unnecessary on this path — the marker
+testbed's manifest flow stays as it is for `?mode=marker`, and the viewer
+synthesizes instead.
 
 ---
 
@@ -242,11 +298,33 @@ unchanged either way, so nothing downstream moves.
 
 ### 4.3 Upload
 
-Three `PUT`s through the **existing** presign flow in `api/story-assets.ts`,
-with no endpoint changes: the client hashes first, and the signed
-`If-None-Match: *` and `x-amz-checksum-sha256` headers apply exactly as they do
-for story assets. A 412 means a marker with identical bytes already exists,
-which is a successful dedup, not an error.
+Two `PUT`s — luminance and thumbnail — through the presign flow in
+`api/story-assets.ts`, which needs **one narrow extension**:
+
+```ts
+// request gains an optional discriminator; absent ⇒ 'asset', so every
+// existing caller is unaffected.
+kind?: 'asset' | 'marker'
+```
+
+| | `kind: 'asset'` (today) | `kind: 'marker'` |
+|---|---|---|
+| Accepted type | `image/webp` | `image/png` |
+| Key | `assetKey(sha)` → `assets/<sha>/full.webp` | `markerKey(sha)` → `markers/<sha>.png` |
+
+The key stays **derived server-side from the submitted digest**, so the property
+that makes this endpoint safe to leave unauthenticated is preserved exactly:
+a caller can still only write bytes that match their own address. The client
+hashes first, and the signed `If-None-Match: *` and `x-amz-checksum-sha256`
+headers apply unchanged. A 412 means an identical marker already exists, which
+is a successful dedup, not an error.
+
+A separate prefix rather than a separate endpoint, because the logic is
+identical apart from two lookups — and a separate prefix rather than reusing
+`assets/`, because §7.4's garbage collector derives reachability from
+`doc.assets` alone. Marker ids live in `doc.anchor`, so markers stored under
+`assets/` would read as unreachable and be deleted after the grace period.
+Keeping them under `markers/` means the GC never sees them and needs no change.
 
 ---
 
@@ -311,11 +389,12 @@ never moved while its marker is out of view.**
       │
       ▼  for each storyId: GET stories/<storyId>.json   (KB each)
       ▼  collect anchor.markerId  →  Map<markerId, storyId>
-      │        (target.json's `name` IS the markerId — §3.4 — so an
-      │         imagefound event keys into this map directly)
+      │        (the synthesized target's `name` IS the markerId — §3.5 —
+      │         so an imagefound event keys into this map directly)
       │
-      ▼  for each markerId: GET /image-targets/<markerId>/target.json   (§9)
-      ▼  resolveImagePath → /image-targets/<markerId>/luminance.png
+      ▼  for each anchor: markerTargetData(anchor)      ← synthesized, §3.5
+      │        no fetch — the engine loads /image-targets/<markerId>.png
+      │        itself, same-origin via the §9 rewrite
       │
       ▼  XR8.XrController.configure({
            disableWorldTracking: false,
@@ -408,7 +487,8 @@ on a visitor's device must be caught at **publish** time instead.
 | More than 10 stories | **422**, naming the engine's simultaneous-target cap |
 | Two stories bound to the same `markerId` | **422.** One picture cannot mean two things |
 | `markerId` fails `ASSET_ID_RE` | **422** |
-| `markers/<id>/target.json` missing (`HeadObject`) | **422.** The marker was never uploaded |
+| `markers/<markerId>.png` missing (`HeadObject`) | **422.** The marker was never uploaded |
+| `crop` missing or failing `validateCrop` | **422.** The synthesized target would be malformed |
 
 **At runtime:**
 
@@ -416,7 +496,7 @@ on a visitor's device must be caught at **publish** time instead.
 |---|---|
 | Exhibit fetch fails | Bundled factory story — the existing fallback for every load path |
 | One story of several fails | Skip that entry, configure the rest, note it in telemetry |
-| One `target.json` fails | That picture is inert; the others still track. Surfaced in the HUD |
+| One marker's luminance PNG 404s | That picture is inert; the others still track. Surfaced in the HUD |
 | No marker detected | Scan prompt persists, showing thumbnails as hints |
 | `trackingstatus` → `LIMITED` | Existing HUD treatment, unchanged |
 
@@ -434,9 +514,14 @@ served from Amplify and content from the S3/CloudFront origin, so
 `VITE_STORY_BASE_URL` and `VITE_ASSET_BASE_URL` are still set and marker files
 are still cross-origin.
 
-So the viewer must request a **same-origin** `/image-targets/<markerId>/…` path,
-and Amplify app `d114nr20m4npww` needs a rewrite mapping that prefix to the
-content distribution, ordered **before** the SPA catch-all.
+So the viewer must request a **same-origin** `/image-targets/<markerId>.png`
+path, and Amplify app `d114nr20m4npww` needs a rewrite mapping
+`/image-targets/<path>` to `markers/<path>` on the content distribution, ordered
+**before** the SPA catch-all.
+
+Note this rewrite serves only the luminance **image**. There is no
+`target.json` to fetch (§3.5), so the undocumented-path question applies to
+exactly one file per marker.
 
 This is an ops item, not a code item, and it is **not yet written**: the real
 distribution domain has to be read back from the account first. It is listed in
@@ -472,9 +557,18 @@ these quantities and needs no changes to serve this purpose.
   Nothing in the storage layout prevents adding them.
 - **Ten markers per exhibit**, from the engine's cap. Splitting a larger room
   into several exhibits works today; loading marker sets by proximity does not.
-- **No marker deletion.** Markers are content-addressed and immutable like
-  assets, and fall under the same reachability GC (`arcade-architecture.md`
-  §7.4) once that derives from exhibits as well as stories.
+- **No marker deletion.** Markers are content-addressed and immutable, and sit
+  outside the asset GC's prefix entirely (§4.3), so nothing collects them. At
+  a few kilobytes each that is the right trade for now.
+- **The marker library is per-device until a marker is bound.** A marker's
+  metadata — its `crop` and `thumbId` — lives in `StoryAnchor` (§3.3), so a
+  marker uploaded but not yet attached to a story is recorded only in the
+  Studio's `localStorage` draft. Its bytes are safely in S3 and its id is
+  recoverable by re-uploading the same crop of the same photo, which
+  content addressing makes deterministic — but the library will not follow the
+  operator to a second browser until the story is saved. A published
+  `markers/index.json` would fix it and is deliberately not built, because it
+  reintroduces a mutable document that can disagree with the stories.
 - **Read authorization stays absent.** An exhibit is as public as a story.
 
 ---

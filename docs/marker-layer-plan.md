@@ -1118,7 +1118,7 @@ export function addToLibrary(
 - [ ] **Step 4: Run and watch it pass**
 
 Run: `npx vitest run src/studio/markerLibrary.test.ts`
-Expected: PASS, 9 tests.
+Expected: PASS, 7 tests.
 
 - [ ] **Step 5: Verify and commit**
 

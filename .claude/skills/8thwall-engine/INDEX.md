@@ -91,7 +91,7 @@ Source: https://www.8thwall.com/docs/api/engine/api/engine/xr8/addcamerapipeline
 Source: https://www.8thwall.com/docs/api/engine/api/engine/threejs  ·  `reference/threejs.md`
 
 - `pipelineModule(): CameraPipelineModule` → `reference/threejs.md` L16-38 — 2 in-repo uses: src/xr8/pipeline.ts:246, src/xr8/pipeline.ts:247
-- `xrScene(): { scene, camera, renderer, cameraTexture?, layerScenes? }` → `reference/threejs.md` L39-47 — 2 in-repo uses: src/components/ar/StoryARExperience.tsx:94, src/components/ar/StoryARExperience.tsx:121
+- `xrScene(): { scene, camera, renderer, cameraTexture?, layerScenes? }` → `reference/threejs.md` L39-47 — 2 in-repo uses: src/components/ar/StoryARExperience.tsx:99, src/components/ar/StoryARExperience.tsx:126
 - `configure({ renderCameraTexture?: boolean, layerScenes?: string[] }): void` → `reference/threejs.md` L48-59
 
 ## XR8
@@ -121,7 +121,7 @@ Source: https://www.8thwall.com/docs/api/engine/api/engine/xrcontroller  ·  `re
 
 - `configure(options): void` → `reference/xrcontroller.md` L15-43 — 2 in-repo uses: src/xr8/pipeline.ts:284, src/xr8/pipeline.ts:285
 - `hitTest(x: number, y: number, includedTypes: string[]): Xr8HitResult[]` → `reference/xrcontroller.md` L44-58 — 2 in-repo uses: src/xr8/hitTestController.ts:48, src/xr8/hitTestController.ts:56
-- `updateCameraProjectionMatrix({ origin, facing, cam }): void` → `reference/xrcontroller.md` L59-66 — 2 in-repo uses: src/components/ar/StoryARExperience.tsx:141, src/components/ar/StoryARExperience.tsx:142
+- `updateCameraProjectionMatrix({ origin, facing, cam }): void` → `reference/xrcontroller.md` L59-66 — 2 in-repo uses: src/components/ar/StoryARExperience.tsx:146, src/components/ar/StoryARExperience.tsx:147
 - `recenter(): void` → `reference/xrcontroller.md` L67-72
 - `pipelineModule(): CameraPipelineModule` → `reference/xrcontroller.md` L73-79 — 2 in-repo uses: src/xr8/pipeline.ts:249, src/xr8/pipeline.ts:250
 

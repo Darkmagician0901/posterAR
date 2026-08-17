@@ -13,7 +13,8 @@
  * dragging, and happy-dom has no rasterizer to assert against. Every rule
  * this panel enforces — the crop maths, the library shape — is already
  * covered where it actually lives: markerCrop.test.ts and
- * markerCropEdit.test.ts (Task 4), markerLibrary.test.ts (Task 5). This file
+ * markerCropEdit.test.ts (Task 4), markerLibrary.test.ts (Task 5),
+ * bindMarker/unbindMarker in studioDraftStore.test.ts (Task 8). This file
  * is verified on device instead, per TESTING.md.
  */
 
@@ -35,6 +36,7 @@ import {
 } from './markerLibrary';
 import { uploadMarker } from '@/services/markerApi';
 import { toViewBox } from './stageGeometry';
+import { useStudioDraft } from './studioDraftStore';
 
 /** Debounce for the grayscale preview while the operator is still dragging. */
 const PREVIEW_DEBOUNCE_MS = 150;
@@ -169,6 +171,13 @@ interface MarkersPanelProps {
 export const MarkersPanel: React.FC<MarkersPanelProps> = ({ onClose }) => {
   const [library, setLibrary] = useState<MarkerLibraryEntry[]>(() => readMarkerLibrary());
   const [libraryError, setLibraryError] = useState<string | null>(null);
+
+  // The story's current binding, if any — read from the draft rather than
+  // mirrored into local state, so an unbind or rebind elsewhere in Studio
+  // (undo, a fresh draft) shows up here without this panel doing anything.
+  const boundMarkerId = useStudioDraft((s) => s.doc.anchor?.markerId);
+  const bindMarker = useStudioDraft((s) => s.bindMarker);
+  const unbindMarker = useStudioDraft((s) => s.unbindMarker);
 
   // The photo currently being cropped, if any. These four are always set
   // together (onFile) and cleared together (resetEditor / after upload).
@@ -539,6 +548,7 @@ export const MarkersPanel: React.FC<MarkersPanelProps> = ({ onClose }) => {
               <ul className="st-mk-list">
                 {[...library].reverse().map((entry) => {
                   const canDownload = sessionOriginals.has(entry.markerId);
+                  const isBound = entry.markerId === boundMarkerId;
                   return (
                     <li key={entry.markerId} className="st-mk-row">
                       <img
@@ -551,15 +561,26 @@ export const MarkersPanel: React.FC<MarkersPanelProps> = ({ onClose }) => {
                         <span className="st-mk-dims">
                           {entry.crop.width}×{entry.crop.height}px
                         </span>
+                        {isBound && <span className="st-pp-empty">Bound to this story</span>}
                       </div>
                       <div className="st-mk-rowbtns">
-                        <button
-                          className="st-ppb"
-                          disabled
-                          title="Attaching a story to a marker lands in a later step"
-                        >
-                          BIND TO STORY
-                        </button>
+                        {isBound ? (
+                          <button
+                            className="st-ppb"
+                            onClick={unbindMarker}
+                            title="Detach this story from this picture, restoring tap-to-place"
+                          >
+                            UNBIND
+                          </button>
+                        ) : (
+                          <button
+                            className="st-ppb"
+                            onClick={() => bindMarker(entry)}
+                            title="Attach this story to this picture, replacing any current binding"
+                          >
+                            BIND TO STORY
+                          </button>
+                        )}
                         <button
                           className="st-ppb"
                           disabled={!canDownload || downloadingId === entry.markerId}

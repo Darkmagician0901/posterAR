@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useStudioDraft, blankFrame } from './studioDraftStore';
 import { DEFAULT_STORY } from '@/story/defaultStory';
 import { LOCAL_DRAFT_KEY } from '@/services/storyApi';
+import { IDENTITY_LOCAL, validateStoryDoc } from '@/story/storyDoc';
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -162,5 +163,50 @@ describe('studioDraftStore', () => {
     );
     expect(doc.frames).toHaveLength(1);
     expect(doc.frames[0].title).toBe('NEW FRAME');
+  });
+});
+
+describe('marker binding', () => {
+  const crop = {
+    top: 0, left: 0, width: 1200, height: 1600,
+    isRotated: false, originalWidth: 1200, originalHeight: 1600,
+  };
+  const entry = {
+    markerId: 'a'.repeat(64), thumbId: 'b'.repeat(64),
+    name: 'Lobby poster', crop, addedAt: 1,
+  };
+
+  it('writes an anchor the validator accepts', () => {
+    useStudioDraft.getState().bindMarker(entry);
+    const { doc } = useStudioDraft.getState();
+    expect(doc.anchor?.markerId).toBe(entry.markerId);
+    expect(validateStoryDoc(doc, DEFAULT_STORY).anchor?.markerId).toBe(entry.markerId);
+  });
+
+  it('pins the art onto the marker at 1:1, which is all v1 renders', () => {
+    useStudioDraft.getState().bindMarker(entry);
+    const { anchor } = useStudioDraft.getState().doc;
+    expect(anchor?.widthInMarkers).toBe(1);
+    expect(anchor?.mode).toBe('follow');
+    expect(anchor?.local).toEqual(IDENTITY_LOCAL);
+  });
+
+  it('rebinding replaces rather than accumulating', () => {
+    useStudioDraft.getState().bindMarker(entry);
+    useStudioDraft.getState().bindMarker({ ...entry, markerId: 'c'.repeat(64) });
+    expect(useStudioDraft.getState().doc.anchor?.markerId).toBe('c'.repeat(64));
+  });
+
+  it('unbinding restores a story with no anchor at all', () => {
+    useStudioDraft.getState().bindMarker(entry);
+    useStudioDraft.getState().unbindMarker();
+    expect(useStudioDraft.getState().doc.anchor).toBeUndefined();
+    expect('anchor' in useStudioDraft.getState().doc).toBe(false);
+  });
+
+  it('binding is undoable like every other edit', () => {
+    useStudioDraft.getState().bindMarker(entry);
+    useStudioDraft.getState().undo();
+    expect(useStudioDraft.getState().doc.anchor).toBeUndefined();
   });
 });

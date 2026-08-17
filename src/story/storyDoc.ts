@@ -13,6 +13,7 @@
 
 import { ASSET_ID_RE } from './assetHash';
 import { ASSET_ALIAS_RE } from './artTokens';
+import type { MarkerCrop } from '@/markers/markerCrop';
 
 /** One staged element within a frame. Positions are in metres. */
 export interface StoryProp {
@@ -110,6 +111,53 @@ export function isAssetRef(a: StoryAsset): a is StoryAssetRef {
   return typeof (a as StoryAssetRef).assetId === 'string';
 }
 
+/** A rigid transform in the marker's own space. */
+export interface LocalTransform {
+  /** Metres along the marker's local axes, from its centre. */
+  position: [number, number, number];
+  /** Rotation as a quaternion, `[x, y, z, w]`. */
+  rotation: [number, number, number, number];
+}
+
+/**
+ * The only transform v1 renders.
+ *
+ * Offset placement is deliberately unbuilt (`docs/marker-layer-design.md`
+ * §11): it needs a Studio positioning UI and the marker-normal-axis
+ * verification this design currently avoids needing, because pinning the art
+ * flush onto the picture makes the question moot.
+ */
+export const IDENTITY_LOCAL: LocalTransform = {
+  position: [0, 0, 0],
+  rotation: [0, 0, 0, 1],
+};
+
+/**
+ * What real-world thing a story is attached to.
+ *
+ * Absent means today's behaviour: a centre-screen ground hit-test and
+ * tap-to-place. The five-era landscape story has no anchor and is untouched.
+ *
+ * `local` and `widthInMarkers` are fixed in v1 but kept in the type, because
+ * removing them would make offset placement a schema migration instead of a UI
+ * addition.
+ */
+export interface StoryAnchor {
+  type: 'marker';
+  /** SHA-256 of the luminance PNG — the image the tracker matches. */
+  markerId: string;
+  /** SHA-256 of the thumbnail PNG, addressed on its own bytes. */
+  thumbId: string;
+  /** The crop the marker was cut with; feeds the synthesized target. */
+  crop: MarkerCrop;
+  /** Identity in v1. */
+  local: LocalTransform;
+  /** 1 in v1: the art covers the marker exactly. */
+  widthInMarkers: 1;
+  /** 'follow' in v1; 'latch' is permitted by the type and unbuilt. */
+  mode: 'follow';
+}
+
 /** A complete authored experience. */
 export interface StoryDoc {
   schemaVersion: 4;
@@ -123,6 +171,8 @@ export interface StoryDoc {
   frames: StoryFrame[];
   /** Uploaded images keyed by the id that `t: 'img'` props reference. */
   assets?: Record<string, StoryAsset>;
+  /** The printed picture this story lives on. Absent ⇒ tap-to-place. */
+  anchor?: StoryAnchor;
 }
 
 /** Current schema version. Bump only on a breaking shape change. */
@@ -240,6 +290,54 @@ function sanitizeAssets(raw: unknown): Record<string, StoryAsset> | undefined {
 }
 
 /**
+ * Sanitizes an anchor. Returns undefined when it is unusable.
+ *
+ * All-or-nothing, unlike the per-field fallback elsewhere, because a partial
+ * anchor is worse than none: a story with a malformed marker binding would
+ * configure a target that never matches, leaving a picture that silently does
+ * nothing. Falling back to "no anchor" degrades to tap-to-place, which at
+ * least puts something on screen.
+ *
+ * Both ids are checked against ASSET_ID_RE because both become path segments,
+ * and a published document is untrusted input — 64 hex characters cannot
+ * express a scheme, a host, or a traversal.
+ */
+function sanitizeAnchor(raw: unknown): StoryAnchor | undefined {
+  const r = bag(raw);
+  if (r.type !== 'marker') return undefined;
+
+  const markerId = str(r.markerId, '');
+  const thumbId = str(r.thumbId, '');
+  if (!ASSET_ID_RE.test(markerId) || !ASSET_ID_RE.test(thumbId)) return undefined;
+
+  const c = bag(r.crop);
+  const nums = ['top', 'left', 'width', 'height'] as const;
+  if (!nums.every((k) => typeof c[k] === 'number' && Number.isFinite(c[k]))) return undefined;
+
+  const crop: MarkerCrop = {
+    top: c.top as number,
+    left: c.left as number,
+    width: c.width as number,
+    height: c.height as number,
+    isRotated: c.isRotated === true,
+    originalWidth: num(c.originalWidth, c.width as number),
+    originalHeight: num(c.originalHeight, c.height as number),
+  };
+
+  return {
+    type: 'marker',
+    markerId,
+    thumbId,
+    crop,
+    // Forced, not read. v1 renders identity at 1:1 only, so honouring a stored
+    // offset would place art where nothing can put it back.
+    local: IDENTITY_LOCAL,
+    widthInMarkers: 1,
+    mode: 'follow',
+  };
+}
+
+/**
  * Validates an untrusted document against a known-good fallback.
  *
  * Falls back **per field** rather than all-or-nothing, so one bad value cannot
@@ -262,6 +360,7 @@ export function validateStoryDoc(raw: unknown, fallback: StoryDoc): StoryDoc {
   const intro = bag(r.intro);
   const outro = bag(r.outro);
   const assets = sanitizeAssets(r.assets);
+  const anchor = sanitizeAnchor(r.anchor);
 
   const doc: StoryDoc = {
     schemaVersion: STORY_SCHEMA_VERSION,
@@ -279,5 +378,6 @@ export function validateStoryDoc(raw: unknown, fallback: StoryDoc): StoryDoc {
     frames: frames.length > 0 ? frames : fallback.frames,
   };
   if (assets !== undefined) doc.assets = assets;
+  if (anchor !== undefined) doc.anchor = anchor;
   return doc;
 }

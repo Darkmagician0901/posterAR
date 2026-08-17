@@ -5,6 +5,7 @@ import {
   loadStoryForLocation,
   slugifyStoryId,
   publishStory,
+  publishExhibit,
   hydrateStoryDoc,
   publishedStoryUrl,
   LOCAL_DRAFT_KEY,
@@ -207,6 +208,87 @@ describe('publishStory', () => {
     );
     const out = await publishStory({}, 'abc', 's');
     expect(out.ok).toBe(false);
+  });
+});
+
+describe('publishExhibit', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('posts to the exhibit endpoint, not the story one', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve({ url: 'https://x/e.json' }) }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    await publishExhibit({ storyIds: ['a'] }, 'lobby', 's');
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/publish-exhibit');
+  });
+
+  it('returns a visitor link that opens the room, not a single story', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ url: 'https://blob.example/exhibits/lobby.json' }),
+        }),
+      ),
+    );
+    const out = await publishExhibit({ storyIds: ['a'] }, 'lobby', 'secret');
+    expect(out.ok).toBe(true);
+    if (out.ok) {
+      expect(out.url).toBe('https://blob.example/exhibits/lobby.json');
+      expect(out.viewUrl).toContain('?e=lobby');
+      expect(out.viewUrl).not.toContain('?s=');
+    }
+  });
+
+  it('sends the secret as a bearer token and never in the body', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve({ url: 'https://x/y.json' }) }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    await publishExhibit({ storyIds: ['a'] }, 'lobby', 'super-secret');
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect((init.headers as Record<string, string>).authorization).toBe('Bearer super-secret');
+    expect(String(init.body)).not.toContain('super-secret');
+  });
+
+  it('surfaces the endpoint refusal text, which is the only place the operator sees it', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 422,
+          json: () =>
+            Promise.resolve({ error: '"a" is not attached to a picture, so nothing would ever trigger it.' }),
+        }),
+      ),
+    );
+    const out = await publishExhibit({ storyIds: ['a'] }, 'lobby', 's');
+    expect(out).toEqual({
+      ok: false,
+      error: '"a" is not attached to a picture, so nothing would ever trigger it.',
+    });
+  });
+
+  it('reports a network failure rather than throwing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new Error('offline'))),
+    );
+    const out = await publishExhibit({}, 'lobby', 's');
+    expect(out.ok).toBe(false);
+  });
+
+  it('treats a success response with no url as a failure, and says which kind', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'lobby' }) })),
+    );
+    const out = await publishExhibit({}, 'lobby', 's');
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.error).toContain('exhibit');
   });
 });
 

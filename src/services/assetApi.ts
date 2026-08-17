@@ -16,8 +16,7 @@
  * public write token when the presign endpoint is unauthenticated.
  */
 
-import { API_BASE_URL } from '@/utils/constants';
-import { hexToBase64, sha256Hex } from '@/story/assetHash';
+import { uploadContent } from './contentUpload';
 
 /**
  * Upload types the server accepts. Mirrors the server-side allowlist in
@@ -33,65 +32,6 @@ export interface UploadedAsset {
   assetId: string;
   /** Content address of the display derivative, when one was stored. */
   r1024Id?: string;
-}
-
-interface PresignResponse {
-  exists: boolean;
-  uploadUrl?: string;
-  requiredHeaders?: Record<string, string>;
-}
-
-/**
- * Presigns and uploads one blob under its own content address.
- *
- * Shared by the canonical upload and the derivative upload below, so the
- * presign/PUT/412-is-success handling can't drift between them — and so both
- * obey the same rule: the address written is the hash of the bytes written.
- * The server enforces exactly that, and refuses any request where the two
- * disagree.
- *
- * @param contentType — MIME type of `bytes`.
- * @param bytes — The bytes being uploaded.
- * @returns The content address the bytes are stored under.
- * @throws When the presign or upload fails for any reason other than the
- *   object already existing.
- */
-async function uploadBytes(contentType: AssetContentType, bytes: Blob): Promise<string> {
-  const sha256 = await sha256Hex(await bytes.arrayBuffer());
-  // Same digest as the key, in the encoding S3's checksum header takes. The
-  // server rejects the request unless these two agree.
-  const sha256Base64 = hexToBase64(sha256);
-
-  const presignRes = await fetch(`${API_BASE_URL}/api/story-assets`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ sha256, sha256Base64, contentType }),
-  });
-  if (!presignRes.ok) throw new Error(`presign failed: ${presignRes.status}`);
-
-  const presign = (await presignRes.json()) as PresignResponse;
-  // Already stored. Content addressing makes this a certainty rather than a
-  // guess, so there is nothing to upload.
-  if (presign.exists) return sha256;
-
-  if (!presign.uploadUrl) throw new Error('presign returned no upload URL');
-
-  const put = await fetch(presign.uploadUrl, {
-    method: 'PUT',
-    // Sent verbatim: these headers are part of the signature, so altering or
-    // dropping one produces a mismatch rather than a silent success.
-    headers: presign.requiredHeaders ?? {},
-    body: bytes,
-  });
-
-  // 412 Precondition Failed means If-None-Match rejected the write because the
-  // object already exists — a race with another uploader of identical bytes.
-  // The bytes we wanted are stored, so this is success.
-  if (!put.ok && put.status !== 412) {
-    throw new Error(`upload failed: ${put.status}`);
-  }
-
-  return sha256;
 }
 
 /**
@@ -115,11 +55,11 @@ export async function uploadStoryAsset(
   contentType: AssetContentType,
   derivative?: Blob | null,
 ): Promise<UploadedAsset> {
-  const assetId = await uploadBytes(contentType, blob);
+  const assetId = await uploadContent(blob, contentType, 'asset');
 
   if (derivative) {
     try {
-      return { assetId, r1024Id: await uploadBytes(contentType, derivative) };
+      return { assetId, r1024Id: await uploadContent(derivative, contentType, 'asset') };
     } catch {
       // Non-fatal by design — see the `derivative` param doc above. The asset
       // stands on `assetId` alone, which is exactly what a pre-derivative

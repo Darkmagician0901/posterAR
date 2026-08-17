@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { hexToBase64 } from '../src/story/assetHash';
 import { assetKey } from '../src/story/assetStorage';
+import { markerKey } from '../src/markers/markerStorage';
 
 const present = new Set<string>();
 const presigned: string[] = [];
@@ -121,6 +122,59 @@ describe('POST /api/story-assets', () => {
     const { default: handler } = await import('./story-assets');
     const res = await handler(new Request('https://x/api/story-assets', { method: 'GET' }));
     expect(res.status).toBe(405);
+  });
+
+  it('stores a marker under markers/<sha>.png when kind is marker', async () => {
+    const res = await post({
+      sha256: SHA,
+      sha256Base64: hexToBase64(SHA),
+      contentType: 'image/png',
+      kind: 'marker',
+    });
+    expect(res.status).toBe(201);
+    // Not `.at(-1)`: this repo's tsconfig targets ES2020, whose lib has no
+    // Array.prototype.at, and api/*.test.ts is not excluded from type-check.
+    expect(presigned[presigned.length - 1]).toBe(markerKey(SHA));
+  });
+
+  it('still refuses png when kind is absent, so asset callers cannot drift', async () => {
+    const res = await post({
+      sha256: SHA,
+      sha256Base64: hexToBase64(SHA),
+      contentType: 'image/png',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('refuses webp for a marker, so a marker key can only ever hold a png', async () => {
+    const res = await post({
+      sha256: SHA,
+      sha256Base64: hexToBase64(SHA),
+      contentType: 'image/webp',
+      kind: 'marker',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('refuses an unknown kind rather than silently treating it as an asset', async () => {
+    const res = await post({
+      sha256: SHA,
+      sha256Base64: hexToBase64(SHA),
+      contentType: 'image/png',
+      kind: 'sneaky',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('still requires the checksum to match the address for a marker', async () => {
+    const other = 'b'.repeat(64);
+    const res = await post({
+      sha256: SHA,
+      sha256Base64: hexToBase64(other),
+      contentType: 'image/png',
+      kind: 'marker',
+    });
+    expect(res.status).toBe(400);
   });
 });
 

@@ -19,6 +19,7 @@
 
 import storyAssets from './story-assets';
 import publish from './publish';
+import publishExhibit from './publish-exhibit';
 
 /**
  * The slice of the function-URL event this adapter reads.
@@ -58,6 +59,7 @@ type Handler = (request: Request) => Promise<Response>;
 const ROUTES: Record<string, Handler> = {
   '/api/story-assets': storyAssets,
   '/api/publish': publish,
+  '/api/publish-exhibit': publishExhibit,
 };
 
 function json(body: unknown, status: number): FunctionUrlResult {

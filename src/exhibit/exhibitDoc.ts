@@ -51,6 +51,26 @@ export interface ExhibitDoc {
 const ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 /**
+ * Cleans a submitted story list without judging it.
+ *
+ * Splitting this out is what keeps `exhibitIssues` honest. Case and whitespace
+ * are not mistakes an operator should be lectured about, so they are normalised
+ * here — but the count is left alone and duplicates are left in, because those
+ * are exactly the conditions `exhibitIssues` exists to refuse. Normalising them
+ * away first would erase the evidence before the refusal ever ran.
+ *
+ * @param raw — The submitted `storyIds` value, of unknown shape.
+ * @returns Every well-formed id, in submission order, still duplicated and
+ *   still uncapped.
+ */
+export function normalizeStoryIds(raw: unknown): string[] {
+  return (Array.isArray(raw) ? raw : [])
+    .filter((v): v is string => typeof v === 'string')
+    .map((v) => v.trim().toLowerCase())
+    .filter((v) => ID_PATTERN.test(v));
+}
+
+/**
  * Reads an untrusted exhibit document.
  *
  * Degrades rather than refuses, per `docs/marker-layer-design.md` §8: a bad
@@ -63,6 +83,10 @@ const ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
  * `exhibitIssues` about what an over-long list deserves: here, past the visit,
  * there is no one to tell, so silent truncation is the kinder failure.
  *
+ * **Because it truncates and de-duplicates, its output can never fail
+ * `exhibitIssues`.** Anything wanting the operator-facing refusals must run
+ * them on the submitted list first — see `api/publish-exhibit.ts`.
+ *
  * @param raw — Parsed JSON of unknown shape.
  * @returns A well-formed exhibit, or null. Never throws.
  */
@@ -73,15 +97,7 @@ export function validateExhibitDoc(raw: unknown): ExhibitDoc | null {
   const id = typeof r.id === 'string' ? r.id.trim().toLowerCase() : '';
   if (!ID_PATTERN.test(id)) return null;
 
-  const ids = Array.isArray(r.storyIds) ? r.storyIds : [];
-  const storyIds = [
-    ...new Set(
-      ids
-        .filter((v): v is string => typeof v === 'string')
-        .map((v) => v.trim().toLowerCase())
-        .filter((v) => ID_PATTERN.test(v)),
-    ),
-  ].slice(0, MAX_EXHIBIT_STORIES);
+  const storyIds = [...new Set(normalizeStoryIds(r.storyIds))].slice(0, MAX_EXHIBIT_STORIES);
 
   if (storyIds.length === 0) return null;
 
@@ -109,23 +125,28 @@ export function validateExhibitDoc(raw: unknown): ExhibitDoc | null {
  * this function does not have access to, and are checked server-side in
  * `api/publish-exhibit.ts` instead.
  *
- * @param doc — The exhibit about to be published.
+ * @param storyIds — The **submitted** list, as returned by
+ *   `normalizeStoryIds`. Deliberately a bare list rather than an `ExhibitDoc`,
+ *   because the only `ExhibitDoc` in reach is one `validateExhibitDoc`
+ *   produced — and that function has already truncated and de-duplicated, so
+ *   every rule below would be structurally unable to fire. Taking the list
+ *   makes passing the wrong thing a type error instead of a silent no-op.
  * @returns Human-readable issues; empty when publishable.
  */
-export function exhibitIssues(doc: ExhibitDoc): string[] {
+export function exhibitIssues(storyIds: string[]): string[] {
   const issues: string[] = [];
 
-  if (doc.storyIds.length === 0) {
+  if (storyIds.length === 0) {
     issues.push('An exhibit needs at least one story.');
   }
-  if (doc.storyIds.length > MAX_EXHIBIT_STORIES) {
+  if (storyIds.length > MAX_EXHIBIT_STORIES) {
     issues.push(
-      `An exhibit can hold ${MAX_EXHIBIT_STORIES} stories at most, because that is how many pictures the tracker can watch at once. This one has ${doc.storyIds.length}.`,
+      `An exhibit can hold ${MAX_EXHIBIT_STORIES} stories at most, because that is how many pictures the tracker can watch at once. This one has ${storyIds.length}.`,
     );
   }
 
   const seen = new Set<string>();
-  for (const id of doc.storyIds) {
+  for (const id of storyIds) {
     if (seen.has(id)) issues.push(`"${id}" is in this exhibit twice.`);
     seen.add(id);
   }

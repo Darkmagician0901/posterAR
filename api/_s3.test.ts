@@ -50,3 +50,32 @@ describe('putJson', () => {
     expect(sent[0].input.CacheControl).toBe('public, max-age=60, must-revalidate');
   });
 });
+
+describe('getJson', () => {
+  it('parses and returns the stored body', async () => {
+    const { getJson, getS3 } = await import('./_s3');
+    (
+      getS3() as unknown as { send: (c: unknown) => Promise<{ Body: { transformToString: () => Promise<string> } }> }
+    ).send = async () => ({ Body: { transformToString: async () => '{"a":1}' } });
+
+    expect(await getJson('exhibits/x.json')).toEqual({ a: 1 });
+  });
+
+  it('returns null on a 404, matching objectExists', async () => {
+    const { getJson, getS3 } = await import('./_s3');
+    (getS3() as unknown as { send: (c: unknown) => Promise<never> }).send = async () => {
+      throw Object.assign(new Error('NotFound'), { $metadata: { httpStatusCode: 404 } });
+    };
+
+    expect(await getJson('exhibits/missing.json')).toBeNull();
+  });
+
+  it('rethrows every other error rather than reporting it as missing', async () => {
+    const { getJson, getS3 } = await import('./_s3');
+    (getS3() as unknown as { send: (c: unknown) => Promise<never> }).send = async () => {
+      throw Object.assign(new Error('Region is missing'), { $metadata: { httpStatusCode: 500 } });
+    };
+
+    await expect(getJson('exhibits/x.json')).rejects.toThrow('Region is missing');
+  });
+});

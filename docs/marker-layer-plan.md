@@ -895,7 +895,9 @@ export function scaleCrop(crop: MarkerCrop, factor: number, size: ImageSize): Ma
 - [ ] **Step 4: Run and watch it pass**
 
 Run: `npx vitest run src/studio/markerCropEdit.test.ts`
-Expected: PASS, 12 tests.
+Expected: PASS, 11 tests.
+
+**Fixture correction.** The `moveCrop` "when there is room" test must NOT use `getDefaultCrop`'s output as its subject. `getDefaultCrop` maximises at least one axis to match the source exactly — that is its whole job — so the default crop has zero slack on that axis by construction, and on an exact 3:4 source it has zero slack on both. `moveCrop` then clamps to no movement at all, correctly. Use an explicit interior crop with real slack instead, e.g. `{ ...base, top: 400, left: 300, width: 480, height: 640 }` against a 1200 × 1600 source.
 
 - [ ] **Step 5: Verify and commit**
 

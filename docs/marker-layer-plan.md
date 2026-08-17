@@ -1592,8 +1592,13 @@ describe('marker stage', () => {
     expect(MARKER_FRONT.ppm).toBe(FRONT.ppm);
   });
 
+  // Precision correction: 2, not the 3 originally written here. 238/300 is
+  // 0.79333… but groundY is a whole number, so 317/400 = 0.7925 — off by
+  // 0.00083, which exceeds precision 3's 0.0005 tolerance. The integer is kept
+  // (0.33 view units is invisible) and the assertion states what is actually
+  // true rather than the frame being given a fractional groundY to satisfy it.
   it('puts the ground line at the same proportion of the frame', () => {
-    expect(MARKER_FRONT.groundY / MARKER_FRONT.h).toBeCloseTo(FRONT.groundY / FRONT.h, 3);
+    expect(MARKER_FRONT.groundY / MARKER_FRONT.h).toBeCloseTo(FRONT.groundY / FRONT.h, 2);
   });
 
   it('projects into the marker frame when one is given', () => {
@@ -1705,7 +1710,11 @@ When `anchor` is set, render the marker thumbnail behind the composed art inside
 )}
 ```
 
-Read `ASSET_BASE_URL` from `@/utils/constants` the same way the resolver does. This is authoring-only chrome — it must never reach the published document or the viewer.
+**Correction — `ASSET_BASE_URL` is not in `@/utils/constants`.** That module exports `API_BASE_URL`, a different variable reading a different env var. `src/story/assetResolver.ts` declares `ASSET_BASE_URL` as a *private* module constant (`import.meta.env.VITE_ASSET_BASE_URL || ''`) and does not export it. Repeat that one-line read in `StageEditor.tsx` with a comment saying why, rather than exporting the resolver's internals for a piece of authoring chrome.
+
+This is authoring-only chrome — it must never reach the published document or the viewer.
+
+**Unverified until Task 8.** The ghost is drawn *behind* the composed art, and `composeFrame` emits no background rect — so it shows through on a blank frame but is occluded by any frame carrying full-bleed era art. Nothing can set `doc.anchor` until Task 8 lands, so the layering is untestable on device today. Confirm it then, and if a bound story's own art hides the ghost, that is a real finding, not a regression in this task.
 
 - [ ] **Step 7: Verify on device and commit**
 
@@ -1973,7 +1982,7 @@ Create `api/publish-exhibit.test.ts`, mocking `./_s3` exactly as `api/story-asse
   it('refuses without the publish secret', /* 401 */);
   it('refuses a story that is not bound to any picture', /* 422, names the story */);
   it('refuses two stories bound to the same picture', /* 422 */);
-  it('refuses more stories than the tracker can watch at once', /* 422, mentions 10 */);
+  it('refuses more stories than the tracker can watch at once', /* 422, mentions 10 and 14 */);
   it('refuses a marker whose image never finished uploading', /* 422 — objectExists(markerKey(id)) false */);
   it('refuses a marker id that is not a hash', /* 422 */);
   it('refuses an anchor whose crop is missing', /* 422 */);
@@ -1991,14 +2000,19 @@ Create `api/publish-exhibit.ts` following `api/publish.ts` structurally — same
 
 The exhibit-specific middle:
 
+**Ordering correction — this was a real bug, caught during implementation.** The original text ran `exhibitIssues(doc)` on `validateExhibitDoc`'s *output*. But that function de-duplicates (`new Set`) and truncates (`.slice(0, MAX_EXHIBIT_STORIES)`) before returning, so all three of `exhibitIssues`' rules — empty, over-cap, duplicated — became structurally unfireable. A fourteen-story exhibit would have published as a cheerful 200 with the last four silently dropped: four printed pictures that do nothing, which is the exact failure this endpoint's commit message promises to prevent. It also inverted §8's documented asymmetry, letting the *runtime* half's kindness overwrite the *publish* half's refusal.
+
+The fix splits `normalizeStoryIds` out of `validateExhibitDoc` (trim/lowercase/drop-unusable, but **no** dedupe and **no** truncation) and runs the refusals on the submitted list, before validation:
+
 ```ts
+  // Refuse against the SUBMITTED list, before validateExhibitDoc normalises it.
+  const issues = exhibitIssues(normalizeStoryIds(body.doc?.storyIds));
+  if (issues.length > 0) return json({ error: issues.join(' ') }, 422);
+
   const doc = validateExhibitDoc({ ...body.doc, id });
   if (doc === null) {
     return json({ error: 'That exhibit has no usable stories.' }, 400);
   }
-
-  const issues = exhibitIssues(doc);
-  if (issues.length > 0) return json({ error: issues.join(' ') }, 422);
 
   try {
     // Read each member story back from the bucket rather than trusting the
@@ -2070,6 +2084,8 @@ const EMPTY_STORY: StoryDoc = {
 
 `getJson` does not exist yet in `api/_s3.ts` — add it beside `putJson`, returning `null` on a 404 and rethrowing everything else, matching `objectExists`'s error discipline. Add a test for it in `api/_s3.test.ts`.
 
+The ordering correction above also moves two files into this task's scope: `src/exhibit/exhibitDoc.ts` (adds `normalizeStoryIds`, retypes `exhibitIssues` to take `string[]`) and `src/exhibit/exhibitDoc.test.ts`. Retyping is deliberate — passing an already-validated `ExhibitDoc` is now a *type error* rather than a silent no-op, so the bug cannot come back. One consequence to expect: an empty exhibit now answers **422** with "An exhibit needs at least one story." rather than 400, because `exhibitIssues` reaches it first. `validateExhibitDoc`'s null branch stays as the backstop that narrows `ExhibitDoc | null`.
+
 - [ ] **Step 4: Route it**
 
 In `api/_lambda.ts`, add to `ROUTES`:
@@ -2083,7 +2099,7 @@ with the matching import. One Lambda serves all routes — do not create a secon
 - [ ] **Step 5: Run and watch them pass**
 
 Run: `npx vitest run api/`
-Expected: PASS apart from the 3 known `_s3.test.ts` import failures.
+Expected: PASS, fully. (The "3 known `_s3.test.ts` import failures" this plan was written against were a missing `@aws-sdk` in `node_modules`; `npm install` cleared them. Any failure here is yours.)
 
 - [ ] **Step 6: Verify and commit**
 

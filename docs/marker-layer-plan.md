@@ -2699,19 +2699,40 @@ git commit -m "Correct the record on whether markers can be made inside the app"
 
 Amplify app `d114nr20m4npww`, ca-central-1. Add a rewrite from `/image-targets/<path>` to `markers/<path>` on the content distribution, ordered **before** the SPA catch-all.
 
-**Not written here on purpose.** The real distribution domain must be read back from the account first — a guessed hostname in a paste block is exactly the failure that cost hours before. Read the current rules with:
+**Values read back from the live account 2026-08-17, not guessed.** `aws` is now installed, so the two unknowns this section was blocked on are resolved:
+
+- Current rules (`aws amplify get-app --app-id d114nr20m4npww --query "app.customRules"`) are exactly the two CLAUDE.md documents — `/api/<*>` first, SPA regex second.
+- The origin serving `markers/` is `https://eml-arcade-storage.s3.ca-central-1.amazonaws.com`, from the app-level `VITE_ASSET_BASE_URL`.
+
+So the rule to add is:
+
+| | |
+|---|---|
+| source | `/image-targets/<*>` |
+| target | `https://eml-arcade-storage.s3.ca-central-1.amazonaws.com/markers/<*>` |
+| status | `200` |
+
+ordered **second** — after `/api/<*>`, before the SPA regex.
+
+**`update-app --custom-rules` REPLACES the whole list**, so all three rules must be sent together in the right order. Getting this wrong takes the entire site down, in the exact way CLAUDE.md's SPA-rewrite note describes. Run it as a single command (verify the current rules still match the two above first — if someone has changed them, re-read and rebuild this list rather than pasting it blind):
 
 ```bash
-aws amplify get-app --app-id d114nr20m4npww --query "app.customRules"
+aws amplify update-app --app-id d114nr20m4npww --custom-rules '[
+  {"source":"/api/<*>","target":"https://ysowuobg7ax5mwcubwsl6dektm0llmut.lambda-url.ca-central-1.on.aws/api/<*>","status":"200"},
+  {"source":"/image-targets/<*>","target":"https://eml-arcade-storage.s3.ca-central-1.amazonaws.com/markers/<*>","status":"200"},
+  {"source":"</^[^.]+$|\\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json|webp)$)([^.]+$)/>","target":"/index.html","status":"200"}
+]'
 ```
 
-Then add the rule ahead of the existing SPA regex, keeping `/api/<*>` first. Verify by content type, never by whether a page appears:
+Then verify by content type, never by whether a page appears — and against a markerId that actually exists in the bucket:
 
 ```bash
-curl -o /dev/null -w "%{content_type}\n" https://<app-domain>/image-targets/<a-real-markerId>.png
+curl -o /dev/null -w "%{content_type}\n" https://main.d114nr20m4npww.amplifyapp.com/image-targets/<a-real-markerId>.png
 ```
 
-It must say `image/png`. Note `aws` was **not installed** in the environment this plan was written in — install it or run these from a machine that has it.
+It must say `image/png`. If it says `text/html`, the SPA catch-all is winning and the order is wrong.
+
+**Deliberately not applied by the agent that prepared this.** It is an outward-facing production change with a whole-site blast radius, and nothing requests `/image-targets/` until Task 16 exists — so there is no cost to it waiting for the person who will also run Phase 0.
 
 ---
 

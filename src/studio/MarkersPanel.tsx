@@ -450,7 +450,10 @@ export const MarkersPanel: React.FC<MarkersPanelProps> = ({ onClose }) => {
       <div className="st-modalbox">
         <div className="st-modalhead">
           <h2>MARKERS</h2>
-          <span className="st-sub">the picture visitors point their phone at</span>
+          <span className="st-sub">
+            the picture visitors will point their phone at — scanning is not wired into the viewer
+            yet, so binding is recorded and published but nothing detects it on device
+          </span>
           <button className="st-closex" onClick={onClose} aria-label="Close">
             ✕
           </button>

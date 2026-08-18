@@ -162,7 +162,7 @@ export const ExhibitDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
         {result?.ok === true ? (
           <>
             <p className="st-msub">
-              Live. One link opens the whole room — every picture in it scans to its own story.
+              Saved. The room document is published and every story in it was checked.
             </p>
             <label className="st-lbl" htmlFor="st-ex-link">
               Visitor link
@@ -177,6 +177,12 @@ export const ExhibitDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
               <button className="st-btn green" onClick={() => void copy(result.viewUrl)}>
                 {copied ? 'COPIED' : 'COPY'}
               </button>
+            </div>
+            <div className="st-warn">
+              <b>This link does not scan yet.</b> Marker detection is not wired into the viewer
+              (Task 16), so opening it today shows the default story rather than the room. The
+              document is correct and the link will not change — it starts working when marker
+              scanning ships. Don&apos;t print it on anything yet.
             </div>
             <div className="st-statline">
               Republishing with the same title replaces this exhibit. Change the title to publish a

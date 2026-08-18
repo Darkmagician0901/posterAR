@@ -43,3 +43,21 @@ describe('markerTargetData', () => {
     expect(markerTargetData(anchor)).toEqual(markerTargetData(anchor));
   });
 });
+
+describe('testbed export pairing', () => {
+  // The Markers panel exports two files for Phase 0's on-device check, named
+  // `<markerId>.png` and `<markerId>.json`, and the testbed's loader leaves an
+  // already-absolute imagePath untouched. So the JSON only finds its image if
+  // imagePath's basename is exactly the PNG's filename. Nothing at runtime
+  // checks that — it just silently fails to detect, which is indistinguishable
+  // from a bad marker and would corrupt the very measurement Phase 0 takes.
+  it('points at a file named for the markerId, which is what the export writes', () => {
+    const { imagePath } = markerTargetData(anchor);
+    expect(imagePath.split('/').pop()).toBe(`${anchor.markerId}.png`);
+  });
+
+  it('keeps the luminance resource name in step with the path it is served from', () => {
+    const target = markerTargetData(anchor);
+    expect(target.resources.luminanceImage).toBe(target.imagePath.split('/').pop());
+  });
+});

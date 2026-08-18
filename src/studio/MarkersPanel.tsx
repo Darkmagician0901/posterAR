@@ -35,6 +35,8 @@ import {
   type MarkerLibraryEntry,
 } from './markerLibrary';
 import { uploadMarker } from '@/services/markerApi';
+import { markerTargetData } from '@/markers/markerTarget';
+import { IDENTITY_LOCAL } from '@/story/storyDoc';
 import { toViewBox } from './stageGeometry';
 import { useStudioDraft } from './studioDraftStore';
 
@@ -160,7 +162,11 @@ function downloadBlob(blob: Blob, filename: string): void {
   a.href = url;
   a.download = filename;
   a.click();
-  URL.revokeObjectURL(url);
+  // Revoked on the next tick, not immediately: revoking synchronously after
+  // click() races the browser's own read of the URL, and some browsers drop the
+  // download. Harmless with one file, but the testbed export below issues two
+  // in a row, which is where that race actually shows up.
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 interface MarkersPanelProps {
@@ -391,6 +397,54 @@ export const MarkersPanel: React.FC<MarkersPanelProps> = ({ onClose }) => {
     }
   };
 
+  /**
+   * Exports the two files the marker testbed loads from disk.
+   *
+   * Phase 0 compares this browser-made fingerprint against one the CLI made
+   * from the same photo, and the testbed (`feat/marker-spaces-testbed`,
+   * `?mode=marker`) reads targets out of `public/image-targets/` — so without
+   * an export there is no way to get a browser fingerprint into the thing that
+   * measures it, and the gating measurement cannot be taken at all.
+   *
+   * The names are not cosmetic. `markerTargetData` sets `imagePath` to
+   * `/image-targets/<markerId>.png`, and the testbed's loader leaves an
+   * already-absolute path alone, so the JSON resolves to its sibling PNG only
+   * if that PNG keeps the markerId as its filename. Renaming either file
+   * breaks the pair.
+   *
+   * The luminance PNG is re-rendered rather than fetched back from the bucket:
+   * the same bytes either way (content addressing guarantees it), but no CORS
+   * dependency and no reliance on OPS-M1, which is exactly what Phase 0 has
+   * not run yet.
+   */
+  const downloadTestbedFiles = async (entry: MarkerLibraryEntry): Promise<void> => {
+    const original = sessionOriginals.get(entry.markerId);
+    if (!original) return;
+    setDownloadingId(entry.markerId);
+    try {
+      const images = await renderMarkerImages(original.bitmap, original.crop);
+      const target = markerTargetData({
+        type: 'marker',
+        markerId: entry.markerId,
+        thumbId: entry.thumbId,
+        crop: entry.crop,
+        local: IDENTITY_LOCAL,
+        widthInMarkers: 1,
+        mode: 'follow',
+      });
+
+      downloadBlob(images.luminance, `${entry.markerId}.png`);
+      downloadBlob(
+        new Blob([JSON.stringify(target, null, 2)], { type: 'application/json' }),
+        `${entry.markerId}.json`,
+      );
+    } catch {
+      setLibraryError('Could not render the testbed files.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   return (
     <div className="st-modal on" role="dialog" aria-label="Markers">
       <div className="st-modalbox">
@@ -593,15 +647,33 @@ export const MarkersPanel: React.FC<MarkersPanelProps> = ({ onClose }) => {
                         >
                           {downloadingId === entry.markerId ? 'RENDERING…' : '⬇ PRINT-READY PNG'}
                         </button>
+                        <button
+                          className="st-ppb"
+                          disabled={!canDownload || downloadingId === entry.markerId}
+                          onClick={() => void downloadTestbedFiles(entry)}
+                          title={
+                            canDownload
+                              ? 'Download the grayscale image and target JSON the marker testbed loads — keep both filenames as they are'
+                              : 'Only available while the original photo is still open in this tab — re-drop it to regenerate these files'
+                          }
+                        >
+                          ⬇ TESTBED FILES
+                        </button>
                       </div>
                     </li>
                   );
                 })}
               </ul>
               <div className="st-hintline">
-                Print-ready downloads are regenerated from the original photo in this browser tab
-                — they are not stored anywhere, so they disappear on reload. Re-drop a photo to
-                get a fresh one.
+                Both downloads are regenerated from the original photo in this browser tab — they
+                are not stored anywhere, so they disappear on reload. Re-drop a photo to get a
+                fresh one.
+              </div>
+              <div className="st-hintline">
+                <b>Testbed files</b> are for the on-device tracking check: copy both into{' '}
+                <code>public/image-targets/</code> on the marker testbed branch and add the{' '}
+                <code>.json</code> filename to <code>manifest.json</code>. Keep the filenames as
+                downloaded — the JSON finds its image by name.
               </div>
             </>
           )}

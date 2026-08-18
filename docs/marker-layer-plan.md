@@ -78,15 +78,28 @@ CLI side, on any machine with node:
 npx @8thwall/image-target-cli@1.0.0
 ```
 
-Browser side: once Task 6 lands, drop the same photo into the Markers panel and download both PNGs.
+Browser side: drop the same photo into the Markers panel, crop it, upload it, then press **⬇ TESTBED FILES** on its library row. That writes `<markerId>.png` (the grayscale image the tracker matches) and `<markerId>.json` (the target descriptor) — the same two files the CLI produces, in the same shape.
+
+*Both downloads regenerate from the photo decoded in the tab, so do this before reloading. Re-dropping the same photo and re-cropping identically reproduces them exactly — content addressing guarantees it — but that is a re-crop by hand.*
 
 - [ ] **Step 2: Print the cropped image matte, at a known width**
+
+Use **⬇ PRINT-READY PNG** for this, not the testbed PNG — the testbed one is 480×640 grayscale, which is what the tracker wants and *not* what you want on paper.
 
 Record the printed width in millimetres. Matte, not glossy — gloss blows out under room light and destroys tracking.
 
 - [ ] **Step 3: Run the testbed on device**
 
-Check out `feat/marker-spaces-testbed`, `npm run dev`, open `?mode=marker` on the phone.
+Check out `feat/marker-spaces-testbed`, then for **each** fingerprint being compared:
+
+1. Copy its `.png` and `.json` into `public/image-targets/`.
+2. Add the `.json` filename to the `targets` array in `public/image-targets/manifest.json` (it ships as `{"targets": []}`).
+
+Then `npm run dev` and open `?mode=marker` on the phone.
+
+**Keep the filenames exactly as downloaded.** The JSON's `imagePath` is absolute (`/image-targets/<markerId>.png`) and the testbed's loader passes an absolute path through untouched, so the pair only resolves if the PNG keeps its name. A renamed PNG produces a target that never detects — which looks exactly like a bad marker and would corrupt this measurement. `markerTarget.test.ts`'s "testbed export pairing" block pins that invariant.
+
+To compare against the CLI's own output, give the CLI's target a different `name` so both can be listed at once and told apart in the HUD.
 
 - [ ] **Step 4: Record VER-M1's two measurements**
 

@@ -179,7 +179,28 @@ describe('publishStory', () => {
       ),
     );
     const out = await publishStory({}, 'abc', 'wrong');
-    expect(out).toEqual({ ok: false, error: 'Not authorised.' });
+    // `unauthorised` is what lets the studio discard a rejected passphrase
+    // instead of leaving it stored to pre-fill the next attempt.
+    expect(out).toEqual({ ok: false, error: 'Not authorised.', unauthorised: true });
+  });
+
+  it('flags only 401 as unauthorised, so other failures keep the passphrase', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 413,
+          json: () => Promise.resolve({ error: 'That story is too large to publish.' }),
+        }),
+      ),
+    );
+    const out = await publishStory({}, 'abc', 'fine');
+    expect(out).toEqual({
+      ok: false,
+      error: 'That story is too large to publish.',
+      unauthorised: false,
+    });
   });
 
   it('falls back to a status message when the server sends no error text', async () => {

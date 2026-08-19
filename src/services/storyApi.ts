@@ -107,7 +107,12 @@ export function readLocalDraft(): unknown | null {
 /** Outcome of a publish attempt. Never throws; failures are values. */
 export type PublishOutcome =
   | { ok: true; id: string; url: string; viewUrl: string }
-  | { ok: false; error: string };
+  /**
+   * `unauthorised` distinguishes "the passphrase is wrong" (401) from every
+   * other failure. The studio uses it to discard a rejected passphrase; a 413
+   * or a 502 must NOT throw away a passphrase that was perfectly good.
+   */
+  | { ok: false; error: string; unauthorised?: boolean };
 
 /**
  * Turns a title into a publishable id.
@@ -170,7 +175,11 @@ async function publishDocument(
 
     const payload = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
     if (!res.ok) {
-      return { ok: false, error: payload.error ?? `Publish failed (${res.status}).` };
+      return {
+        ok: false,
+        error: payload.error ?? `Publish failed (${res.status}).`,
+        unauthorised: res.status === 401,
+      };
     }
     if (typeof payload.url !== 'string') {
       return { ok: false, error: `The server did not return ${target.noun}.` };

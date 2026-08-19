@@ -46,6 +46,14 @@ function rememberSecret(value: string): void {
   }
 }
 
+function forgetSecret(): void {
+  try {
+    window.sessionStorage.removeItem(SECRET_KEY);
+  } catch {
+    // Same as rememberSecret: an unavailable store is not worth failing on.
+  }
+}
+
 /**
  * The origin the "set VITE_STORY_BASE_URL to..." hint can show — only when
  * the server actually gave us an absolute one.
@@ -101,11 +109,21 @@ export const PublishDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
   const publish = async (): Promise<void> => {
     setBusy(true);
     const outcome = await publishStory(doc, id, secret);
-    // Remember the passphrase only once the server has accepted it. Saving it
-    // before the attempt meant a mistyped secret was persisted and pre-filled
-    // on every retry, so the operator kept re-submitting the same wrong value
-    // and the dialog looked broken rather than merely unauthorised.
-    if (outcome.ok) rememberSecret(secret);
+    // Remember the passphrase only once the server has accepted it, and discard
+    // it the moment the server rejects it.
+    //
+    // The field is pre-filled from sessionStorage, so a wrong passphrase that
+    // was stored once reappears on every subsequent attempt looking exactly
+    // like a correct one. The operator presses PUBLISH, gets "Not authorised."
+    // again, and reasonably concludes the backend is broken — which is how a
+    // fully working pipeline was misdiagnosed for hours on 2026-08-13.
+    // Clearing on 401 makes the empty field itself the signal.
+    if (outcome.ok) {
+      rememberSecret(secret);
+    } else if (outcome.unauthorised) {
+      forgetSecret();
+      setSecret('');
+    }
     setResult(outcome);
     setBusy(false);
   };
@@ -228,12 +246,33 @@ export const PublishDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
               className="st-in"
               type="password"
               value={secret}
-              placeholder="Set by whoever configured the project"
+              placeholder="The key already set on the server"
               onChange={(e) => setSecret(e.target.value)}
               autoComplete="off"
+              aria-describedby="st-pub-secret-help"
             />
+            {/*
+              A password-styled box labelled "key" reads as "choose one", and an
+              operator who assumed that lost hours to a working pipeline before
+              realising the value has to match something already on the server.
+              Say so on the screen rather than leaving it to be inferred.
+            */}
+            <div className="st-hintline" id="st-pub-secret-help">
+              This isn&rsquo;t a password you pick here — it has to match the key already set on
+              the server. Ask whoever set the project up.
+            </div>
 
-            {result?.ok === false && <div className="st-warn st-mt">{result.error}</div>}
+            {result?.ok === false && (
+              <div className="st-warn st-mt">
+                {result.error}
+                {result.unauthorised === true && (
+                  <>
+                    {' '}
+                    That key doesn&rsquo;t match the server&rsquo;s, so the field has been cleared.
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="st-modalfoot">
               <button className="st-btn paper" onClick={onClose}>

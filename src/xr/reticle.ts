@@ -30,6 +30,28 @@ import { Color, DoubleSide, Group, Matrix4, Mesh, MeshBasicMaterial, RingGeometr
  */
 export type ReticleMode = 'hidden' | 'tracking' | 'searching';
 
+/**
+ * Which reticle belongs on screen this frame.
+ *
+ * The reticle is an aiming device, so it exists only while the user is still
+ * aiming. Once the diorama is planted they are looking at the scene, and any
+ * ring — the amber head-locked pulse especially, which draws over everything
+ * with depthTest disabled — is just something stuck to the middle of the
+ * screen. Placement is one-shot, so 'hidden' is terminal for the session.
+ *
+ * Kept pure and separate from the render loop because the loop needs a live
+ * AR session to run, which makes the rule itself untestable in place.
+ *
+ * @param placed — Whether the story has been planted (the first tap has landed).
+ * @param hasPose — Whether the hit-test found a surface under the screen centre
+ *   this frame.
+ * @returns The mode to pass to {@link Reticle.setMode}.
+ */
+export function nextReticleMode(placed: boolean, hasPose: boolean): ReticleMode {
+  if (placed) return 'hidden';
+  return hasPose ? 'tracking' : 'searching';
+}
+
 /** Control handle returned by {@link createReticle}. */
 export interface Reticle {
   /** The on-surface tracking ring. Add to the scene root. */

@@ -20,7 +20,7 @@ import { onXr8Ready, runXr8, stopXr8 } from '@/xr8/pipeline';
 import { readReticlePose } from '@/xr8/hitTestController';
 import { StoryTile } from '@/xr8/storyTile';
 import { composePosterMatrix } from '@/xr/posterOrientation';
-import { createReticle, Reticle } from '@/xr/reticle';
+import { createReticle, nextReticleMode, Reticle } from '@/xr/reticle';
 import { debugTelemetry } from '@/xr/debugTelemetry';
 import { useUIState } from '@/hooks/useUIState';
 import { useArLoadProgress } from '@/hooks/useArLoadProgress';
@@ -182,15 +182,15 @@ export const StoryARExperience: React.FC = () => {
           const storyPlaced = useStoryStore.getState().placed;
           const pose = readReticlePose();
 
+          // Once planted, the user is looking at the diorama, not aiming, so
+          // neither ring belongs on screen — whether or not the hit-test still
+          // has a surface this frame.
+          reticle?.setMode(nextReticleMode(storyPlaced, pose !== null));
+
           if (pose) {
             lastReticleMatrixRef.current = pose.matrix;
-            // Once planted, hide the placement reticle — the user is now just
-            // looking at the diorama, not aiming.
-            if (storyPlaced) {
-              reticle?.setMode('searching');
-            } else {
+            if (!storyPlaced) {
               reticle?.setPose(pose.matrix);
-              reticle?.setMode('tracking');
               if (!reportedReadyRef.current) {
                 reportedReadyRef.current = true;
                 setSurfaceReady(true);
@@ -200,7 +200,6 @@ export const StoryARExperience: React.FC = () => {
             debugTelemetry.setSubsystem('hitTest', 'tracking');
           } else {
             lastReticleMatrixRef.current = null;
-            if (!storyPlaced) reticle?.setMode('searching');
             debugTelemetry.setSubsystem('hitTest', 'searching');
           }
 

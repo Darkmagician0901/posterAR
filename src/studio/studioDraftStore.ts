@@ -16,6 +16,7 @@
 
 import { create } from 'zustand';
 import {
+  IDENTITY_LOCAL,
   StoryAsset,
   StoryDoc,
   StoryFrame,
@@ -26,6 +27,7 @@ import {
 import { DEFAULT_STORY } from '@/story/defaultStory';
 import { backfillEraProps } from '@/story/eraBackfill';
 import { LOCAL_DRAFT_KEY } from '@/services/storyApi';
+import type { MarkerLibraryEntry } from './markerLibrary';
 
 /** How many undo steps to retain. */
 const HISTORY_LIMIT = 50;
@@ -86,6 +88,10 @@ interface StudioState {
    * existing asset no matter what the caller does or doesn't check first.
    */
   addAsset: (filename: string, asset: StoryAsset) => string;
+  /** Binds a library marker to this story, replacing any current binding. */
+  bindMarker: (entry: MarkerLibraryEntry) => void;
+  /** Removes the binding, restoring tap-to-place. */
+  unbindMarker: () => void;
   /** Appends a blank frame and selects it. */
   addFrame: () => void;
   /** Removes a frame. Refuses to remove the last one. */
@@ -198,6 +204,30 @@ export const useStudioDraft = create<StudioState>((set, get) => {
       const alias = aliasFor(filename, new Set(Object.keys(doc.assets ?? {})));
       commit({ ...doc, assets: { ...(doc.assets ?? {}), [alias]: asset } });
       return alias;
+    },
+
+    bindMarker: (entry) => {
+      const { doc } = get();
+      commit({
+        ...doc,
+        anchor: {
+          type: 'marker',
+          markerId: entry.markerId,
+          thumbId: entry.thumbId,
+          crop: entry.crop,
+          local: IDENTITY_LOCAL,
+          widthInMarkers: 1,
+          mode: 'follow',
+        },
+      });
+    },
+
+    unbindMarker: () => {
+      // Destructured out rather than set to undefined: an `anchor: undefined`
+      // key survives in memory and reads as present to `'anchor' in doc`, which
+      // is how a phantom binding gets published.
+      const { anchor: _drop, ...rest } = get().doc;
+      commit(rest);
     },
 
     addFrame: () => {

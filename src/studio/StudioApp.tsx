@@ -18,6 +18,8 @@ import { PhonePreview } from './PhonePreview';
 import { Inspector } from './Inspector';
 import { StageEditor } from './StageEditor';
 import { PublishDialog } from './PublishDialog';
+import { MarkersPanel } from './MarkersPanel';
+import { ExhibitDialog } from './ExhibitDialog';
 import { useStudioDraft } from './studioDraftStore';
 import './studio.css';
 
@@ -29,6 +31,8 @@ export const StudioApp: React.FC = () => {
   const [stageOpen, setStageOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [markersOpen, setMarkersOpen] = useState(false);
+  const [exhibitOpen, setExhibitOpen] = useState(false);
 
   return (
     <div className="st-root">
@@ -75,6 +79,13 @@ export const StudioApp: React.FC = () => {
             ✦ NEW
           </button>
           <button
+            className="st-btn ghost"
+            onClick={() => setMarkersOpen(true)}
+            title="Upload a picture visitors will scan"
+          >
+            ◫ MARKERS
+          </button>
+          <button
             className="st-btn green"
             onClick={() => setPlaying((p) => !p)}
             title="Walk the story as a visitor would"
@@ -90,6 +101,13 @@ export const StudioApp: React.FC = () => {
           >
             ⧉ ON DEVICE
           </a>
+          <button
+            className="st-btn paper"
+            onClick={() => setExhibitOpen(true)}
+            title="Group published stories into one room visitors can walk"
+          >
+            ⌂ EXHIBIT
+          </button>
           <button
             className="st-btn orange"
             onClick={() => setPublishOpen(true)}
@@ -111,6 +129,10 @@ export const StudioApp: React.FC = () => {
       )}
 
       {publishOpen && <PublishDialog onClose={() => setPublishOpen(false)} />}
+
+      {markersOpen && <MarkersPanel onClose={() => setMarkersOpen(false)} />}
+
+      {exhibitOpen && <ExhibitDialog onClose={() => setExhibitOpen(false)} />}
     </div>
   );
 };

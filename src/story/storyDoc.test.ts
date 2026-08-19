@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { isAssetRef, validateStoryDoc, StoryDoc } from './storyDoc';
+import { DEFAULT_STORY } from '@/story/defaultStory';
 
 const FB: StoryDoc = {
   schemaVersion: 4,
@@ -269,5 +270,65 @@ describe('isAssetRef', () => {
   it('discriminates a v4 reference from a v3 inline asset', () => {
     expect(isAssetRef({ assetId: SHA, aspect: 1 })).toBe(true);
     expect(isAssetRef({ href: 'data:image/png;base64,AA', aspect: 1 })).toBe(false);
+  });
+});
+
+describe('anchor', () => {
+  const crop = {
+    top: 0, left: 100, width: 1200, height: 1600,
+    isRotated: false, originalWidth: 1400, originalHeight: 1600,
+  };
+  const anchor = {
+    type: 'marker', markerId: 'a'.repeat(64), thumbId: 'b'.repeat(64),
+    crop, local: { position: [0, 0, 0], rotation: [0, 0, 0, 1] },
+    widthInMarkers: 1, mode: 'follow',
+  };
+
+  it('keeps a well-formed anchor', () => {
+    const doc = validateStoryDoc({ ...DEFAULT_STORY, anchor }, DEFAULT_STORY);
+    expect(doc.anchor?.markerId).toBe('a'.repeat(64));
+  });
+
+  it('leaves a story with no anchor alone, so today is unchanged', () => {
+    expect(validateStoryDoc({ ...DEFAULT_STORY }, DEFAULT_STORY).anchor).toBeUndefined();
+  });
+
+  it('drops an anchor whose markerId could name a host', () => {
+    const bad = { ...anchor, markerId: 'https://evil.example/x.png' };
+    expect(validateStoryDoc({ ...DEFAULT_STORY, anchor: bad }, DEFAULT_STORY).anchor).toBeUndefined();
+  });
+
+  it('drops an anchor whose markerId could traverse', () => {
+    const bad = { ...anchor, markerId: '../../../etc/passwd' };
+    expect(validateStoryDoc({ ...DEFAULT_STORY, anchor: bad }, DEFAULT_STORY).anchor).toBeUndefined();
+  });
+
+  it('drops an anchor with a bad thumbId, because it is a path segment too', () => {
+    const bad = { ...anchor, thumbId: 'nope' };
+    expect(validateStoryDoc({ ...DEFAULT_STORY, anchor: bad }, DEFAULT_STORY).anchor).toBeUndefined();
+  });
+
+  it('drops an anchor with no crop, because the target could not be synthesized', () => {
+    const { crop: _drop, ...bad } = anchor;
+    expect(validateStoryDoc({ ...DEFAULT_STORY, anchor: bad }, DEFAULT_STORY).anchor).toBeUndefined();
+  });
+
+  it('normalises an unknown mode to follow rather than dropping the anchor', () => {
+    const doc = validateStoryDoc({ ...DEFAULT_STORY, anchor: { ...anchor, mode: 'latch' } }, DEFAULT_STORY);
+    expect(doc.anchor?.mode).toBe('follow');
+  });
+
+  it('forces identity local and widthInMarkers 1, which is all v1 renders', () => {
+    const doc = validateStoryDoc(
+      { ...DEFAULT_STORY, anchor: { ...anchor, widthInMarkers: 7, local: { position: [9, 9, 9], rotation: [1, 0, 0, 0] } } },
+      DEFAULT_STORY,
+    );
+    expect(doc.anchor?.widthInMarkers).toBe(1);
+    expect(doc.anchor?.local).toEqual({ position: [0, 0, 0], rotation: [0, 0, 0, 1] });
+  });
+
+  it('drops a non-marker anchor type', () => {
+    const bad = { ...anchor, type: 'plane' };
+    expect(validateStoryDoc({ ...DEFAULT_STORY, anchor: bad }, DEFAULT_STORY).anchor).toBeUndefined();
   });
 });

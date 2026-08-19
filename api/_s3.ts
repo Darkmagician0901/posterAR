@@ -18,7 +18,7 @@
  * environment variable.
  */
 
-import { HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 export const BUCKET = process.env.S3_BUCKET ?? '';
@@ -133,4 +133,29 @@ export async function putJson(key: string, body: string, cacheControl: string): 
       CacheControl: cacheControl,
     }),
   );
+}
+
+/**
+ * Reads and parses a JSON object.
+ *
+ * Mirrors `objectExists`'s error discipline for the same reason: a missing
+ * object here is not a failure, it is the answer "not published" — publish-
+ * exhibit reads a member story back through this to check it against what a
+ * visitor would actually fetch, and a story that has never been published is
+ * an ordinary, expected input, not an outage. Every other error propagates,
+ * because "we could not tell" must never be reported as "missing".
+ *
+ * @param key — Object key to read.
+ * @returns The parsed body, or null when the object does not exist.
+ */
+export async function getJson(key: string): Promise<unknown> {
+  try {
+    const res = await getS3().send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+    const body = (await res.Body?.transformToString()) ?? '';
+    return JSON.parse(body);
+  } catch (err) {
+    const status = (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+    if (status === 404) return null;
+    throw err;
+  }
 }

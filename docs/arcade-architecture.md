@@ -714,24 +714,41 @@ an absolute cross-origin path is **undocumented** — every reference frames it 
 page-relative, and the CLI README gives no hosting guidance at all.
 
 Undocumented behaviour is not a foundation. So the app never asks the engine to
-resolve a cross-origin path: a Vercel rewrite maps `/image-targets/:path*` to
-the CDN, and the page requests a same-origin path.
+resolve a cross-origin path: a host rewrite maps `/image-targets/<path>` to the
+bucket's `markers/` prefix, and the page requests a same-origin path.
 
-```jsonc
-// must precede the SPA catch-all, which matches /((?!api/).*)
-{ "source": "/image-targets/:path*", "destination": "https://<cdn>/markers/:path*" }
+Hosting is **AWS Amplify** (app `d114nr20m4npww`, ca-central-1), so the rule
+lives in the Amplify console's custom rules — not in the repo, and not in the
+Vercel format an earlier revision of this section showed. It must be ordered
+**after** `/api/<*>` and **before** the SPA catch-all regex; see CLAUDE.md for
+why that ordering is not negotiable. Read the live rules back rather than
+trusting any copy of them:
+
+```bash
+aws amplify get-app --app-id d114nr20m4npww --query "app.customRules"
 ```
 
 Recorded because the "simplification" of pointing the manifest straight at the
 CDN domain looks obviously correct and rests on nothing.
 
-### 10.3 Hard constraint
+### 10.3 Markers *can* be created in-app
 
-**Markers cannot be created in-app.** The CLI is interactive-only, so a human
-generates every fingerprint, forever. The studio can *manage* markers — list
-them, bind one to a story, show which is in use — but not make them. The UI
-must teach the choice, because an operator who picks a logo will get bad
-tracking and blame the software.
+An earlier revision of this document recorded the opposite as a hard
+constraint — that the CLI is interactive-only, so a human must generate every
+fingerprint forever. **That was wrong**, and it was load-bearing: it is the
+reason the studio was scoped to only *manage* markers.
+
+`@8thwall/image-target-cli` performs **no feature extraction**. Its PLANAR path
+is a crop, a resize, and a grayscale — nothing a browser cannot do. The
+fingerprint the engine matches against is computed on the device at
+`XR8.XrController.configure({ imageTargetData })` time, not baked into the file.
+So the studio can cut a marker from a photo the operator drops in, and
+`docs/marker-layer-design.md` §1 shows the reasoning in full.
+
+**The companion warning still stands, and matters more now than it did.** An
+operator who picks a plain logo, a flat colour field, or a repeating pattern
+gets bad tracking and blames the software. Removing the human from the loop
+removes the person who used to catch that choice, so the UI has to teach it.
 
 ---
 

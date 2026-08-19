@@ -130,21 +130,41 @@ export function slugifyStoryId(title: string): string {
   return /^[a-z0-9]/.test(slug) ? slug : `story-${slug}`.replace(/-+$/, '') || 'story';
 }
 
+/** What distinguishes one publishable kind from another. */
+interface PublishTarget {
+  /** The API route. */
+  endpoint: string;
+  /** Query parameter a visitor link carries — `s` for a story, `e` for an exhibit. */
+  param: string;
+  /** Noun used when the server accepts the write but names no location. */
+  noun: string;
+}
+
 /**
- * Publishes a story document.
+ * Posts a document to a publish endpoint.
  *
- * @param doc — The document to publish.
- * @param id — Story id; becomes the `?s=` value.
+ * Stories and exhibits publish through the same shape — bearer secret in the
+ * header and never in the body, server error text preferred over a generic
+ * status message, every failure returned as a value rather than thrown — so
+ * the shape lives here once. Only the route, the link's query parameter, and
+ * one noun differ, which is what `PublishTarget` carries. Extracted for the
+ * same reason `contentUpload.ts` was pulled out of `assetApi.ts`: a second
+ * copy is a second place for the auth handling to drift.
+ *
+ * @param target — Which kind of document is being published.
+ * @param doc — The document.
+ * @param id — Its id; becomes the visitor link's query value.
  * @param secret — The publish secret, sent as a bearer token.
  * @returns The published location, or a message explaining why it failed.
  */
-export async function publishStory(
+async function publishDocument(
+  target: PublishTarget,
   doc: unknown,
   id: string,
   secret: string,
 ): Promise<PublishOutcome> {
   try {
-    const res = await fetch('/api/publish', {
+    const res = await fetch(target.endpoint, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -162,17 +182,64 @@ export async function publishStory(
       };
     }
     if (typeof payload.url !== 'string') {
-      return { ok: false, error: 'The server did not return a story location.' };
+      return { ok: false, error: `The server did not return ${target.noun}.` };
     }
     return {
       ok: true,
       id,
       url: payload.url,
-      viewUrl: `${window.location.origin}/?s=${encodeURIComponent(id)}`,
+      viewUrl: `${window.location.origin}/?${target.param}=${encodeURIComponent(id)}`,
     };
   } catch {
     return { ok: false, error: 'Could not reach the server. Check your connection.' };
   }
+}
+
+/**
+ * Publishes a story document.
+ *
+ * @param doc — The document to publish.
+ * @param id — Story id; becomes the `?s=` value.
+ * @param secret — The publish secret, sent as a bearer token.
+ * @returns The published location, or a message explaining why it failed.
+ */
+export async function publishStory(
+  doc: unknown,
+  id: string,
+  secret: string,
+): Promise<PublishOutcome> {
+  return publishDocument(
+    { endpoint: '/api/publish', param: 's', noun: 'a story location' },
+    doc,
+    id,
+    secret,
+  );
+}
+
+/**
+ * Publishes an exhibit document.
+ *
+ * Note this posts the exhibit as submitted. The endpoint refuses an over-long
+ * or duplicated story list rather than trimming it, so the caller should show
+ * `exhibitIssues` before getting here — but the server is the authority, and
+ * its 422 text is what reaches the operator on the paths the UI missed.
+ *
+ * @param doc — The exhibit to publish.
+ * @param id — Exhibit id; becomes the `?e=` value.
+ * @param secret — The publish secret, sent as a bearer token.
+ * @returns The published location, or a message explaining why it failed.
+ */
+export async function publishExhibit(
+  doc: unknown,
+  id: string,
+  secret: string,
+): Promise<PublishOutcome> {
+  return publishDocument(
+    { endpoint: '/api/publish-exhibit', param: 'e', noun: 'an exhibit location' },
+    doc,
+    id,
+    secret,
+  );
 }
 
 /**

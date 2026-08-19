@@ -33,6 +33,7 @@ import { toComposeImages, assertPersistable } from './composeImages';
 import { useResolvedAssets } from './useResolvedAssets';
 import {
   FRONT,
+  MARKER_FRONT,
   TOP,
   frontProject,
   frontUnprojectX,
@@ -40,6 +41,15 @@ import {
   topUnproject,
   toViewBox,
 } from './stageGeometry';
+
+/**
+ * Origin serving `markers/` PNGs, for the ghost backdrop only.
+ *
+ * `assetResolver.ts` owns this same read for published assets but does not
+ * expose it, so it is repeated here rather than reaching into that module's
+ * internals. Empty means same-origin, matching the resolver's convention.
+ */
+const ASSET_BASE_URL: string = import.meta.env.VITE_ASSET_BASE_URL || '';
 
 /** Where a newly added prop lands. */
 const DROP_IN = { x: 0, z: 1.5 };
@@ -85,14 +95,21 @@ interface StageEditorProps {
 
 export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose }) => {
   const doc = useStudioDraft((s) => s.doc);
+  const anchor = useStudioDraft((s) => s.doc.anchor);
   const { patchFrame, addAsset } = useStudioDraft.getState();
 
-  const frame = doc.frames[frameIndex];
-  const [props, setLocal] = useState<StoryProp[]>(frame?.props ?? []);
+  // The stage frame this document composes on: portrait and 3:4 when a story
+  // is bound to a printed picture, landscape otherwise. `doc.anchor` is unset
+  // until Task 8 wires up binding in Studio, so today this is always FRONT —
+  // the branch exists so it activates correctly the moment that lands.
+  const frame = anchor ? MARKER_FRONT : FRONT;
+
+  const storyFrame = doc.frames[frameIndex];
+  const [props, setLocal] = useState<StoryProp[]>(storyFrame?.props ?? []);
   // The frame's existing art, frozen at open as the layer drawn behind the
   // props. Freezing it (rather than re-reading the composed art) is what keeps
   // re-editing from folding already-placed props back into the backdrop.
-  const [backdropDoc] = useState(() => (frame ? deriveBackdrop(frame) : ''));
+  const [backdropDoc] = useState(() => (storyFrame ? deriveBackdrop(storyFrame) : ''));
   const [selected, setSelected] = useState(-1);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -129,14 +146,14 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
   const previewSvg = useMemo(
     () =>
       composeFrame(props, {
-        width: FRONT.w,
-        height: FRONT.h,
-        groundY: FRONT.groundY,
-        ppm: FRONT.ppm,
+        width: frame.w,
+        height: frame.h,
+        groundY: frame.groundY,
+        ppm: frame.ppm,
         images: previewImages,
-        backdrop: scaledBackdrop(backdrop.inner, backdrop.width, backdrop.height, FRONT.w, FRONT.h),
+        backdrop: scaledBackdrop(backdrop.inner, backdrop.width, backdrop.height, frame.w, frame.h),
       }),
-    [props, previewImages, backdrop],
+    [props, previewImages, backdrop, frame],
   );
 
   const update = (index: number, patch: Partial<StoryProp>): void =>
@@ -217,10 +234,10 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
         e.clientX,
         e.clientY,
         frontRef.current.getBoundingClientRect(),
-        FRONT.w,
-        FRONT.h,
+        frame.w,
+        frame.h,
       );
-      update(drag.index, { x: Number(frontUnprojectX(pt.x, prop.z).toFixed(2)) });
+      update(drag.index, { x: Number(frontUnprojectX(pt.x, prop.z, frame).toFixed(2)) });
     } else if (drag.view === 'top' && topRef.current) {
       const pt = toViewBox(
         e.clientX,
@@ -295,12 +312,29 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
           <div className="st-viewcol">
             <div className="st-viewttl">CAMERA VIEW — what visitors see</div>
             <div className="st-frontwrap">
-              <svg ref={frontRef} viewBox={`0 0 ${FRONT.w} ${FRONT.h}`} className="st-stagesvg">
-                <image href={svgToDataUrl(previewSvg)} x="0" y="0" width={FRONT.w} height={FRONT.h} />
+              <svg ref={frontRef} viewBox={`0 0 ${frame.w} ${frame.h}`} className="st-stagesvg">
+                {anchor && (
+                  // The printed picture the marker was cut from, faded behind
+                  // the composed art so the author places props against what
+                  // will actually be under them on the wall. Authoring-only:
+                  // this element exists only in the editor's own preview SVG
+                  // and is never part of frame.art, so it can't reach a
+                  // published document or the viewer.
+                  <image
+                    href={`${ASSET_BASE_URL}/markers/${anchor.thumbId}.png`}
+                    x="0"
+                    y="0"
+                    width={frame.w}
+                    height={frame.h}
+                    opacity={0.28}
+                    preserveAspectRatio="xMidYMid slice"
+                  />
+                )}
+                <image href={svgToDataUrl(previewSvg)} x="0" y="0" width={frame.w} height={frame.h} />
                 {props.map((p, i) => {
-                  const pt = frontProject(p.x, p.z, p.e);
+                  const pt = frontProject(p.x, p.z, p.e, frame);
                   const s = 1 / (1 + 0.16 * Math.max(0, p.z));
-                  const hpx = p.h * FRONT.ppm * s;
+                  const hpx = p.h * frame.ppm * s;
                   const aspect =
                     p.t === 'img'
                       ? (assets[p.k]?.aspect ?? 1)

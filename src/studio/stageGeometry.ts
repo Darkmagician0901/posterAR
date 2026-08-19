@@ -11,8 +11,29 @@
  * simulating pointer events.
  */
 
-/** Camera-view frame, in SVG user units. */
-export const FRONT = { w: 520, h: 300, ppm: 46, groundY: 238 } as const;
+/** A camera-view frame, in SVG user units. */
+export interface StageFrame {
+  w: number;
+  h: number;
+  /** Pixels per metre. Shared across frames so props keep their real size. */
+  ppm: number;
+  /** Where the ground line sits, in view units from the top. */
+  groundY: number;
+}
+
+/** The default landscape stage, matching the era art's proportions. */
+export const FRONT: StageFrame = { w: 520, h: 300, ppm: 46, groundY: 238 };
+
+/**
+ * The stage a marker-bound story composes on.
+ *
+ * Exactly 3:4, because that is the shape of the printed picture the art will
+ * cover, so the author is literally designing on top of what they printed
+ * rather than discovering the misfit on a phone. `ppm` matches FRONT so
+ * binding a story never resizes its props, and the ground line sits at the
+ * same proportion of the frame.
+ */
+export const MARKER_FRONT: StageFrame = { w: 300, h: 400, ppm: 46, groundY: 317 };
 
 /** Top-down map frame. Shows x within +/-xr metres and z from 0 to zr. */
 export const TOP = { w: 520, h: 300, xr: 3.4, zr: 6.2 } as const;
@@ -23,7 +44,9 @@ export function depthScale(z: number): number {
 }
 
 /** How much a prop rises up the camera view per metre of depth. */
-const depthRise = FRONT.ppm * 0.3;
+function depthRise(frame: StageFrame): number {
+  return frame.ppm * 0.3;
+}
 
 /** A point in the camera view. */
 export interface Point {
@@ -37,13 +60,16 @@ export interface Point {
  * @param x — Metres left(-) / right(+) of centre.
  * @param z — Metres into the scene.
  * @param e — Metres above the ground line.
+ * @param frame — Which stage frame to project into. Defaults to the
+ * landscape `FRONT` frame, so every pre-marker call site keeps working
+ * untouched.
  * @returns The prop's anchor point (its bottom centre) in view units.
  */
-export function frontProject(x: number, z: number, e = 0): Point {
+export function frontProject(x: number, z: number, e = 0, frame: StageFrame = FRONT): Point {
   const s = depthScale(z);
   return {
-    x: FRONT.w / 2 + x * FRONT.ppm * s,
-    y: FRONT.groundY - z * depthRise * s - e * FRONT.ppm * s,
+    x: frame.w / 2 + x * frame.ppm * s,
+    y: frame.groundY - z * depthRise(frame) * s - e * frame.ppm * s,
   };
 }
 
@@ -56,11 +82,13 @@ export function frontProject(x: number, z: number, e = 0): Point {
  *
  * @param viewX — Pointer x in view units.
  * @param z — The prop's current depth.
+ * @param frame — Which stage frame `viewX` was measured in. Defaults to
+ * `FRONT`, matching `frontProject`.
  * @returns Metres left(-) / right(+) of centre.
  */
-export function frontUnprojectX(viewX: number, z: number): number {
+export function frontUnprojectX(viewX: number, z: number, frame: StageFrame = FRONT): number {
   const s = depthScale(z);
-  return (viewX - FRONT.w / 2) / (FRONT.ppm * s);
+  return (viewX - frame.w / 2) / (frame.ppm * s);
 }
 
 /**

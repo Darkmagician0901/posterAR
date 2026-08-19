@@ -2708,6 +2708,61 @@ git commit -m "Correct the record on whether markers can be made inside the app"
 
 ---
 
+## OPS-M2 — the bucket policy (blocks every upload, marker or not)
+
+**Found 2026-08-19 while verifying the API deploy. This is not a marker bug — it has been breaking asset uploads since before the marker work existed.**
+
+Symptom: `POST /api/story-assets` answers `500 {"error":"Internal error. Check the function logs."}` for **any** upload. The Lambda log shows an S3 `403` with `$fault: 'client'`.
+
+Root cause: `objectExists()` (`api/_s3.ts`) is a HeadObject that returns `false` only on a **404** and rethrows anything else. Per AWS's documented HeadObject behaviour, a request for a key that does not exist returns **403, not 404, when the caller lacks `s3:ListBucket`** — and the role `eml-arcade-lambda-exec` has no `s3:ListBucket` anywhere (no identity policy at all; its access comes solely from the bucket policy). Every content-addressed upload targets a brand-new key, so every upload takes the missing-key path, gets a 403, rethrows, and 500s.
+
+The confirming evidence is the bucket itself: `stories/` holds objects (PutObject needs no ListBucket, so publishing a story always worked) while `assets/` is **completely empty** — no asset upload has ever succeeded.
+
+Do **not** "fix" this by making `objectExists` treat 403 as absent. That hides genuine permission failures and would hand out a presigned URL for a key the function cannot actually write.
+
+The corrected policy also adds the two prefixes this layer introduced. `markers/*` must be publicly readable because the engine fetches the luminance PNG through the OPS-M1 rewrite and the Studio shows thumbnails from it; `exhibits/*` must be publicly readable because `fetchPublishedExhibit` reads `exhibits/<id>.json` straight from the browser.
+
+```bash
+aws s3api put-bucket-policy --bucket eml-arcade-storage --region ca-central-1 --policy '{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Sid": "PublicReadPublishedContent", "Effect": "Allow", "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": [
+        "arn:aws:s3:::eml-arcade-storage/assets/*",
+        "arn:aws:s3:::eml-arcade-storage/stories/*",
+        "arn:aws:s3:::eml-arcade-storage/markers/*",
+        "arn:aws:s3:::eml-arcade-storage/exhibits/*" ] },
+    { "Sid": "LambdaWrite", "Effect": "Allow",
+      "Principal": { "AWS": "arn:aws:iam::940309384764:role/eml-arcade-lambda-exec" },
+      "Action": ["s3:PutObject", "s3:GetObject"],
+      "Resource": [
+        "arn:aws:s3:::eml-arcade-storage/assets/*",
+        "arn:aws:s3:::eml-arcade-storage/stories/*",
+        "arn:aws:s3:::eml-arcade-storage/markers/*",
+        "arn:aws:s3:::eml-arcade-storage/exhibits/*" ] },
+    { "Sid": "LambdaListForExistenceChecks", "Effect": "Allow",
+      "Principal": { "AWS": "arn:aws:iam::940309384764:role/eml-arcade-lambda-exec" },
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::eml-arcade-storage" }
+  ]
+}'
+```
+
+`ListBucket` is granted to the **role only** — never to `*`, which would let anyone enumerate the bucket. The public statement stays `s3:GetObject` and nothing more.
+
+Verify with a presign probe, which signs a URL but writes nothing:
+
+```bash
+curl -s -X POST https://main.d114nr20m4npww.amplifyapp.com/api/story-assets \
+  -H 'content-type: application/json' \
+  -d '{"sha256":"fab5a92096111c7c7963e774edb6833a630e91f94379c496e24c258dce5b53ef","sha256Base64":"+rWpIJYRHHx5Y+d07baDOmMOkflDecSW4kwljc5bU+8=","contentType":"image/png","kind":"marker"}'
+```
+
+Before: `{"error":"Internal error..."}`. After: a JSON body carrying `uploadUrl` and a `markers/<sha>.png` key.
+
+---
+
 ## OPS-M1 — the rewrite (blocks Task 16)
 
 Amplify app `d114nr20m4npww`, ca-central-1. Add a rewrite from `/image-targets/<path>` to `markers/<path>` on the content distribution, ordered **before** the SPA catch-all.

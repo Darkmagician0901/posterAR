@@ -287,10 +287,29 @@ describe('publishExhibit', () => {
       ),
     );
     const out = await publishExhibit({ storyIds: ['a'] }, 'lobby', 's');
+    // A 422 is the exhibit being wrong, not the passphrase — so `unauthorised`
+    // must be false here, or the studio would throw away a good key over a
+    // story that simply isn't bound to a picture yet.
     expect(out).toEqual({
       ok: false,
       error: '"a" is not attached to a picture, so nothing would ever trigger it.',
+      unauthorised: false,
     });
+  });
+
+  it('flags a rejected passphrase so the exhibit dialog can discard it too', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({ error: 'Not authorised.' }),
+        }),
+      ),
+    );
+    const out = await publishExhibit({ storyIds: ['a'] }, 'lobby', 'wrong');
+    expect(out).toEqual({ ok: false, error: 'Not authorised.', unauthorised: true });
   });
 
   it('reports a network failure rather than throwing', async () => {

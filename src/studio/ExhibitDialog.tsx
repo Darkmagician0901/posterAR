@@ -55,6 +55,14 @@ function rememberSecret(value: string): void {
   }
 }
 
+function forgetSecret(): void {
+  try {
+    window.sessionStorage.removeItem(SECRET_KEY);
+  } catch {
+    // Same as rememberSecret: an unavailable store is not worth failing on.
+  }
+}
+
 /** What a bucket probe found for one story id. */
 type Presence = 'checking' | 'found' | 'missing' | 'unknown';
 
@@ -134,7 +142,17 @@ export const ExhibitDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
       storyIds,
     };
     const outcome = await publishExhibit(doc, id, secret);
-    if (outcome.ok) rememberSecret(secret);
+    // Same rule as PublishDialog, and it matters more here: both dialogs share
+    // one SECRET_KEY, so a rejected passphrase left in the store would come
+    // back pre-filled in *either* of them, looking exactly like a correct one.
+    // Clearing on 401 makes the empty field itself the signal. A 422 — an
+    // exhibit naming an unbound story — must NOT clear it; the key was fine.
+    if (outcome.ok) {
+      rememberSecret(secret);
+    } else if (outcome.unauthorised) {
+      forgetSecret();
+      setSecret('');
+    }
     setResult(outcome);
     setBusy(false);
   };
@@ -281,12 +299,27 @@ export const ExhibitDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
               className="st-in"
               type="password"
               value={secret}
-              placeholder="Set by whoever configured the project"
+              placeholder="The key already set on the server"
               onChange={(e) => setSecret(e.target.value)}
               autoComplete="off"
+              aria-describedby="st-ex-secret-help"
             />
+            <div className="st-hintline" id="st-ex-secret-help">
+              This isn&rsquo;t a password you pick here — it has to match the key already set on
+              the server. Ask whoever set the project up.
+            </div>
 
-            {result?.ok === false && <div className="st-warn st-mt">{result.error}</div>}
+            {result?.ok === false && (
+              <div className="st-warn st-mt">
+                {result.error}
+                {result.unauthorised === true && (
+                  <>
+                    {' '}
+                    That key doesn&rsquo;t match the server&rsquo;s, so the field has been cleared.
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="st-modalfoot">
               <button className="st-btn paper" onClick={onClose}>

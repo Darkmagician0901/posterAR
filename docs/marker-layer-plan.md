@@ -2708,9 +2708,11 @@ git commit -m "Correct the record on whether markers can be made inside the app"
 
 ---
 
-## OPS-M2 — the bucket policy (blocks every upload, marker or not)
+## OPS-M2 — the bucket policy ✅ RESOLVED 2026-08-19
 
-**Found 2026-08-19 while verifying the API deploy. This is not a marker bug — it has been breaking asset uploads since before the marker work existed.**
+**Found 2026-08-19 while verifying the API deploy. This is not a marker bug — it had been breaking asset uploads since before the marker work existed.**
+
+**Resolved the same day.** The policy below was applied through the S3 console and verified live: the marker probe now returns `{"exists":false,"uploadUrl":"…/markers/<sha>.png?…"}` and the asset probe returns a URL for `assets/<sha>/full.webp`, where both previously answered `500`. `/api/publish-exhibit` answers `401 Not authorised.` to an unauthenticated call, which confirms the route is deployed rather than missing. Kept here because the reasoning is what makes the policy re-derivable if it is ever reset.
 
 Symptom: `POST /api/story-assets` answers `500 {"error":"Internal error. Check the function logs."}` for **any** upload. The Lambda log shows an S3 `403` with `$fault: 'client'`.
 

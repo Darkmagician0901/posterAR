@@ -15,8 +15,8 @@
 
 import { DoubleSide, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Texture } from 'three';
 
-/** Width of the diorama in metres (height follows the art aspect). */
-const TILE_WIDTH_M = 0.9;
+import { tileSize } from '@/xr/placement';
+import { POSTER_STANDS_UPRIGHT } from '@/xr/posterOrientation';
 
 /**
  * Owns the lifecycle of the one diorama tile: planting it at a hit-test pose,
@@ -64,8 +64,7 @@ export class StoryTile {
    * @param aspect — height / width of the art, to size the plane.
    */
   setTexture(texture: Texture, aspect: number): void {
-    const width = TILE_WIDTH_M;
-    const height = width * (aspect || 1);
+    const { widthM: width, heightM: height } = tileSize(aspect);
 
     if (!this._mesh || !this._material) {
       this._material = new MeshBasicMaterial({
@@ -83,6 +82,7 @@ export class StoryTile {
       // or flat on the ground per the POSTER_STANDS_UPRIGHT toggle), so the
       // +Z-facing plane needs no extra mesh rotation — matching PosterPlacement.
       this._group.add(this._mesh);
+      this._groundMesh(height);
       return;
     }
 
@@ -94,6 +94,27 @@ export class StoryTile {
 
     this._mesh.geometry.dispose();
     this._mesh.geometry = new PlaneGeometry(width, height);
+    this._groundMesh(height);
+  }
+
+  /**
+   * Stands the plane ON the contact point rather than centred in it.
+   *
+   * A PlaneGeometry is centred on its origin, and composeUprightPosterMatrix
+   * puts that origin at the surface the user tapped — so half the art is below
+   * the floor. That was 0.23 m at the old 0.9 m tile and passed unnoticed; at
+   * human scale it buries half a metre of the story. Lifting the mesh by half
+   * its height inside the group puts the bottom edge on the surface without
+   * touching the group's world matrix, which the AR pose owns.
+   *
+   * Only correct while the poster stands upright: laid flat, the group's local
+   * +Y is the surface normal and any lift would float the art above the ground.
+   *
+   * @param height — The plane's height in metres.
+   */
+  private _groundMesh(height: number): void {
+    if (!this._mesh) return;
+    this._mesh.position.y = POSTER_STANDS_UPRIGHT ? height / 2 : 0;
   }
 
   /**

@@ -14,12 +14,13 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { AmbientLight, Camera, DirectionalLight, Group, Scene, Vector3 } from 'three';
+import { AmbientLight, Camera, DirectionalLight, Group, Matrix4, Scene, Vector3 } from 'three';
 
 import { onXr8Ready, runXr8, stopXr8 } from '@/xr8/pipeline';
-import { readReticlePose } from '@/xr8/hitTestController';
+import { readReticlePose, type ReticlePose } from '@/xr8/hitTestController';
 import { StoryTile } from '@/xr8/storyTile';
 import { composePosterMatrix } from '@/xr/posterOrientation';
+import { clampPlacementPoint, isPlaceableHit } from '@/xr/placement';
 import { createReticle, nextReticleMode, Reticle } from '@/xr/reticle';
 import { debugTelemetry } from '@/xr/debugTelemetry';
 import { useUIState } from '@/hooks/useUIState';
@@ -44,7 +45,7 @@ export const StoryARExperience: React.FC = () => {
   // Pipeline-scoped refs (created in onStart, used in onUpdate + cleanup).
   const tileRef = useRef<StoryTile | null>(null);
   const reticleRef = useRef<Reticle | null>(null);
-  const lastReticleMatrixRef = useRef<Float32Array | null>(null);
+  const lastReticlePoseRef = useRef<ReticlePose | null>(null);
   const tapListenersRef = useRef<{
     canvas: HTMLCanvasElement;
     onTouchStart: () => void;
@@ -87,10 +88,18 @@ export const StoryARExperience: React.FC = () => {
    */
   const placeStory = () => {
     if (useStoryStore.getState().placed) return;
-    const matrix = lastReticleMatrixRef.current;
+    const pose = lastReticlePoseRef.current;
     const tile = tileRef.current;
-    if (!matrix || !tile) {
+    if (!pose || !tile) {
       debugTelemetry.logEvent('story: tap ignored — no surface lock yet');
+      return;
+    }
+
+    // A lone feature point is one tracked speck, often across the room. Aiming
+    // at it is fine; committing the whole story to it is not.
+    if (!isPlaceableHit(pose.type)) {
+      addToast({ type: 'info', message: 'Point at the floor or a wall, then tap.' });
+      debugTelemetry.logEvent(`story: tap ignored — weak hit (${pose.type})`);
       return;
     }
 
@@ -100,6 +109,15 @@ export const StoryARExperience: React.FC = () => {
       cameraPos = xrScene?.camera?.position ?? null;
     } catch {
       cameraPos = null;
+    }
+
+    // Keep the story within a distance its real-world size actually reads at.
+    // Without the camera we cannot measure distance, so the raw hit stands.
+    let matrix = pose.matrix;
+    if (cameraPos) {
+      const m = new Matrix4().fromArray(Array.from(matrix));
+      const point = clampPlacementPoint(new Vector3().setFromMatrixPosition(m), cameraPos);
+      matrix = new Float32Array(m.setPosition(point).elements);
     }
 
     tile.place(composePosterMatrix(matrix, cameraPos));
@@ -188,7 +206,7 @@ export const StoryARExperience: React.FC = () => {
           reticle?.setMode(nextReticleMode(storyPlaced, pose !== null));
 
           if (pose) {
-            lastReticleMatrixRef.current = pose.matrix;
+            lastReticlePoseRef.current = pose;
             if (!storyPlaced) {
               reticle?.setPose(pose.matrix);
               if (!reportedReadyRef.current) {
@@ -199,7 +217,7 @@ export const StoryARExperience: React.FC = () => {
             }
             debugTelemetry.setSubsystem('hitTest', 'tracking');
           } else {
-            lastReticleMatrixRef.current = null;
+            lastReticlePoseRef.current = null;
             debugTelemetry.setSubsystem('hitTest', 'searching');
           }
 
@@ -234,7 +252,7 @@ export const StoryARExperience: React.FC = () => {
     }
 
     reticleRef.current = null;
-    lastReticleMatrixRef.current = null;
+    lastReticlePoseRef.current = null;
     lastFrameTimeRef.current = null;
     reportedReadyRef.current = false;
 

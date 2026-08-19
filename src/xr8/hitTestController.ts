@@ -24,6 +24,13 @@ export interface ReticlePose {
   matrix: Float32Array;
   /** True when the surface is a wall (its normal is roughly horizontal). */
   vertical: boolean;
+  /**
+   * Which kind of hit this was. Carried through because the reticle will
+   * happily point at a lone FEATURE_POINT, while planting the story on one is
+   * a good way to end up with it across the room — see `isPlaceableHit` in
+   * `xr/placement.ts`.
+   */
+  type: Xr8HitResult['type'];
 }
 
 // ── module-scoped temporaries — reused every frame to avoid GC pressure ──────
@@ -91,5 +98,6 @@ export function readReticlePose(): ReticlePose | null {
   return {
     matrix: new Float32Array(_m4.elements),
     vertical,
+    type: best.type,
   };
 }

@@ -2631,7 +2631,9 @@ git commit -m "Pick the picture a visitor is actually looking at, and hold it st
 
 ## Task 16: XR8 wiring — GATED ON PHASE 0 AND OPS-M1
 
-**Do not start this task until Phase 0's two measurements are recorded and OPS-M1's rewrite is live.** Phase 0 can change `mode` from `follow` to `latch`, which changes what this task builds; without OPS-M1 the engine cannot fetch a single marker image and nothing will ever be detected.
+**Do not start this task until Phase 0's two measurements are recorded.** Phase 0 can change `mode` from `follow` to `latch`, which changes what this task builds.
+
+**OPS-M1 is no longer a blocker — it was applied and verified 2026-08-19.** OPS-M2 (the bucket policy) likewise. Phase 0 is the only gate left, and it is a human one.
 
 **Files:**
 - Create: `src/xr8/markerTracking.ts`
@@ -2765,9 +2767,28 @@ Before: `{"error":"Internal error..."}`. After: a JSON body carrying `uploadUrl`
 
 ---
 
-## OPS-M1 — the rewrite (blocks Task 16)
+## OPS-M1 — the rewrite ✅ APPLIED 2026-08-19
 
-Amplify app `d114nr20m4npww`, ca-central-1. Add a rewrite from `/image-targets/<path>` to `markers/<path>` on the content distribution, ordered **before** the SPA catch-all.
+Amplify app `d114nr20m4npww`, ca-central-1. A rewrite from `/image-targets/<path>` to `markers/<path>` on the content distribution.
+
+**Applied through the Amplify console** (not the CLI — `update-app --custom-rules` replaces the entire rule list, while the console appends to it, which removes the whole-site blast radius this section was cautious about). The live rules are now:
+
+1. `/api/<*>` → the Lambda URL, 200
+2. the SPA regex → `/index.html`, 200
+3. `/image-targets/<*>` → `https://eml-arcade-storage.s3.ca-central-1.amazonaws.com/markers/<*>`, 200
+
+**Ordering correction.** This section originally insisted the rewrite sit *before* the SPA catch-all. It ended up third, and that is fine: the SPA regex ends in `(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json|webp)$)`, so it never matches a `.png` path, and `/image-targets/<sha>.png` falls through to rule 3. Amplify takes the first matching rule and rule 2 simply does not match. Second position is still the tidier arrangement — but the ordering is not load-bearing for `.png`, and the earlier wording overstated it.
+
+**Verified** with a request for a marker id that does not exist:
+
+```
+curl -o /dev/null -w "%{http_code} %{content_type}" .../image-targets/<absent-sha>.png
+→ 403 application/xml
+```
+
+`application/xml` is S3's own AccessDenied body, which proves the request reached the bucket rather than being swallowed into `index.html` (`text/html`). The 403-instead-of-404 is the same documented S3 behaviour described in OPS-M2 — an anonymous caller has no `s3:ListBucket`, which is correct, since public bucket enumeration is not wanted.
+
+**One check still open:** once a real marker exists in the bucket, confirm `.../image-targets/<sha>.png` returns `image/png`. Everything up to the bucket is proven; that step confirms the object itself serves.
 
 **Values read back from the live account 2026-08-17, not guessed.** `aws` is now installed, so the two unknowns this section was blocked on are resolved:
 

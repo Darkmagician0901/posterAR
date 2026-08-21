@@ -546,11 +546,114 @@ these quantities and needs no changes to serve this purpose.
 
 ---
 
+## 10a. Model mismatches recorded for a later revision
+
+**Raised 2026-08-21, during Phase 0 testing. Nothing here is being changed now** —
+recorded so a later revision resolves them deliberately rather than rediscovering
+them. Both are *product model* questions, not defects: what is built matches what
+this document specified, and this section says where that specification and the
+intended installation diverge.
+
+### 10a.1 Content is currently the size of the marker
+
+§5.1 sizes the tile from the engine's own `scaledWidth`/`scaledHeight`, and
+`widthInMarkers` is pinned to 1, so **the art covers the printed marker exactly**.
+That is stated as intent throughout: §7.2 calls it "a design intent rather than an
+accident of geometry", and the 3:4 composer stage exists to serve it.
+
+The intended installation is the other way round: **a small marker acting as a
+locator, with content substantially larger than it** — the marker locates the
+scene, it does not bound it. Under the shipped model, a small printed card yields
+a small story.
+
+The schema already anticipates this and is why §3.3 kept both fields:
+`widthInMarkers` is a ratio and `local` is a transform, so this is a UI addition,
+not a migration. `sanitizeAnchor` currently *forces* both (to `1` and identity),
+and that clamp is the thing a revision removes.
+
+What a revision has to supply:
+
+- **A Studio control** for scale and offset, and the clamp lifted from
+  `sanitizeAnchor`.
+- **`MARKER_NORMAL_AXIS`.** §5.1 retires this question by keeping everything
+  coplanar — nothing is offset along any axis, so which way is "off the picture"
+  never has to be known. Floating content reinstates it. Worth answering during a
+  Phase 0 run while the testbed is already standing.
+- **Offsets expressed in marker-widths, not metres.** The same reasoning that made
+  `widthInMarkers` a ratio: the ratio cancels the units, so the design never has to
+  decide whether the engine reports metres.
+- **A different composer stage.** §7.2's 3:4 stage *is* the marker. When the marker
+  is a token inside a larger scene, the stage wants to show the marker small within
+  that scene instead.
+
+**The risk to weigh, and it is the real one:** jitter scales with
+`widthInMarkers`. §5.1 already excludes scale from the pose matrix because a 1%
+wobble would rescale every stored offset. At 1:1 an angular error moves the art
+millimetres; at 8x it moves it eight times as far, and the content furthest from
+the marker swings most. VER-M1's jitter measurement was already the more important
+of the two — under this model it is decisive, and should be re-read with a large
+multiplier in mind rather than at 1:1.
+
+### 10a.2 The intended hierarchy is QR to scene to marker, and is one level deeper
+
+The installation is meant to run:
+
+```
+one QR code  ->  starts a session at a SCENE
+                 the scene contains several MARKERS
+                 scanning a marker  ->  shows something
+```
+
+What is built maps onto that only partly:
+
+| Intended | Built | Gap |
+|---|---|---|
+| QR opens a scene | `?e=<id>` opens an exhibit | Close enough; an exhibit is a scene |
+| A scene holds several markers | An exhibit lists stories, each owning one marker | Works |
+| Scanning a marker shows something | A marker resolves to a whole `StoryDoc` | Granularity — "something" may be smaller than a five-frame story |
+| A session has state | Loading is stateless | **No session concept exists** |
+| A marker may mean different things | One marker resolves to one story | **1:1, enforced** |
+
+Two of those are structural.
+
+**There is no session.** `resolveExhibitId` and `buildMarkerStoryMap` (§3.2, §6.1)
+run once at load and produce a fixed map. Nothing carries state between marker
+scans, so "the third picture behaves differently once you have seen the first two"
+has nowhere to live. A revision adds a session layer above the marker map; it does
+not modify the map.
+
+**A marker binds to exactly one story, and that is enforced in two places.**
+`api/publish-exhibit.ts` refuses two stories on one marker with a 422, and
+`buildMarkerStoryMap` keeps the first writer at runtime. Both were deliberate —
+§8's reasoning is that one picture meaning two things is an operator error a
+visitor cannot recover from.
+
+The intended hierarchy wants the opposite in one specific sense: the *same physical
+marker* may need to mean different things **depending on scene or session state**.
+Note the binding direction makes this harder than it looks — the anchor lives on
+the *story* (`doc.anchor`), so a story owns its marker globally. Expressing "this
+marker, in this scene, means X" requires the binding to gain a scene dimension:
+either it moves onto the exhibit, or the exhibit carries an override map.
+
+That is a genuine schema change rather than a clamp being lifted, and it is the
+larger of the two items here. It also reframes the refusal: the publish-time check
+would become "one marker means one thing *within a scene*", which is still worth
+enforcing and is a narrower rule than the one built.
+
+**Sequencing note.** 10a.1 is a UI addition on an anticipated schema. 10a.2 changes
+where a marker binding lives. If both are wanted, settle 10a.2 first — moving the
+binding would otherwise mean building the scale/offset UI twice.
+
+---
+
 ## 11. Deliberate stopping points
 
 - **Offset placement is not built.** `local` is identity and `widthInMarkers`
   is 1. Art that floats in front of a picture is a Studio positioning UI plus
   the `MARKER_NORMAL_AXIS` verification this design currently avoids needing.
+  **This stopping point is now known to conflict with the intended installation
+  — see §10a.1 (MOD-M1).** It was recorded here as a trade; it is better read as
+  a deferral.
 - **`latch` is not built.** It stays a value the type permits (§5.2).
 - **Curved markers are not supported.** The CLI emits `CYLINDER` and `CONICAL`
   with real geometry maths in `unconify.js`; Studio generates `PLANAR` only.
@@ -580,6 +683,8 @@ these quantities and needs no changes to serve this purpose.
 | **OPS-M1** | Amplify app `d114nr20m4npww`: add a rewrite from `/image-targets/<path>` to the content distribution, before the SPA catch-all. Needs the real distribution domain read back from the account first (§9) | ops |
 | **DOC-M1** | Amend `arcade-architecture.md` §10.3 once §1 ships, and regenerate `.claude/skills/8thwall-engine/reference/imagetargets.md`, which still documents the retired hosted API | with phase 1 |
 | **VER-M1** | Phase 0's two measurements: follow-mode jitter against a printed edge, and browser-generated vs CLI-generated fingerprints | phase 0 |
+| **MOD-M1** | Content is the size of the marker; the installation wants a small locator with much larger content (§10a.1). Schema anticipates it — `sanitizeAnchor`'s clamp, a Studio control, and `MARKER_NORMAL_AXIS` are what a revision needs | later revision |
+| **MOD-M2** | Intended hierarchy is QR → scene → marker → content, one level deeper than what is built. No session state exists, and a marker binds to exactly one story globally (§10a.2). Settle before MOD-M1 | later revision |
 
 ---
 

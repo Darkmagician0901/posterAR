@@ -2635,6 +2635,13 @@ git commit -m "Pick the picture a visitor is actually looking at, and hold it st
 
 **OPS-M1 is no longer a blocker — it was applied and verified 2026-08-19.** OPS-M2 (the bucket policy) likewise. Phase 0 is the only gate left, and it is a human one.
 
+**Read `docs/marker-layer-design.md` §10a before building this.** Two model mismatches were recorded 2026-08-21 that this task sits directly on top of:
+
+- **MOD-M1** — Step 3 below sizes the tile so it *covers the marker exactly*. The intended installation wants a small marker locating much larger content. Build Step 3 so the multiplier is a variable rather than an assumption baked into the geometry, even while it stays 1.
+- **MOD-M2** — the intended hierarchy is QR → scene → marker → content, and a marker may need to mean different things per scene. What is built resolves one marker to exactly one story, globally. Task 16 should not add anything that makes that binding *harder* to move later.
+
+Neither blocks this task. Both change what "done" should look like, so they are named here rather than left in the design doc alone.
+
 **Files:**
 - Create: `src/xr8/markerTracking.ts`
 - Modify: `src/xr8/pipeline.ts`

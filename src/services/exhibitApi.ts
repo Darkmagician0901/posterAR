@@ -22,7 +22,9 @@
  * story already owns.
  */
 
-import type { StoryDoc } from '@/story/storyDoc';
+import { validateStoryDoc, type StoryDoc } from '@/story/storyDoc';
+import { validateExhibitDoc } from '@/exhibit/exhibitDoc';
+import { fetchPublishedStory } from './storyApi';
 
 /**
  * Base URL exhibits are published under — the same host stories use
@@ -141,4 +143,91 @@ export function buildMarkerStoryMap(stories: StoryDoc[]): Map<string, StoryDoc> 
     if (id !== undefined && !map.has(id)) map.set(id, story);
   }
   return map;
+}
+
+/**
+ * Known-good fallback for member stories.
+ *
+ * Deliberately empty rather than the bundled demo: a story whose published
+ * JSON failed to parse must not silently become the five-era demo attached to
+ * somebody's printed picture. An empty frame list is then detectable, and the
+ * story is dropped as unreachable instead.
+ */
+const EMPTY_STORY: StoryDoc = {
+  schemaVersion: 4,
+  id: 'unreadable',
+  title: '',
+  loc: '',
+  intro: { title: '', subtitle: '' },
+  outro: { title: '', subtitle: '' },
+  frames: [],
+};
+
+/** A loaded room: the stories in it, keyed by the picture that triggers each. */
+export interface LoadedExhibit {
+  id: string;
+  title: string;
+  /**
+   * markerId → story. The markerId is also the engine's target `name`, so an
+   * `imagefound` event resolves through this with no second lookup.
+   */
+  markerStories: Map<string, StoryDoc>;
+  /** Ids the exhibit named that could not be fetched, or carry no picture. */
+  unreachable: string[];
+}
+
+/**
+ * Loads the exhibit this URL asks for, if any.
+ *
+ * Degrades at every step rather than refusing (§8): a story that 404s or has
+ * no picture attached is dropped and named in `unreachable`, and the rest of
+ * the room still scans. Only "nothing usable at all" returns null, because
+ * there is then nothing to point a phone at.
+ *
+ * Member stories are fetched in parallel — a room holds at most ten and each
+ * is kilobytes, so round trips dominate. Their *assets* are deliberately not
+ * fetched: those are megabytes, and a visitor may never walk to half the
+ * pictures. Asset resolution stays lazy, on first detection.
+ *
+ * @param search — `location.search`.
+ * @returns The loaded room, or null when this is not an exhibit link or
+ *   nothing in it is reachable. Never throws.
+ */
+export async function loadExhibitForLocation(search: string): Promise<LoadedExhibit | null> {
+  const id = resolveExhibitId(search);
+  if (id === null) return null;
+
+  const raw = await fetchPublishedExhibit(id);
+  if (raw === null) return null;
+
+  const doc = validateExhibitDoc(raw);
+  if (doc === null) return null;
+
+  const fetched = await Promise.all(
+    doc.storyIds.map(async (storyId) => ({
+      storyId,
+      raw: await fetchPublishedStory(storyId),
+    })),
+  );
+
+  const stories: StoryDoc[] = [];
+  const unreachable: string[] = [];
+
+  for (const { storyId, raw: storyRaw } of fetched) {
+    if (storyRaw === null) {
+      unreachable.push(storyId);
+      continue;
+    }
+    const story = validateStoryDoc(storyRaw, EMPTY_STORY);
+    if (story.anchor === undefined || story.frames.length === 0) {
+      unreachable.push(storyId);
+      continue;
+    }
+    stories.push(story);
+  }
+
+  const markerStories = buildMarkerStoryMap(stories);
+  if (markerStories.size === 0) return null;
+
+  return { id: doc.id, title: doc.title, markerStories, unreachable };
 }

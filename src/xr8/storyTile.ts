@@ -28,6 +28,18 @@ export class StoryTile {
   private _mesh: Mesh | null = null;
   private _material: MeshBasicMaterial | null = null;
   private _placed = false;
+  /** Aspect of the current art, kept so a width change can resize alone. */
+  private _aspect = 1;
+  /**
+   * Width override, in the same units the caller's matrix uses.
+   *
+   * Null means the ground-placed default, `TILE_WIDTH_M` — a fixed real-world
+   * size, which is right when the tile stands on a floor and nothing else sets
+   * the scale. A marker-anchored tile instead takes its width from the
+   * marker's own reported size, so it stays correct whatever units the engine
+   * is reporting in.
+   */
+  private _width: number | null = null;
 
   /**
    * @param sceneRoot — Group the tile is added under (the engine scene group).
@@ -64,8 +76,9 @@ export class StoryTile {
    * @param aspect — height / width of the art, to size the plane.
    */
   setTexture(texture: Texture, aspect: number): void {
-    const width = TILE_WIDTH_M;
-    const height = width * (aspect || 1);
+    this._aspect = aspect || 1;
+    const width = this._width ?? TILE_WIDTH_M;
+    const height = width * this._aspect;
 
     if (!this._mesh || !this._material) {
       this._material = new MeshBasicMaterial({
@@ -94,6 +107,29 @@ export class StoryTile {
 
     this._mesh.geometry.dispose();
     this._mesh.geometry = new PlaneGeometry(width, height);
+  }
+
+  /**
+   * Sets how wide the tile should be drawn, overriding the ground default.
+   *
+   * Used by the marker path, where width comes from the marker's own reported
+   * size rather than a fixed number of metres. Called every frame while a
+   * marker is tracked, so it returns early unless the width actually changed —
+   * rebuilding the plane geometry each frame would churn GPU buffers for
+   * nothing.
+   *
+   * @param width — Tile width in the caller's units, or null to restore the
+   *   fixed ground-placed default.
+   */
+  setWidth(width: number | null): void {
+    if (width !== null && !(Number.isFinite(width) && width > 0)) return;
+    if (this._width === width) return;
+    this._width = width;
+
+    if (!this._mesh) return;
+    const w = width ?? TILE_WIDTH_M;
+    this._mesh.geometry.dispose();
+    this._mesh.geometry = new PlaneGeometry(w, w * this._aspect);
   }
 
   /**

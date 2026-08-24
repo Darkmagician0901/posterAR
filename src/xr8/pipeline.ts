@@ -206,6 +206,18 @@ export interface Xr8RunOptions {
   customModules?: Xr8PipelineModule[];
   /** Desktop/dev: disable SLAM world tracking (no rear camera / no motion). */
   disableWorldTracking?: boolean;
+  /**
+   * Image-target fingerprints to watch for, built by `markerTargetData`.
+   *
+   * Passed straight through to `XR8.XrController.configure`. Setting this
+   * REPLACES the engine's active target set, so it must always carry every
+   * target still wanted — which is why it is configured once from the whole
+   * exhibit rather than accumulated per detection.
+   *
+   * Omitted or empty means no image tracking, and the app behaves exactly as
+   * it did before markers existed.
+   */
+  imageTargetData?: unknown[];
 }
 
 /**
@@ -227,7 +239,12 @@ export interface Xr8RunOptions {
  *   {@link Xr8RunOptions}.
  */
 export function runXr8(options: Xr8RunOptions): void {
-  const { canvas, customModules = [], disableWorldTracking = false } = options;
+  const {
+    canvas,
+    customModules = [],
+    disableWorldTracking = false,
+    imageTargetData = [],
+  } = options;
 
   // XR8.Threejs.pipelineModule() reads the three.js library from the global
   // window.THREE and throws "THREE does not exist but is required" if it is
@@ -280,9 +297,20 @@ export function runXr8(options: Xr8RunOptions): void {
 
   XR8.addCameraPipelineModules(modules);
 
-  // Configure world tracking before starting the pipeline.
+  // Configure world tracking — and image targets — before starting the
+  // pipeline. Both go in ONE configure call: the engine treats each call as
+  // the complete configuration, so a second call to add targets would drop the
+  // world-tracking setting made by the first.
   if (typeof XR8?.XrController?.configure === 'function') {
-    XR8.XrController.configure({ disableWorldTracking: !!disableWorldTracking });
+    const config: Record<string, unknown> = { disableWorldTracking: !!disableWorldTracking };
+    // Only named when there is something to track. Passing an empty array
+    // would still be a declaration that image tracking is on, and the engine
+    // would do detection work for a set that can never match.
+    if (imageTargetData.length > 0) {
+      config.imageTargetData = imageTargetData;
+      debugTelemetry.logEvent(`marker: watching ${imageTargetData.length} picture(s)`);
+    }
+    XR8.XrController.configure(config);
   }
 
   debugTelemetry.mark('pipelineRun');

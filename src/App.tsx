@@ -168,6 +168,41 @@ function App() {
     );
   }
 
+  // Branch 0: the marker testbed, on ANY device with a camera.
+  //
+  // Deliberately ahead of the desktop branch and deliberately NOT gated on
+  // hasAR8, which requires isMobile(). That requirement is this repo's own,
+  // not the engine's — XR8 restricts to mobile only when you pass
+  // `allowedDevices: MOBILE`, which nothing here does. Image targets also need
+  // no ground-plane SLAM, which is the part that genuinely wants a phone.
+  //
+  // The payoff is that a marker can be checked against a laptop webcam, with
+  // no phone, no shared network and no tunnel — the setup that has cost more
+  // time than the measurement it was blocking.
+  //
+  // A webcam answers "does this fingerprint get recognised at all, and how
+  // quickly" perfectly well. It does NOT answer how steady the artwork sits on
+  // a phone: different camera, different motion, no IMU. That question still
+  // needs a handset.
+  if (xrSupport?.hasCamera && wantsMarkerTestbed()) {
+    return (
+      <ErrorBoundary>
+        <MainLayout>
+          <div className="app-container">
+            <Toast />
+            <DiagnosticPanel />
+            <MarkerTestbedExperience />
+            <DeviceInfoButton
+              show={showDeviceInfo}
+              onToggle={() => setShowDeviceInfo((s) => !s)}
+              support={xrSupport}
+            />
+          </div>
+        </MainLayout>
+      </ErrorBoundary>
+    );
+  }
+
   // Branch 1: 8th Wall capable — mobile device with camera in a secure context.
   if (xrSupport?.hasAR8) {
     return (

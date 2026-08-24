@@ -17,6 +17,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AmbientLight, Camera, DirectionalLight, Group, Scene, Vector3 } from 'three';
 
 import { onXr8Ready, runXr8, stopXr8 } from '@/xr8/pipeline';
+import { createMarkerTracking } from '@/xr8/markerTracking';
+import { composeMarkerMatrix, hasDimensions, tileSize } from '@/markers/markerPose';
+import { markerTargetData } from '@/markers/markerTarget';
+import { loadExhibitForLocation, type LoadedExhibit } from '@/services/exhibitApi';
 import { readReticlePose } from '@/xr8/hitTestController';
 import { StoryTile } from '@/xr8/storyTile';
 import { composePosterMatrix } from '@/xr/posterOrientation';
@@ -52,6 +56,42 @@ export const StoryARExperience: React.FC = () => {
   } | null>(null);
   const lastFrameTimeRef = useRef<number | null>(null);
   const reportedReadyRef = useRef(false);
+
+  // ── Marker mode ────────────────────────────────────────────────────────
+  // Present only when the URL named an exhibit (?e=<id>) AND at least one of
+  // its stories is reachable. Null is the ordinary case and keeps every
+  // existing behaviour — the reticle, the tap to plant, all of it — untouched.
+  // A ref and not state: nothing in the JSX reads the exhibit — it is consumed
+  // by the engine callbacks, which are outside React's render cycle entirely.
+  // Holding it as state would force a re-render that changes nothing on screen.
+  const exhibitRef = useRef<LoadedExhibit | null>(null);
+  /** Clears tracked markers on teardown, so a re-entered session starts clean. */
+  const markerResetRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadExhibitForLocation(window.location.search)
+      .then((loaded) => {
+        if (cancelled || loaded === null) return;
+        // Written here rather than during render, which React forbids. The
+        // load starts on mount and the visitor still has to tap to begin, so
+        // it is reliably in place before the engine asks for it.
+        exhibitRef.current = loaded;
+        debugTelemetry.logEvent(`exhibit: ${loaded.markerStories.size} picture(s) loaded`);
+        // Named rather than swallowed: a picture on the wall that leads
+        // nowhere is the failure a visitor cannot diagnose and an operator
+        // cannot see, so it goes in the telemetry the HUD reads.
+        if (loaded.unreachable.length > 0) {
+          debugTelemetry.setNote(
+            `${loaded.unreachable.length} story/stories in this room could not be loaded: ${loaded.unreachable.join(', ')}`,
+          );
+        }
+      })
+      .catch((err) => console.warn('Exhibit load failed:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ── Texture swapping ───────────────────────────────────────────────────
   // Whenever the era changes (or the tile is first planted), rasterize that
@@ -212,7 +252,50 @@ export const StoryARExperience: React.FC = () => {
 
       setShowLoading(true);
       onXr8Ready(() => {
-        runXr8({ canvas, customModules: [sceneModule] });
+        const room = exhibitRef.current;
+        if (room === null) {
+          runXr8({ canvas, customModules: [sceneModule] });
+          return;
+        }
+
+        // Marker mode. The whole target set is configured once, from the whole
+        // room: `imageTargetData` REPLACES the engine's active set, so adding
+        // targets as they are discovered would drop the ones already there.
+        // Narrowed rather than asserted: loadExhibitForLocation already drops
+        // anchor-less stories, but a `!` here would quietly become a runtime
+        // crash the day that filter changes.
+        const anchors = [...room.markerStories.values()]
+          .map((s) => s.anchor)
+          .filter((a): a is NonNullable<typeof a> => a !== undefined);
+        const tracking = createMarkerTracking({
+          onSelectionChange: ({ current }) => {
+            if (current === null) return;
+            const story = exhibitRef.current?.markerStories.get(current);
+            if (!story) return;
+            // Swap the document; the texture effect above is subscribed to
+            // contentStore and re-rasterizes the new story's art on its own.
+            useContentStore.getState().load(story);
+            // Mark placed so the reticle stands down — in marker mode the
+            // picture decides where the art goes, not a tap on the floor.
+            if (!useStoryStore.getState().placed) useStoryStore.getState().place();
+            debugTelemetry.logEvent(`story: switched to ${story.id}`);
+          },
+          onPose: (marker) => {
+            const tile = tileRef.current;
+            if (!tile) return;
+            if (hasDimensions(marker.event)) {
+              tile.setWidth(tileSize(marker.event).width);
+            }
+            tile.place(composeMarkerMatrix(marker.event.position, marker.event.rotation));
+          },
+        });
+        markerResetRef.current = tracking.reset;
+
+        runXr8({
+          canvas,
+          customModules: [sceneModule, tracking.module],
+          imageTargetData: anchors.map(markerTargetData),
+        });
       });
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
@@ -238,6 +321,12 @@ export const StoryARExperience: React.FC = () => {
     lastReticleMatrixRef.current = null;
     lastFrameTimeRef.current = null;
     reportedReadyRef.current = false;
+
+    // Forget which pictures were visible. Without this a re-entered session
+    // starts believing it can still see markers from the last one, and the
+    // first frame would place artwork on a stale pose.
+    markerResetRef.current?.();
+    markerResetRef.current = null;
 
     setSurfaceReady(false);
     useStoryStore.getState().reset();

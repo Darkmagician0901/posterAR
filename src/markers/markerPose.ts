@@ -13,6 +13,8 @@
  * `docs/marker-layer-design.md` §5.1.
  */
 
+import { Matrix4, Quaternion, Vector3 } from 'three';
+
 /** The engine's reported dimensions for one tracked image. */
 export interface MarkerDimensions {
   scaledWidth: number;
@@ -77,4 +79,32 @@ export function hasDimensions(e: {
     e.scaledWidth > 0 &&
     e.scaledHeight > 0
   );
+}
+
+/**
+ * Builds the artwork's world transform from a marker's reported pose.
+ *
+ * **Scale is deliberately excluded** — the matrix is rigid, position and
+ * rotation only. The engine also reports a `scale` estimate, and folding it in
+ * would mean a wobble of a percent or two rescaling the artwork every frame,
+ * which reads as breathing. Size comes from `tileSize` instead, which is a
+ * ratio of the marker's own reported width and therefore steady.
+ * `marker-testbed-design.md` §5 reaches the same conclusion.
+ *
+ * @param position — The engine's world position for the marker.
+ * @param rotation — The engine's world orientation quaternion.
+ * @returns 16 column-major floats, the form `StoryTile.place` expects.
+ */
+export function composeMarkerMatrix(
+  position: { x: number; y: number; z: number },
+  rotation: { w: number; x: number; y: number; z: number },
+): Float32Array {
+  const m = new Matrix4().compose(
+    new Vector3(position.x, position.y, position.z),
+    // Normalised because a quaternion that has drifted off unit length would
+    // otherwise smuggle a scale into a matrix this function promises is rigid.
+    new Quaternion(rotation.x, rotation.y, rotation.z, rotation.w).normalize(),
+    new Vector3(1, 1, 1),
+  );
+  return new Float32Array(m.elements);
 }

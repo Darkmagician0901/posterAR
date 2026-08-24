@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_WIDTH_IN_MARKERS, hasDimensions, tileSize } from './markerPose';
+import { Matrix4, Vector3 } from 'three';
+import {
+  composeMarkerMatrix,
+  DEFAULT_WIDTH_IN_MARKERS,
+  hasDimensions,
+  tileSize,
+} from './markerPose';
 
 describe('tileSize', () => {
   const dims = { scaledWidth: 0.3, scaledHeight: 0.4 };
@@ -35,6 +41,50 @@ describe('tileSize', () => {
     for (const bad of [0, -1, NaN, Infinity]) {
       expect(tileSize(dims, bad)).toEqual({ width: 0.3, height: 0.4 });
     }
+  });
+});
+
+describe('composeMarkerMatrix', () => {
+  const identity = { w: 1, x: 0, y: 0, z: 0 };
+
+  it('puts the artwork where the engine says the marker is', () => {
+    const m = new Matrix4().fromArray(
+      Array.from(composeMarkerMatrix({ x: 1, y: 2, z: -3 }, identity)),
+    );
+    const pos = new Vector3().setFromMatrixPosition(m);
+    expect(pos.x).toBeCloseTo(1, 10);
+    expect(pos.y).toBeCloseTo(2, 10);
+    expect(pos.z).toBeCloseTo(-3, 10);
+  });
+
+  it('is rigid — unit scale, whatever the engine reports separately', () => {
+    // The engine's own `scale` estimate wobbles by a percent or two. Folding
+    // it in would rescale the artwork every frame, which reads as breathing.
+    const m = new Matrix4().fromArray(
+      Array.from(composeMarkerMatrix({ x: 0, y: 0, z: 0 }, { w: 0.7071, x: 0.7071, y: 0, z: 0 })),
+    );
+    const scale = new Vector3().setFromMatrixScale(m);
+    expect(scale.x).toBeCloseTo(1, 6);
+    expect(scale.y).toBeCloseTo(1, 6);
+    expect(scale.z).toBeCloseTo(1, 6);
+  });
+
+  it('stays rigid even when the quaternion has drifted off unit length', () => {
+    // An un-normalised quaternion would smuggle a scale into a matrix this
+    // function promises is rigid — a slow drift rather than an obvious bug.
+    const m = new Matrix4().fromArray(
+      Array.from(composeMarkerMatrix({ x: 0, y: 0, z: 0 }, { w: 2, x: 0, y: 0, z: 0 })),
+    );
+    const scale = new Vector3().setFromMatrixScale(m);
+    expect(scale.x).toBeCloseTo(1, 6);
+    expect(scale.y).toBeCloseTo(1, 6);
+    expect(scale.z).toBeCloseTo(1, 6);
+  });
+
+  it('returns the 16 column-major floats StoryTile.place expects', () => {
+    const out = composeMarkerMatrix({ x: 0, y: 0, z: 0 }, identity);
+    expect(out).toBeInstanceOf(Float32Array);
+    expect(out).toHaveLength(16);
   });
 });
 

@@ -32,6 +32,19 @@ import type { MarkerLibraryEntry } from './markerLibrary';
 /** How many undo steps to retain. */
 const HISTORY_LIMIT = 50;
 
+/**
+ * The scene width a NEW binding starts at: the marker a quarter of the way
+ * across the scene.
+ *
+ * Deliberately NOT `DEFAULT_WIDTH_IN_MARKERS`. That constant is 1 because 1 is
+ * what every already-published story means and what the validator must fall
+ * back to; this one is an authoring default, and under the locator design a
+ * fresh binding is a small print inside a larger scene. 1 would also be
+ * undrawable: at 1 the marker rectangle is as wide as the whole stage, and its
+ * 3:4 height would run off the bottom. Keep the two apart.
+ */
+export const INITIAL_WIDTH_IN_MARKERS = 4;
+
 /** A blank frame, used when adding to the rail. */
 export function blankFrame(index: number): StoryFrame {
   return {
@@ -92,6 +105,11 @@ interface StudioState {
   bindMarker: (entry: MarkerLibraryEntry) => void;
   /** Removes the binding, restoring tap-to-place. */
   unbindMarker: () => void;
+  /**
+   * Rewrites the bound marker's size and position within the scene. No-op when
+   * nothing is bound.
+   */
+  setMarkerLayout: (layout: { widthInMarkers: number; position: [number, number, number] }) => void;
   /** Appends a blank frame and selects it. */
   addFrame: () => void;
   /** Removes a frame. Refuses to remove the last one. */
@@ -216,8 +234,8 @@ export const useStudioDraft = create<StudioState>((set, get) => {
           thumbId: entry.thumbId,
           crop: entry.crop,
           local: IDENTITY_LOCAL,
-          widthInMarkers: 1,
-          mode: 'follow',
+          widthInMarkers: INITIAL_WIDTH_IN_MARKERS,
+          mode: 'latch',
         },
       });
     },
@@ -228,6 +246,24 @@ export const useStudioDraft = create<StudioState>((set, get) => {
       // is how a phantom binding gets published.
       const { anchor: _drop, ...rest } = get().doc;
       commit(rest);
+    },
+
+    setMarkerLayout: ({ widthInMarkers, position }) => {
+      const { doc } = get();
+      // Guarded rather than asserted: the stage editor only shows the overlay
+      // when an anchor exists, but a stray call must not mint an anchor with no
+      // marker behind it — that publishes as a picture nothing can recognise.
+      if (!doc.anchor) return;
+      commit({
+        ...doc,
+        anchor: {
+          ...doc.anchor,
+          widthInMarkers,
+          // Rotation stays identity: in-plane rotation is not built, and the
+          // validator forces it back anyway.
+          local: { position, rotation: [0, 0, 0, 1] },
+        },
+      });
     },
 
     addFrame: () => {

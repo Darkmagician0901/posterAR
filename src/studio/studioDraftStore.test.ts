@@ -183,12 +183,39 @@ describe('marker binding', () => {
     expect(validateStoryDoc(doc, DEFAULT_STORY).anchor?.markerId).toBe(entry.markerId);
   });
 
-  it('pins the art onto the marker at 1:1, which is all v1 renders', () => {
+  it('starts a new binding with the marker a quarter of the scene wide', () => {
+    // Not 1. Under the locator design a fresh binding is a small print inside
+    // a larger scene, and 1 would put a rectangle bigger than the stage.
     useStudioDraft.getState().bindMarker(entry);
     const { anchor } = useStudioDraft.getState().doc;
-    expect(anchor?.widthInMarkers).toBe(1);
-    expect(anchor?.mode).toBe('follow');
+    expect(anchor?.widthInMarkers).toBe(4);
+    expect(anchor?.mode).toBe('latch');
     expect(anchor?.local).toEqual(IDENTITY_LOCAL);
+  });
+
+  it('stores an authored layout on the bound anchor', () => {
+    useStudioDraft.getState().bindMarker(entry);
+    useStudioDraft.getState().setMarkerLayout({ widthInMarkers: 7.5, position: [-0.9, 0.6, 0] });
+    const { anchor } = useStudioDraft.getState().doc;
+    expect(anchor?.widthInMarkers).toBeCloseTo(7.5, 10);
+    expect(anchor?.local.position).toEqual([-0.9, 0.6, 0]);
+    // The binding itself must survive a layout edit untouched.
+    expect(anchor?.markerId).toBe(entry.markerId);
+    expect(anchor?.thumbId).toBe(entry.thumbId);
+  });
+
+  it('ignores a layout edit when nothing is bound', () => {
+    // Otherwise a stray call would mint an anchor with no marker behind it,
+    // which publishes as a picture that can never be recognised.
+    useStudioDraft.getState().setMarkerLayout({ widthInMarkers: 7.5, position: [0, 0, 0] });
+    expect(useStudioDraft.getState().doc.anchor).toBeUndefined();
+  });
+
+  it('makes a layout edit undoable like any other draft change', () => {
+    useStudioDraft.getState().bindMarker(entry);
+    useStudioDraft.getState().setMarkerLayout({ widthInMarkers: 9, position: [1, 1, 0] });
+    useStudioDraft.getState().undo();
+    expect(useStudioDraft.getState().doc.anchor?.widthInMarkers).toBe(4);
   });
 
   it('rebinding replaces rather than accumulating', () => {

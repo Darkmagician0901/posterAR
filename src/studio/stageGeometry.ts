@@ -24,17 +24,6 @@ export interface StageFrame {
 /** The default landscape stage, matching the era art's proportions. */
 export const FRONT: StageFrame = { w: 520, h: 300, ppm: 46, groundY: 238 };
 
-/**
- * The stage a marker-bound story composes on.
- *
- * Exactly 3:4, because that is the shape of the printed picture the art will
- * cover, so the author is literally designing on top of what they printed
- * rather than discovering the misfit on a phone. `ppm` matches FRONT so
- * binding a story never resizes its props, and the ground line sits at the
- * same proportion of the frame.
- */
-export const MARKER_FRONT: StageFrame = { w: 300, h: 400, ppm: 46, groundY: 317 };
-
 /** Top-down map frame. Shows x within +/-xr metres and z from 0 to zr. */
 export const TOP = { w: 520, h: 300, xr: 3.4, zr: 6.2 } as const;
 

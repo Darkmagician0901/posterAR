@@ -843,6 +843,39 @@ svg.drift {
   stroke: var(--orange);
   stroke-dasharray: 5 4;
 }
+.st-markerbox {
+  fill: transparent;
+  stroke: var(--green-light);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  cursor: grab;
+}
+.st-markerbox:hover {
+  stroke-width: 3;
+}
+.st-markergrip {
+  fill: var(--green-light);
+  stroke: #120e0e;
+  stroke-width: 2;
+  cursor: nwse-resize;
+}
+.st-markeraid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 11px;
+  opacity: 0.85;
+}
+.st-markeraid input {
+  width: 68px;
+  margin: 0 4px;
+}
+.st-markerwarn {
+  color: var(--orange);
+  flex-basis: 100%;
+}
 .st-dot {
   fill: var(--green-light);
   stroke: #120e0e;

@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   FRONT,
-  MARKER_FRONT,
   TOP,
   depthScale,
   frontProject,
@@ -123,34 +122,23 @@ describe('toViewBox', () => {
   });
 });
 
-describe('marker stage', () => {
-  it('is exactly 3:4, matching the printed picture', () => {
-    expect(MARKER_FRONT.w / MARKER_FRONT.h).toBeCloseTo(3 / 4, 6);
-  });
+describe('stage frames', () => {
+  // MARKER_FRONT is gone: it existed because artwork was exactly the size of
+  // the printed picture, and under the locator design the picture is an object
+  // inside the scene. There is one stage now. The `frame` parameter stays —
+  // it costs nothing and is already proven by the round trip below.
 
-  it('keeps the same pixels-per-metre, so props do not resize when a story is bound', () => {
-    expect(MARKER_FRONT.ppm).toBe(FRONT.ppm);
-  });
-
-  it('puts the ground line at the same proportion of the frame', () => {
-    // Precision 2, not 3: MARKER_FRONT.groundY is the whole-pixel rounding of
-    // 238/300 * 400 (317.33...), so it cannot match FRONT's proportion past
-    // two decimal places — only a fractional groundY could, and the frame is
-    // specified in whole SVG units.
-    expect(MARKER_FRONT.groundY / MARKER_FRONT.h).toBeCloseTo(FRONT.groundY / FRONT.h, 2);
-  });
-
-  it('projects into the marker frame when one is given', () => {
-    expect(frontProject(0, 0, 0, MARKER_FRONT).x).toBe(MARKER_FRONT.w / 2);
+  it('projects into an explicitly given frame', () => {
+    expect(frontProject(0, 0, 0, FRONT).x).toBe(FRONT.w / 2);
   });
 
   it('still projects into the landscape frame by default', () => {
     expect(frontProject(0, 0, 0).x).toBe(FRONT.w / 2);
   });
 
-  it('round-trips a drag in the marker frame', () => {
+  it('round-trips a drag through an explicit frame', () => {
     const x = 1.4;
-    const p = frontProject(x, 2, 0, MARKER_FRONT);
-    expect(frontUnprojectX(p.x, 2, MARKER_FRONT)).toBeCloseTo(x, 6);
+    const p = frontProject(x, 2, 0, FRONT);
+    expect(frontUnprojectX(p.x, 2, FRONT)).toBeCloseTo(x, 6);
   });
 });

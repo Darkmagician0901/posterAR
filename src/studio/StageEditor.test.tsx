@@ -1,8 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
-import React from 'react';
+import React, { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { StageEditor, buildDisplayDerivative } from './StageEditor';
 import { useStudioDraft } from './studioDraftStore';
+import { FRONT } from './stageGeometry';
+
+// Scoped to this file: lets React's `act` batch and flush synchronously under
+// happy-dom, suppressing the otherwise harmless "not configured for act()" warning.
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 import { PROP_LIBRARY } from '@/story/props/library';
 import { downscaleToWebp } from '@/utils/imageUpload';
 import { RASTER_LONGEST_AXIS } from '@/story/assetStorage';
@@ -66,6 +72,93 @@ describe('StageEditor', () => {
     const thumbs = html.match(/data:image\/svg\+xml/g) ?? [];
     // One per library prop, plus the camera view's composed preview.
     expect(thumbs.length).toBeGreaterThanOrEqual(Object.keys(PROP_LIBRARY).length);
+  });
+
+});
+
+/**
+ * The marker overlay, rendered into a REAL DOM rather than via renderToString.
+ *
+ * That is not a stylistic choice. As the note above records, zustand 4 hands a
+ * server render the store's *initial* state, so a `renderToString` assertion
+ * about a bound marker would observe an unbound draft and pass while proving
+ * nothing — exactly the trap this file already warns about. `createRoot` + act
+ * subscribes for real, so binding is actually visible. Same harness as
+ * `ExhibitDialog.test.tsx`.
+ */
+describe('StageEditor marker overlay', () => {
+  let root: Root | null = null;
+  let container: HTMLDivElement | null = null;
+
+  const ENTRY = {
+    markerId: 'a'.repeat(64),
+    thumbId: 'b'.repeat(64),
+    name: 'test print',
+    crop: {
+      top: 0,
+      left: 0,
+      width: 480,
+      height: 640,
+      isRotated: false,
+      originalWidth: 480,
+      originalHeight: 640,
+    },
+    addedAt: 0,
+  };
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    useStudioDraft.getState().reset();
+  });
+
+  afterEach(() => {
+    act(() => {
+      root?.unmount();
+    });
+    root = null;
+    container?.remove();
+    container = null;
+  });
+
+  const mount = (): HTMLDivElement => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root!.render(<StageEditor frameIndex={0} onClose={() => {}} />);
+    });
+    return container;
+  };
+
+  it('shows no marker overlay until a picture is bound', () => {
+    expect(mount().querySelector('.st-markerbox')).toBeNull();
+  });
+
+  it('draws the bound picture as a positionable overlay, and the print-width aid', () => {
+    act(() => useStudioDraft.getState().bindMarker(ENTRY));
+    const el = mount();
+    expect(el.querySelector('.st-markerbox')).not.toBeNull();
+    expect(el.querySelector('.st-markergrip')).not.toBeNull();
+    expect(el.textContent).toContain('PRINT WIDTH');
+  });
+
+  it('sizes the overlay from the stored layout, not from the whole stage', () => {
+    // The regression this guards: reverting to "the art covers the marker"
+    // would draw the picture across the entire scene again.
+    act(() => useStudioDraft.getState().bindMarker(ENTRY));
+    act(() =>
+      useStudioDraft.getState().setMarkerLayout({ widthInMarkers: 8, position: [0, 0, 0] }),
+    );
+    const box = mount().querySelector('.st-markerbox')!;
+    expect(Number(box.getAttribute('width'))).toBeCloseTo(FRONT.w / 8, 6);
+  });
+
+  it('drops the overlay again when the picture is unbound', () => {
+    act(() => useStudioDraft.getState().bindMarker(ENTRY));
+    const el = mount();
+    expect(el.querySelector('.st-markerbox')).not.toBeNull();
+    act(() => useStudioDraft.getState().unbindMarker());
+    expect(el.querySelector('.st-markerbox')).toBeNull();
   });
 });
 

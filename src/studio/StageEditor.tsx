@@ -33,7 +33,6 @@ import { toComposeImages, assertPersistable } from './composeImages';
 import { useResolvedAssets } from './useResolvedAssets';
 import {
   FRONT,
-  MARKER_FRONT,
   TOP,
   frontProject,
   frontUnprojectX,
@@ -41,6 +40,15 @@ import {
   topUnproject,
   toViewBox,
 } from './stageGeometry';
+import {
+  anchorFromRect,
+  isMarkerTooSmall,
+  moveRect,
+  rectFromAnchor,
+  resizeRect,
+  sceneWidthMetres,
+  type MarkerRect,
+} from './markerOverlayEdit';
 
 /**
  * Origin serving `markers/` PNGs, for the ghost backdrop only.
@@ -98,11 +106,11 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
   const anchor = useStudioDraft((s) => s.doc.anchor);
   const { patchFrame, addAsset } = useStudioDraft.getState();
 
-  // The stage frame this document composes on: portrait and 3:4 when a story
-  // is bound to a printed picture, landscape otherwise. `doc.anchor` is unset
-  // until Task 8 wires up binding in Studio, so today this is always FRONT —
-  // the branch exists so it activates correctly the moment that lands.
-  const frame = anchor ? MARKER_FRONT : FRONT;
+  // One stage, always. The 3:4 stage existed because artwork was exactly the
+  // size of the printed picture; under the locator design the scene is the
+  // scene and the picture is an object inside it, so binding a marker no
+  // longer changes the stage's shape at all.
+  const frame = FRONT;
 
   const storyFrame = doc.frames[frameIndex];
   const [props, setLocal] = useState<StoryProp[]>(storyFrame?.props ?? []);
@@ -118,6 +126,47 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
   const topRef = useRef<SVGSVGElement>(null);
   const dragging = useRef<{ index: number; view: 'front' | 'top' } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * The marker rectangle, in view units.
+   *
+   * DERIVED during render rather than mirrored into state by an effect: the
+   * draft is the single source of truth, and an effect would not run under
+   * `renderToString` (nor under the repo's own set-state-in-effect lint rule).
+   * `dragRect` shadows it only while a gesture is in flight, so the draft is
+   * committed once per gesture instead of once per pointer-move — otherwise
+   * undo fills with a hundred indistinguishable steps.
+   */
+  const [dragRect, setDragRect] = useState<MarkerRect | null>(null);
+  const committedRect = useMemo(
+    () =>
+      anchor
+        ? rectFromAnchor(frame, anchor.widthInMarkers, [
+            anchor.local.position[0],
+            anchor.local.position[1],
+          ])
+        : null,
+    [anchor, frame],
+  );
+  const markerRect = dragRect ?? committedRect;
+
+  /** Intended physical print width, for the size aid. Never stored (§3.4). */
+  const [printMm, setPrintMm] = useState(100);
+  const markerDrag = useRef<{
+    mode: 'move' | 'resize';
+    grabX: number;
+    grabY: number;
+    start: MarkerRect;
+  } | null>(null);
+
+  /** Starts a marker drag from a pointer event on the camera view. */
+  const beginMarkerDrag = (e: React.PointerEvent, mode: 'move' | 'resize'): void => {
+    e.preventDefault();
+    const box = frontRef.current?.getBoundingClientRect();
+    if (!box || !markerRect) return;
+    const pt = toViewBox(e.clientX, e.clientY, box, frame.w, frame.h);
+    markerDrag.current = { mode, grabX: pt.x, grabY: pt.y, start: markerRect };
+  };
 
   // Raw asset map — used for display metadata (name/aspect) and as the shared
   // input to both compose-image maps below. Memoized because `?? {}` would
@@ -224,6 +273,21 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
   };
 
   const onPointerMove = (e: React.PointerEvent): void => {
+    const md = markerDrag.current;
+    if (md && frontRef.current) {
+      const box = frontRef.current.getBoundingClientRect();
+      const pt = toViewBox(e.clientX, e.clientY, box, frame.w, frame.h);
+      setDragRect(
+        md.mode === 'move'
+          ? moveRect(md.start, pt.x - md.grabX, pt.y - md.grabY, frame)
+          : // Doubled because the rectangle grows about its own centre:
+            // dragging the grip one unit right must add one unit on each side
+            // for the corner to stay under the pointer.
+            resizeRect(md.start, md.start.w + (pt.x - md.grabX) * 2, frame),
+      );
+      return;
+    }
+
     const drag = dragging.current;
     if (drag === null) return;
     const prop = props[drag.index];
@@ -252,6 +316,13 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
   };
 
   const endDrag = (): void => {
+    if (markerDrag.current) {
+      markerDrag.current = null;
+      if (dragRect) useStudioDraft.getState().setMarkerLayout(anchorFromRect(frame, dragRect));
+      // Cleared so the rectangle goes back to being read from the draft — the
+      // committed value and what is drawn can then never disagree.
+      setDragRect(null);
+    }
     dragging.current = null;
   };
 
@@ -301,7 +372,7 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
         <div className="st-modalhead">
           <h2>STAGE EDITOR</h2>
           <span className="st-sub">
-            drag in either view · the camera view is exactly what gets saved
+            drag in either view · drag the printed picture to say where it hangs
           </span>
           <button className="st-closex" onClick={onClose} aria-label="Close">
             ✕
@@ -313,24 +384,42 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
             <div className="st-viewttl">CAMERA VIEW — what visitors see</div>
             <div className="st-frontwrap">
               <svg ref={frontRef} viewBox={`0 0 ${frame.w} ${frame.h}`} className="st-stagesvg">
-                {anchor && (
-                  // The printed picture the marker was cut from, faded behind
-                  // the composed art so the author places props against what
-                  // will actually be under them on the wall. Authoring-only:
-                  // this element exists only in the editor's own preview SVG
-                  // and is never part of frame.art, so it can't reach a
-                  // published document or the viewer.
-                  <image
-                    href={`${ASSET_BASE_URL}/markers/${anchor.thumbId}.png`}
-                    x="0"
-                    y="0"
-                    width={frame.w}
-                    height={frame.h}
-                    opacity={0.28}
-                    preserveAspectRatio="xMidYMid slice"
-                  />
-                )}
                 <image href={svgToDataUrl(previewSvg)} x="0" y="0" width={frame.w} height={frame.h} />
+                {anchor && markerRect && (
+                  // The printed picture, at full opacity and in its real place
+                  // inside the scene. It represents a physical object on the
+                  // wall, not an alignment guide — and drawn AFTER the composed
+                  // art, so a full-bleed background cannot hide it the way it
+                  // could hide the old faded ghost. Authoring-only: none of
+                  // this is part of frame.art, so it cannot reach a published
+                  // document or the viewer.
+                  <g>
+                    <image
+                      href={`${ASSET_BASE_URL}/markers/${anchor.thumbId}.png`}
+                      x={markerRect.x}
+                      y={markerRect.y}
+                      width={markerRect.w}
+                      height={markerRect.h}
+                      preserveAspectRatio="xMidYMid slice"
+                    />
+                    <rect
+                      className="st-markerbox"
+                      x={markerRect.x}
+                      y={markerRect.y}
+                      width={markerRect.w}
+                      height={markerRect.h}
+                      onPointerDown={(e) => beginMarkerDrag(e, 'move')}
+                    />
+                    <rect
+                      className="st-markergrip"
+                      x={markerRect.x + markerRect.w - 7}
+                      y={markerRect.y + markerRect.h - 7}
+                      width={14}
+                      height={14}
+                      onPointerDown={(e) => beginMarkerDrag(e, 'resize')}
+                    />
+                  </g>
+                )}
                 {props.map((p, i) => {
                   const pt = frontProject(p.x, p.z, p.e, frame);
                   const s = 1 / (1 + 0.16 * Math.max(0, p.z));
@@ -360,6 +449,36 @@ export const StageEditor: React.FC<StageEditorProps> = ({ frameIndex, onClose })
                 })}
               </svg>
             </div>
+            {anchor && markerRect && (
+              <div className="st-markeraid">
+                <label>
+                  PRINT WIDTH
+                  <input
+                    type="number"
+                    min={10}
+                    max={2000}
+                    step={5}
+                    value={printMm}
+                    onChange={(e) => setPrintMm(Number(e.target.value))}
+                  />
+                  mm
+                </label>
+                <span>
+                  scene ≈{' '}
+                  {sceneWidthMetres(
+                    printMm,
+                    anchorFromRect(frame, markerRect).widthInMarkers,
+                  ).toFixed(2)}{' '}
+                  m across
+                </span>
+                {isMarkerTooSmall(frame, markerRect) && (
+                  <span className="st-markerwarn">
+                    This picture is small in its scene — visitors will have to stand close to
+                    start.
+                  </span>
+                )}
+              </div>
+            )}
             <div className="st-hintline">
               Drag left and right here. Depth is set on the map — a vertical drag would be
               ambiguous between further away and lifted off the ground.

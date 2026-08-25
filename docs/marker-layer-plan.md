@@ -1572,6 +1572,11 @@ git commit -m "Let an author attach a story to one of their uploaded pictures"
 
 ## Task 9: The 3:4 stage and the ghost backdrop
 
+> **Superseded** by `docs/marker-locator-plan.md` Task 7. Both halves were
+> removed: `MARKER_FRONT` is gone (there is one stage now, because the scene is
+> no longer the size of the print), and the faded ghost became a full-opacity,
+> draggable, resizable overlay drawn on top of the composed art.
+
 **Files:**
 - Modify: `src/studio/stageGeometry.ts`
 - Modify: `src/studio/stageGeometry.test.ts`

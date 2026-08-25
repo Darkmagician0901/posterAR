@@ -18,7 +18,7 @@ import { AmbientLight, Camera, DirectionalLight, Group, Scene, Vector3 } from 't
 
 import { onXr8Ready, runXr8, stopXr8 } from '@/xr8/pipeline';
 import { createMarkerTracking } from '@/xr8/markerTracking';
-import { composeMarkerMatrix, hasDimensions, tileSize } from '@/markers/markerPose';
+import { composeSceneMatrix, hasDimensions, tileSize } from '@/markers/markerPose';
 import { markerTargetData } from '@/markers/markerTarget';
 import { loadExhibitForLocation, type LoadedExhibit } from '@/services/exhibitApi';
 import { readReticlePose } from '@/xr8/hitTestController';
@@ -286,7 +286,14 @@ export const StoryARExperience: React.FC = () => {
             if (hasDimensions(marker.event)) {
               tile.setWidth(tileSize(marker.event).width);
             }
-            tile.place(composeMarkerMatrix(marker.event.position, marker.event.rotation));
+            tile.place(
+              composeSceneMatrix(
+                marker.event.position,
+                marker.event.rotation,
+                marker.event.scaledWidth ?? 0,
+                [0, 0],
+              ),
+            );
           },
         });
         markerResetRef.current = tracking.reset;

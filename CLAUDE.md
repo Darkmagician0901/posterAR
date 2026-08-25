@@ -6,7 +6,7 @@ Quick reference for Claude Code sessions. See README.md / ARCHITECTURE.md / TEST
 
 ```bash
 npm run dev           # Vite dev server — HTTPS, --host (required for camera + 8th Wall)
-npm run test          # vitest run — 407 tests, < 3 s
+npm run test          # vitest run — 626 tests, < 5 s
 npm run test:watch    # vitest interactive watch
 npm run type-check    # tsc --noEmit
 npm run lint          # eslint src server/src
@@ -68,13 +68,14 @@ GIFs are decoded from data: URLs without fetch. `posterTextureCache` releases ac
 - **CSP:** `script-src` must allow `https://cdn.jsdelivr.net`. Amplify serves headers from **`customHttp.yml`** — it ignores `public/_headers`, which is retained only for Cloudflare/Docker.
 - **engine-binary intentionally has no SRI hash.** Its loader fetches runtime chunks (e.g. `slam.js`) dynamically; a static hash can't cover them. Documented inline in `index.html`.
 - **HTTPS (or localhost) required** for camera access and the 8th Wall engine.
+- **A marker locates the scene; it does not size it.** `anchor.widthInMarkers` is how many marker-widths wide the whole scene is, and `anchor.local.position` is the marker → scene-centre offset in the same unit, `z` always 0 and rotation always identity (the design is coplanar). Marker mode (`?e=`) runs **no ground hit-test and no reticle**: the visitor points at the print, a lock frame appears, and a tap **latches** the scene into the world frame for SLAM to hold — `mode` is forced to `'latch'` even on documents published as `'follow'`, because no follow code path exists. Two traps: `stepSelection` never returns selection to null (losing sight of a picture must not wipe the story), so "is the picture in view" comes from `onVisibilityChange`, not `onSelectionChange`; and marker mode must NOT be reset on AR exit, or a re-entered session tracks markers *and* builds a ground reticle. See `docs/marker-locator-design.md`.
 - **8th Wall cannot detect walls (vertical surfaces).** World tracking detects only one horizontal ground plane; DETECTED_SURFACE / ESTIMATED_SURFACE hits are always horizontal; FEATURE_POINT hits have no reliable normal. Posters lie flat on the detected surface via `composeFlatPosterMatrix` (`src/xr/posterOrientation.ts`), with the image top pointing away from the viewer. Wall support is deferred to a future "wall-from-floor" technique.
 
 ## Testing
 
 Stack: **vitest ^4.1.8** + **happy-dom ^20.9.0** (configured in `vitest.config.ts`).
 
-**46 test files, 407 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation, story state, StoryDoc validation, default-story provenance, content store, SVG-texture generation, asset persistence & upload hydration, device-token). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
+**64 test files, 626 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation, story state, StoryDoc validation, default-story provenance, content store, SVG-texture generation, asset persistence & upload hydration, device-token, marker crop/selection/pose/lock maths, marker-overlay authoring maths). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
 
 ## Conventions
 

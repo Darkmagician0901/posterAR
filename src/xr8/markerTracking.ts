@@ -67,6 +67,19 @@ export interface MarkerTrackingOptions {
    * visible. This is where the tile follows the picture.
    */
   onPose?: (marker: LiveMarker) => void;
+  /**
+   * Fired when the owning marker starts or stops being VISIBLE — which is not
+   * the same question as which marker owns the session, and cannot be answered
+   * from `onSelectionChange`.
+   *
+   * `stepSelection` deliberately never hands the session back to nobody: a
+   * visitor lowering their phone mid-sentence must not lose the story. That is
+   * right for story ownership and useless for "is the picture in front of me
+   * right now", which is what the lock frame and the TAP TO BEGIN prompt are
+   * actually reporting. Without this, a visitor who looks away before tapping
+   * keeps being invited to tap, and the tap lands on a stale pose.
+   */
+  onVisibilityChange?: (visible: boolean) => void;
   /** Injectable clock, so the dwell can be driven deterministically in tests. */
   now?: () => number;
 }
@@ -105,11 +118,18 @@ export function createMarkerTracking(options: MarkerTrackingOptions): {
   module: Xr8PipelineModule;
   reset: () => void;
 } {
-  const { onSelectionChange, onPose, now = () => performance.now() } = options;
+  const {
+    onSelectionChange,
+    onPose,
+    onVisibilityChange,
+    now = () => performance.now(),
+  } = options;
 
   /** Markers the engine can currently see, keyed by markerId. */
   const live = new Map<string, LiveMarker>();
   let selection: SelectionState = INITIAL_SELECTION;
+  /** Whether the owning marker was visible last frame, for the flip. */
+  let wasVisible = false;
 
   const upsert = (event: ImageTargetEvent): void => {
     const screen = projectToScreen(event);
@@ -163,9 +183,16 @@ export function createMarkerTracking(options: MarkerTrackingOptions): {
       // `current` when nothing is tracked — lowering the phone must not wipe
       // the story — so an owning marker with no live entry is normal, not an
       // error, and simply means there is no new pose to apply.
-      if (onPose && selection.current !== null) {
-        const marker = live.get(selection.current);
-        if (marker) onPose(marker);
+      const marker = selection.current === null ? undefined : live.get(selection.current);
+      if (onPose && marker) onPose(marker);
+
+      // Visibility is reported separately from ownership, and deliberately
+      // AFTER the pose: a listener switching on "locked" wants the frame's
+      // pose already applied on the same frame it is told to show it.
+      const visible = marker !== undefined;
+      if (visible !== wasVisible) {
+        wasVisible = visible;
+        onVisibilityChange?.(visible);
       }
     },
   } as unknown as Xr8PipelineModule;
@@ -175,6 +202,7 @@ export function createMarkerTracking(options: MarkerTrackingOptions): {
     reset: () => {
       live.clear();
       selection = INITIAL_SELECTION;
+      wasVisible = false;
     },
   };
 }

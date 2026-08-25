@@ -13,6 +13,7 @@
  */
 
 import React from 'react';
+import type { LockStatus } from '@/markers/markerLock';
 import { useStoryStore } from '@/store/storyStore';
 import { useContentStore } from '@/store/contentStore';
 import { useStoryTypewriter } from './useStoryTypewriter';
@@ -26,9 +27,15 @@ import './StoryOverlay.css';
 interface StoryOverlayProps {
   /** True once the reticle has locked a surface (tap will place). */
   surfaceReady: boolean;
+  /**
+   * Marker-mode lock status, or null/omitted in ground mode. When present the
+   * ground is irrelevant and `surfaceReady` is ignored: the visitor is looking
+   * for a printed picture, not a floor.
+   */
+  markerLock?: LockStatus | null;
 }
 
-export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
+export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady, markerLock = null }) => {
   const { phase, eraIndex, placed, next, prev, jumpTo, reset } = useStoryStore();
   const doc = useContentStore((s) => s.doc);
   // eraIndex can briefly exceed the frame list when a shorter doc loads
@@ -39,6 +46,19 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
   const { shown, done, skip } = useStoryTypewriter(era.line, phase === 'placed');
 
   const isLast = eraIndex === doc.frames.length - 1;
+
+  // One boolean and one string, so the two modes cannot drift into two
+  // different-looking cards. `ready` drives the same pulse-to-solid styling in
+  // both; only the words differ.
+  const ready = markerLock === null ? surfaceReady : markerLock !== 'searching';
+  const scanPrompt =
+    markerLock === null
+      ? ready
+        ? 'TAP THE GROUND TO PLACE'
+        : 'MOVE PHONE TO FIND THE GROUND'
+      : ready
+        ? 'TAP TO BEGIN'
+        : 'POINT AT THE PICTURE';
 
   return (
     <div className="story-overlay" aria-live="polite">
@@ -59,9 +79,9 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady }) => {
           <div className="story-kicker">DEMO EXPERIENCE</div>
           <h1 className="story-title">{doc.intro.title}</h1>
           <p className="story-sub">{doc.intro.subtitle}</p>
-          <div className={`story-scan ${surfaceReady ? 'ready' : ''}`}>
+          <div className={`story-scan ${ready ? 'ready' : ''}`}>
             <span className="story-scan-ring" />
-            {surfaceReady ? 'TAP THE GROUND TO PLACE' : 'MOVE PHONE TO FIND THE GROUND'}
+            {scanPrompt}
           </div>
         </div>
       )}

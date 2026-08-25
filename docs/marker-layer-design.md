@@ -453,6 +453,14 @@ to, and offers a print-ready download of the cropped image at known dimensions.
 
 ### 7.2 The 3:4 stage
 
+> **Superseded.** The 3:4 stage and `MARKER_FRONT` were removed with
+> `docs/marker-locator-design.md` §3.1. The premise below — that artwork covers
+> the printed picture exactly — no longer holds: the marker is an object inside
+> the scene, and there is one stage, always. The ghost backdrop became a
+> full-opacity, draggable overlay drawn *on top of* the composed art, which also
+> fixed a defect in the version described here: drawn behind, it could be
+> entirely hidden by a full-bleed background. Kept for the reasoning.
+
 Binding a marker to a story switches the composer stage from the era art's
 ~2:1 landscape to the marker's 3:4 portrait, and paints the marker's thumbnail
 behind the canvas at low opacity.
@@ -648,13 +656,16 @@ binding would otherwise mean building the scale/offset UI twice.
 
 ## 11. Deliberate stopping points
 
-- **Offset placement is not built.** `local` is identity and `widthInMarkers`
-  is 1. Art that floats in front of a picture is a Studio positioning UI plus
-  the `MARKER_NORMAL_AXIS` verification this design currently avoids needing.
-  **This stopping point is now known to conflict with the intended installation
-  — see §10a.1 (MOD-M1).** It was recorded here as a trade; it is better read as
-  a deferral.
-- **`latch` is not built.** It stays a value the type permits (§5.2).
+- **Offset placement IS built**, as of `docs/marker-locator-design.md`.
+  `local.position` and `widthInMarkers` are authored by dragging the picture on
+  the stage and honoured at runtime. It stayed clear of `MARKER_NORMAL_AXIS`
+  because the offset is *in the marker's plane*: art that floats **in front of**
+  a picture is still unbuilt, and still needs that verification. In-plane
+  rotation (`local.rotation`) is also still identity and still unbuilt.
+- **`latch` IS built**, and is now the only mode that renders — see
+  `marker-locator-design.md` §5.2, which found it to be *less* code than follow,
+  not more. `sanitizeAnchor` forces it, including on documents published as
+  `follow`.
 - **Curved markers are not supported.** The CLI emits `CYLINDER` and `CONICAL`
   with real geometry maths in `unconify.js`; Studio generates `PLANAR` only.
   Nothing in the storage layout prevents adding them.
@@ -683,8 +694,8 @@ binding would otherwise mean building the scale/offset UI twice.
 | **OPS-M1** | Amplify app `d114nr20m4npww`: add a rewrite from `/image-targets/<path>` to the content distribution, before the SPA catch-all. Needs the real distribution domain read back from the account first (§9) | ops |
 | **DOC-M1** | Amend `arcade-architecture.md` §10.3 once §1 ships, and regenerate `.claude/skills/8thwall-engine/reference/imagetargets.md`, which still documents the retired hosted API | with phase 1 |
 | **VER-M1** | Phase 0's two measurements: follow-mode jitter against a printed edge, and browser-generated vs CLI-generated fingerprints | phase 0 |
-| **MOD-M1** | Content is the size of the marker; the installation wants a small locator with much larger content (§10a.1). Schema anticipates it — `sanitizeAnchor`'s clamp, a Studio control, and `MARKER_NORMAL_AXIS` are what a revision needs | later revision |
-| **MOD-M2** | Intended hierarchy is QR → scene → marker → content, one level deeper than what is built. No session state exists, and a marker binds to exactly one story globally (§10a.2). Settle before MOD-M1 | later revision |
+| **MOD-M1** | **CLOSED.** Superseded by `docs/marker-locator-design.md` and built on `feat/marker-lock-ux`: `widthInMarkers` and `local.position` are authored in Studio and honoured at runtime, so a small print now locates a much larger scene. `MARKER_NORMAL_AXIS` stayed un-needed — the design is coplanar by construction | done |
+| **MOD-M2** | Intended hierarchy is QR → scene → marker → content, one level deeper than what is built. No session state exists, and a marker binds to exactly one story globally (§10a.2). MOD-M1 shipped first, deliberately, and nothing in it makes this harder | later revision |
 
 ---
 

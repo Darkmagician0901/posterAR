@@ -113,9 +113,14 @@ export function isAssetRef(a: StoryAsset): a is StoryAssetRef {
 
 /** A rigid transform in the marker's own space. */
 export interface LocalTransform {
-  /** Metres along the marker's local axes, from its centre. */
+  /**
+   * Where the scene's centre sits relative to the marker, in MARKER-WIDTHS —
+   * not metres. `[ox, oy, 0]` points from the marker to the scene's centre in
+   * the marker's own frame, `+x` right and `+y` up as seen by someone facing
+   * the print. `z` is always 0: the scene is coplanar with the print.
+   */
   position: [number, number, number];
-  /** Rotation as a quaternion, `[x, y, z, w]`. */
+  /** Rotation as a quaternion, `[x, y, z, w]`. Identity — see `sanitizeAnchor`. */
   rotation: [number, number, number, number];
 }
 
@@ -138,9 +143,8 @@ export const IDENTITY_LOCAL: LocalTransform = {
  * Absent means today's behaviour: a centre-screen ground hit-test and
  * tap-to-place. The five-era landscape story has no anchor and is untouched.
  *
- * `local` and `widthInMarkers` are fixed in v1 but kept in the type, because
- * removing them would make offset placement a schema migration instead of a UI
- * addition.
+ * The marker LOCATES the scene; it does not size it. A small print can carry
+ * artwork many times its own width — see `docs/marker-locator-design.md`.
  */
 export interface StoryAnchor {
   type: 'marker';
@@ -150,12 +154,17 @@ export interface StoryAnchor {
   thumbId: string;
   /** The crop the marker was cut with; feeds the synthesized target. */
   crop: MarkerCrop;
-  /** Identity in v1. */
+  /** Marker → scene-centre offset, in marker-widths. */
   local: LocalTransform;
-  /** 1 in v1: the art covers the marker exactly. */
-  widthInMarkers: 1;
-  /** 'follow' in v1; 'latch' is permitted by the type and unbuilt. */
-  mode: 'follow';
+  /** How many marker-widths wide the whole scene is. Bounded to (0, 100]. */
+  widthInMarkers: number;
+  /**
+   * Always `'latch'` in practice: the pose is taken once, on the tap that
+   * starts the story, and SLAM holds the scene afterwards. `'follow'` stays in
+   * the type because the type is the documented vocabulary, but nothing
+   * produces it and nothing renders it.
+   */
+  mode: 'latch' | 'follow';
 }
 
 /** A complete authored experience. */
@@ -177,6 +186,20 @@ export interface StoryDoc {
 
 /** Current schema version. Bump only on a breaking shape change. */
 export const STORY_SCHEMA_VERSION = 4;
+
+/**
+ * Anchor bounds, kept in the file that ENFORCES them so a Studio control and
+ * the validator cannot drift apart. Studio imports these to size its own
+ * limits, so anything the UI can author is something `sanitizeAnchor` accepts
+ * back.
+ */
+
+/** Scene exactly covers the marker. The safe fallback, and the legacy value. */
+export const DEFAULT_WIDTH_IN_MARKERS = 1;
+/** A 100 mm print locating a 10 m scene. Beyond this is a mistake, not intent. */
+export const MAX_WIDTH_IN_MARKERS = 100;
+/** Same reasoning, applied to how far off-centre the print may hang. */
+export const MAX_OFFSET_IN_MARKERS = 100;
 
 /** Returns `v` when it is a non-blank string, else `fb`. */
 function str(v: unknown, fb: string): string {
@@ -324,16 +347,40 @@ function sanitizeAnchor(raw: unknown): StoryAnchor | undefined {
     originalHeight: num(c.originalHeight, c.height as number),
   };
 
+  // Bounded, not forced. These now arrive both from Studio and from published
+  // JSON, which is untrusted input — but a bad value here should degrade to
+  // the legacy 1:1 behaviour rather than drop a binding that is otherwise
+  // sound, because a dropped anchor means a picture that does nothing at all.
+  const k = num(r.widthInMarkers, DEFAULT_WIDTH_IN_MARKERS);
+  const widthInMarkers = k > 0 && k <= MAX_WIDTH_IN_MARKERS ? k : DEFAULT_WIDTH_IN_MARKERS;
+
+  const localBag = bag(r.local);
+  const rawPosition: unknown[] = Array.isArray(localBag.position)
+    ? (localBag.position as unknown[])
+    : [];
+  const offset = (v: unknown): number => {
+    const n = num(v, 0);
+    return Math.max(-MAX_OFFSET_IN_MARKERS, Math.min(MAX_OFFSET_IN_MARKERS, n));
+  };
+
   return {
     type: 'marker',
     markerId,
     thumbId,
     crop,
-    // Forced, not read. v1 renders identity at 1:1 only, so honouring a stored
-    // offset would place art where nothing can put it back.
-    local: IDENTITY_LOCAL,
-    widthInMarkers: 1,
-    mode: 'follow',
+    local: {
+      // z forced to 0 and rotation to identity: this design is coplanar by
+      // construction, so a non-zero z or a real rotation from anywhere means
+      // something upstream is wrong, and rendering it would put art where no
+      // Studio control can put it back.
+      position: [offset(rawPosition[0]), offset(rawPosition[1]), 0],
+      rotation: [0, 0, 0, 1],
+    },
+    widthInMarkers,
+    // Forced. Every story published before this change carries 'follow', and
+    // there is no longer a follow code path (marker-locator-design §5.2), so
+    // honouring a stored 'follow' would mean rendering nothing.
+    mode: 'latch',
   };
 }
 

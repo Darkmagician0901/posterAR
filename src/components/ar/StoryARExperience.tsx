@@ -17,9 +17,18 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AmbientLight, Camera, DirectionalLight, Group, Scene, Vector3 } from 'three';
 
 import { onXr8Ready, runXr8, stopXr8 } from '@/xr8/pipeline';
-import { createMarkerTracking } from '@/xr8/markerTracking';
-import { composeMarkerMatrix, hasDimensions, tileSize } from '@/markers/markerPose';
+import { createMarkerTracking, type LiveMarker } from '@/xr8/markerTracking';
+import { composeSceneMatrix, hasDimensions, tileSize } from '@/markers/markerPose';
+import {
+  INITIAL_LOCK,
+  markerLost,
+  markerSeen,
+  tapped,
+  type LockState,
+} from '@/markers/markerLock';
+import { createMarkerFrame, type MarkerFrame } from '@/xr/markerFrame';
 import { markerTargetData } from '@/markers/markerTarget';
+import type { StoryAnchor } from '@/story/storyDoc';
 import { loadExhibitForLocation, type LoadedExhibit } from '@/services/exhibitApi';
 import { readReticlePose } from '@/xr8/hitTestController';
 import { StoryTile } from '@/xr8/storyTile';
@@ -68,6 +77,36 @@ export const StoryARExperience: React.FC = () => {
   /** Clears tracked markers on teardown, so a re-entered session starts clean. */
   const markerResetRef = useRef<(() => void) | null>(null);
 
+  /**
+   * Whether this session is marker-driven. A ref AND a state: the engine
+   * callbacks run outside React and read the ref; the overlay is React and
+   * reads the state.
+   */
+  const markerModeRef = useRef(false);
+  const [markerMode, setMarkerMode] = useState(false);
+  /** Lock status, mirrored the same way and for the same reason. */
+  const lockRef = useRef<LockState>(INITIAL_LOCK);
+  const [lock, setLock] = useState<LockState>(INITIAL_LOCK);
+  /** The owning marker's latest pose and its story's anchor, for the tap. */
+  const liveMarkerRef = useRef<{ marker: LiveMarker; anchor: StoryAnchor } | null>(null);
+  const markerFrameRef = useRef<MarkerFrame | null>(null);
+  /**
+   * Which marker the TILE is currently latched to.
+   *
+   * Deliberately not read off `lock.markerId`: when the visitor turns to a
+   * second picture, the lock points at the new marker before its first pose
+   * arrives, so comparing against it would say "already latched" and the scene
+   * would never move to the new print.
+   */
+  const latchedMarkerRef = useRef<string | null>(null);
+
+  /** Writes both halves of the lock state, so they cannot drift apart. */
+  const applyLock = (next: LockState): void => {
+    if (next === lockRef.current) return;
+    lockRef.current = next;
+    setLock(next);
+  };
+
   useEffect(() => {
     let cancelled = false;
     void loadExhibitForLocation(window.location.search)
@@ -77,6 +116,8 @@ export const StoryARExperience: React.FC = () => {
         // load starts on mount and the visitor still has to tap to begin, so
         // it is reliably in place before the engine asks for it.
         exhibitRef.current = loaded;
+        markerModeRef.current = true;
+        setMarkerMode(true);
         debugTelemetry.logEvent(`exhibit: ${loaded.markerStories.size} picture(s) loaded`);
         // Named rather than swallowed: a picture on the wall that leads
         // nowhere is the failure a visitor cannot diagnose and an operator
@@ -125,7 +166,65 @@ export const StoryARExperience: React.FC = () => {
    * Plants the diorama at the current reticle pose (first tap only). Later
    * taps are free "look around" — the user walks the eras with the HUD.
    */
+  /**
+   * Puts the scene where the marker says it goes.
+   *
+   * Every marker pose reaches the tile through here and nowhere else, so if a
+   * large scene turns out to swing on device, smoothing goes in one place
+   * (`marker-locator-design.md` §4.1).
+   */
+  const placeFromMarker = (live: { marker: LiveMarker; anchor: StoryAnchor }): void => {
+    const tile = tileRef.current;
+    if (!tile) return;
+    const e = live.marker.event;
+    // Guarded, not asserted: FLAT targets carry scaledWidth and Studio only
+    // ever makes PLANAR ones, but sizing from undefined yields a NaN-sized
+    // plane that never appears — the most confusing failure available.
+    if (!hasDimensions(e)) return;
+
+    tile.setWidth(tileSize(e, live.anchor.widthInMarkers).width);
+    tile.place(
+      composeSceneMatrix(e.position, e.rotation, e.scaledWidth, [
+        live.anchor.local.position[0],
+        live.anchor.local.position[1],
+      ]),
+    );
+    latchedMarkerRef.current = live.marker.name;
+  };
+
+  /**
+   * The marker-mode tap: latch the scene and start the story.
+   *
+   * The tap is anywhere on screen rather than on the picture, because aiming a
+   * tap while holding a phone steady is awkward (`marker-locator-design.md`
+   * §5.1 step 4).
+   */
+  const latchStory = (): void => {
+    if (lockRef.current.status !== 'locked') {
+      debugTelemetry.logEvent('story: tap ignored — no picture in view');
+      return;
+    }
+    const live = liveMarkerRef.current;
+    if (!live) return;
+
+    placeFromMarker(live);
+    applyLock(tapped(lockRef.current));
+    // The frame has done its job: it said "this picture is recognised", and
+    // the visitor is about to walk away from the print to see the scene.
+    markerFrameRef.current?.setVisible(false);
+    useStoryStore.getState().place();
+    addToast({ type: 'success', message: 'The picture remembers…' });
+    debugTelemetry.logEvent('story: latched to picture');
+  };
+
   const placeStory = () => {
+    // Marker mode never plants on the floor. Leaving the ground path reachable
+    // here is the shipped defect this flow removes: a visitor on a ?e= link
+    // could tap the floor and plant the story before ever seeing a picture.
+    if (markerModeRef.current) {
+      latchStory();
+      return;
+    }
     if (useStoryStore.getState().placed) return;
     const matrix = lastReticleMatrixRef.current;
     const tile = tileRef.current;
@@ -176,10 +275,19 @@ export const StoryARExperience: React.FC = () => {
           const sceneRoot = new Group();
           scene.add(sceneRoot);
 
-          const reticle = createReticle();
-          scene.add(reticle.mesh);
-          camera.add(reticle.scanner);
-          reticleRef.current = reticle;
+          // No reticle at all in marker mode — the printed picture decides
+          // where the art goes, so a ground cursor would only invite the wrong
+          // gesture. The lock frame takes its place.
+          if (markerModeRef.current) {
+            const markerFrame = createMarkerFrame();
+            sceneRoot.add(markerFrame.object);
+            markerFrameRef.current = markerFrame;
+          } else {
+            const reticle = createReticle();
+            scene.add(reticle.mesh);
+            camera.add(reticle.scanner);
+            reticleRef.current = reticle;
+          }
 
           tileRef.current = new StoryTile(sceneRoot);
 
@@ -206,7 +314,10 @@ export const StoryARExperience: React.FC = () => {
 
           debugTelemetry.setSubsystem('session', 'active');
           debugTelemetry.setSubsystem('engine', 'ready');
-          debugTelemetry.setSubsystem('hitTest', 'searching');
+          // Honest in both modes: marker mode runs no hit-test at all, and a
+          // HUD reading "searching" forever would send someone debugging a
+          // raycast that is never issued.
+          debugTelemetry.setSubsystem('hitTest', markerModeRef.current ? 'idle' : 'searching');
 
           setShowLoading(false);
           setIsARActive(true);
@@ -217,6 +328,14 @@ export const StoryARExperience: React.FC = () => {
           const last = lastFrameTimeRef.current;
           const deltaMs = last == null ? 0 : now - last;
           lastFrameTimeRef.current = now;
+
+          if (markerModeRef.current) {
+            // No hit-test in marker mode. readReticlePose() runs a raycast
+            // every frame and nothing here would use the result.
+            tileRef.current?.tick(deltaMs);
+            debugTelemetry.tick(now);
+            return;
+          }
 
           const reticle = reticleRef.current;
           const storyPlaced = useStoryStore.getState().placed;
@@ -269,24 +388,60 @@ export const StoryARExperience: React.FC = () => {
           .filter((a): a is NonNullable<typeof a> => a !== undefined);
         const tracking = createMarkerTracking({
           onSelectionChange: ({ current }) => {
+            // `current` never returns to null once a picture has been seen —
+            // stepSelection holds the live story deliberately. "Is the picture
+            // in view right now" is a different question, answered by
+            // onVisibilityChange below.
             if (current === null) return;
             const story = exhibitRef.current?.markerStories.get(current);
-            if (!story) return;
+            if (!story?.anchor) return;
+
             // Swap the document; the texture effect above is subscribed to
             // contentStore and re-rasterizes the new story's art on its own.
+            // Note it does NOT start the story: the visitor still has to tap.
             useContentStore.getState().load(story);
-            // Mark placed so the reticle stands down — in marker mode the
-            // picture decides where the art goes, not a tap on the floor.
-            if (!useStoryStore.getState().placed) useStoryStore.getState().place();
+            applyLock(markerSeen(lockRef.current, current));
             debugTelemetry.logEvent(`story: switched to ${story.id}`);
           },
-          onPose: (marker) => {
-            const tile = tileRef.current;
-            if (!tile) return;
-            if (hasDimensions(marker.event)) {
-              tile.setWidth(tileSize(marker.event).width);
+          onVisibilityChange: (visible) => {
+            if (visible) {
+              // markerSeen needs a marker; the pose callback has already run
+              // this frame, so liveMarkerRef is the picture now on screen.
+              const live = liveMarkerRef.current;
+              if (live) applyLock(markerSeen(lockRef.current, live.marker.name));
+              return;
             }
-            tile.place(composeMarkerMatrix(marker.event.position, marker.event.rotation));
+            // Looked away. A started session is unaffected — that is the whole
+            // point of latching — but a lock that has not been tapped must
+            // stop inviting a tap, or the tap lands on a stale pose.
+            applyLock(markerLost(lockRef.current));
+            liveMarkerRef.current = null;
+            markerFrameRef.current?.setVisible(false);
+          },
+          onPose: (marker) => {
+            const story = exhibitRef.current?.markerStories.get(marker.name);
+            if (!story?.anchor) return;
+            const live = { marker, anchor: story.anchor };
+            liveMarkerRef.current = live;
+
+            if (lockRef.current.status === 'started') {
+              // Latched. SLAM owns the scene now; the only thing a pose still
+              // does is re-place ONCE after a switch to a different picture.
+              if (latchedMarkerRef.current === marker.name) return;
+              placeFromMarker(live);
+              return;
+            }
+
+            // Locked but not started: the frame tracks the print so the
+            // visitor can see it is recognised.
+            const frame = markerFrameRef.current;
+            if (frame && hasDimensions(marker.event)) {
+              frame.setSize(marker.event.scaledWidth, marker.event.scaledHeight);
+              frame.setPose(
+                composeSceneMatrix(marker.event.position, marker.event.rotation, 0, [0, 0]),
+              );
+              frame.setVisible(true);
+            }
           },
         });
         markerResetRef.current = tracking.reset;
@@ -322,6 +477,19 @@ export const StoryARExperience: React.FC = () => {
     lastFrameTimeRef.current = null;
     reportedReadyRef.current = false;
 
+    markerFrameRef.current?.dispose();
+    markerFrameRef.current = null;
+    liveMarkerRef.current = null;
+    latchedMarkerRef.current = null;
+    lockRef.current = INITIAL_LOCK;
+    setLock(INITIAL_LOCK);
+    // markerMode is deliberately NOT reset. It describes the LINK the visitor
+    // followed, not the session: `exhibitRef` still holds the loaded room, so
+    // re-entering AR configures image targets again. Clearing it here would
+    // leave the second session tracking markers while also building a ground
+    // reticle and a floor tap — the exact defect this flow removes, returning
+    // by the back door.
+
     // Forget which pictures were visible. Without this a re-entered session
     // starts believing it can still see markers from the last one, and the
     // first frame would place artwork on a stale pose.
@@ -341,7 +509,7 @@ export const StoryARExperience: React.FC = () => {
       <Header isARActive={isARActive} onExitAR={handleExitAR} />
       <LoadingScreen
         isLoading={showLoading}
-        message="Finding the ground…"
+        message={markerMode ? 'Looking for the picture…' : 'Finding the ground…'}
         progress={loadProgress.percent}
         stageLabel={loadProgress.label}
         error={loadProgress.error}
@@ -357,7 +525,7 @@ export const StoryARExperience: React.FC = () => {
       </div>
 
       {/* 2D HUD over the camera + diorama. */}
-      <StoryOverlay surfaceReady={surfaceReady} />
+      <StoryOverlay surfaceReady={surfaceReady} markerLock={markerMode ? lock.status : null} />
 
       {!isARActive && (
         <button

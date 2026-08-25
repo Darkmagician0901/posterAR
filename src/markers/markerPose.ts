@@ -14,6 +14,17 @@
  */
 
 import { Matrix4, Quaternion, Vector3 } from 'three';
+import { DEFAULT_WIDTH_IN_MARKERS } from '@/story/storyDoc';
+
+/**
+ * The multiplier a story falls back to: artwork exactly covering the marker.
+ *
+ * Re-exported from `storyDoc.ts`, which is where the bound is enforced, so the
+ * geometry and the validator cannot disagree. It is the LEGACY meaning, not
+ * the intended one — a real installation uses a small print locating a much
+ * larger scene, which is a multiplier well above 1.
+ */
+export { DEFAULT_WIDTH_IN_MARKERS };
 
 /** The engine's reported dimensions for one tracked image. */
 export interface MarkerDimensions {
@@ -26,17 +37,6 @@ export interface TileSize {
   width: number;
   height: number;
 }
-
-/**
- * v1 multiplier: artwork exactly covers the printed picture.
- *
- * **This is the value MOD-M1 exists to change** (`docs/marker-layer-design.md`
- * §10a.1). The installation wants a small marker locating much larger content,
- * which means a multiplier above 1. It is a named constant threaded through a
- * parameter rather than a literal baked into the geometry, so raising it is an
- * edit here plus a Studio control — not a hunt through engine code.
- */
-export const DEFAULT_WIDTH_IN_MARKERS = 1;
 
 /**
  * Sizes the artwork plane from what the engine reports.
@@ -82,28 +82,52 @@ export function hasDimensions(e: {
 }
 
 /**
- * Builds the artwork's world transform from a marker's reported pose.
+ * Builds the scene's world transform from a marker's reported pose.
+ *
+ * The marker LOCATES the scene; it does not size it. Size comes from
+ * `tileSize`; this decides where the centre goes.
+ *
+ * **Rotating the offset is load-bearing.** The offset is expressed in the
+ * marker's own frame, so it must be rotated into world space before it is
+ * added. Omit that and the scene slides in a fixed world direction whatever
+ * way the print faces — which looks perfectly correct on a print hanging
+ * square in front of whoever is testing, and is wrong on every angled wall.
+ * `markerPose.test.ts` pins it with a deliberately yawed marker.
  *
  * **Scale is deliberately excluded** — the matrix is rigid, position and
  * rotation only. The engine also reports a `scale` estimate, and folding it in
  * would mean a wobble of a percent or two rescaling the artwork every frame,
- * which reads as breathing. Size comes from `tileSize` instead, which is a
- * ratio of the marker's own reported width and therefore steady.
- * `marker-testbed-design.md` §5 reaches the same conclusion.
+ * which reads as breathing. `marker-testbed-design.md` §5 agrees.
+ *
+ * This is also the single point every marker pose passes through on its way to
+ * the tile, so if a large scene turns out to swing on device, a smoothing step
+ * goes here and nowhere else (`marker-locator-design.md` §4.1).
  *
  * @param position — The engine's world position for the marker.
  * @param rotation — The engine's world orientation quaternion.
+ * @param markerWidth — The marker's reported width, in the engine's own units.
+ *   Non-finite values are treated as 0, which reduces the offset to nothing
+ *   rather than placing the scene at NaN, where it would never appear.
+ * @param offset — `[ox, oy]` from the anchor's `local.position`, in
+ *   marker-widths: the vector from the marker to the scene's centre, `+x`
+ *   right and `+y` up as seen by someone facing the print.
  * @returns 16 column-major floats, the form `StoryTile.place` expects.
  */
-export function composeMarkerMatrix(
+export function composeSceneMatrix(
   position: { x: number; y: number; z: number },
   rotation: { w: number; x: number; y: number; z: number },
+  markerWidth: number,
+  offset: readonly [number, number],
 ): Float32Array {
+  // Normalised because a quaternion that has drifted off unit length would
+  // otherwise smuggle a scale into a matrix this function promises is rigid.
+  const q = new Quaternion(rotation.x, rotation.y, rotation.z, rotation.w).normalize();
+  const w = Number.isFinite(markerWidth) ? markerWidth : 0;
+  const shift = new Vector3(offset[0] * w, offset[1] * w, 0).applyQuaternion(q);
+
   const m = new Matrix4().compose(
-    new Vector3(position.x, position.y, position.z),
-    // Normalised because a quaternion that has drifted off unit length would
-    // otherwise smuggle a scale into a matrix this function promises is rigid.
-    new Quaternion(rotation.x, rotation.y, rotation.z, rotation.w).normalize(),
+    new Vector3(position.x + shift.x, position.y + shift.y, position.z + shift.z),
+    q,
     new Vector3(1, 1, 1),
   );
   return new Float32Array(m.elements);

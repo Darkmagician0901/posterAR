@@ -313,18 +313,92 @@ describe('anchor', () => {
     expect(validateStoryDoc({ ...DEFAULT_STORY, anchor: bad }, DEFAULT_STORY).anchor).toBeUndefined();
   });
 
-  it('normalises an unknown mode to follow rather than dropping the anchor', () => {
-    const doc = validateStoryDoc({ ...DEFAULT_STORY, anchor: { ...anchor, mode: 'latch' } }, DEFAULT_STORY);
-    expect(doc.anchor?.mode).toBe('follow');
-  });
-
-  it('forces identity local and widthInMarkers 1, which is all v1 renders', () => {
+  it('keeps an authored scene width', () => {
     const doc = validateStoryDoc(
-      { ...DEFAULT_STORY, anchor: { ...anchor, widthInMarkers: 7, local: { position: [9, 9, 9], rotation: [1, 0, 0, 0] } } },
+      { ...DEFAULT_STORY, anchor: { ...anchor, widthInMarkers: 7.25 } },
       DEFAULT_STORY,
     );
+    expect(doc.anchor?.widthInMarkers).toBeCloseTo(7.25, 10);
+  });
+
+  it('falls back to 1 for a scene width outside (0, 100]', () => {
+    // 1 is the pre-existing behaviour — art covering the marker — so the
+    // fallback degrades to something that has always worked rather than to
+    // an invisible or absurd scene.
+    for (const bad of [0, -3, 101, NaN, Infinity, 'big', null, undefined]) {
+      const doc = validateStoryDoc(
+        { ...DEFAULT_STORY, anchor: { ...anchor, widthInMarkers: bad } },
+        DEFAULT_STORY,
+      );
+      expect(doc.anchor?.widthInMarkers).toBe(1);
+    }
+  });
+
+  it('keeps an in-plane offset, which is how a print hangs off-centre', () => {
+    const doc = validateStoryDoc(
+      {
+        ...DEFAULT_STORY,
+        anchor: { ...anchor, local: { position: [-0.9, 0.6, 0], rotation: [0, 0, 0, 1] } },
+      },
+      DEFAULT_STORY,
+    );
+    expect(doc.anchor?.local.position[0]).toBeCloseTo(-0.9, 10);
+    expect(doc.anchor?.local.position[1]).toBeCloseTo(0.6, 10);
+  });
+
+  it('clamps a wild offset rather than dropping the whole anchor', () => {
+    const doc = validateStoryDoc(
+      {
+        ...DEFAULT_STORY,
+        anchor: { ...anchor, local: { position: [1e9, -1e9, 0], rotation: [0, 0, 0, 1] } },
+      },
+      DEFAULT_STORY,
+    );
+    expect(doc.anchor?.local.position[0]).toBe(100);
+    expect(doc.anchor?.local.position[1]).toBe(-100);
+  });
+
+  it('forces z to 0, because this design is coplanar by construction', () => {
+    const doc = validateStoryDoc(
+      {
+        ...DEFAULT_STORY,
+        anchor: { ...anchor, local: { position: [1, 2, 3], rotation: [0, 0, 0, 1] } },
+      },
+      DEFAULT_STORY,
+    );
+    expect(doc.anchor?.local.position[2]).toBe(0);
+  });
+
+  it('forces rotation to identity — in-plane rotation is not built', () => {
+    const doc = validateStoryDoc(
+      {
+        ...DEFAULT_STORY,
+        anchor: { ...anchor, local: { position: [0, 0, 0], rotation: [0.7, 0, 0, 0.7] } },
+      },
+      DEFAULT_STORY,
+    );
+    expect(doc.anchor?.local.rotation).toEqual([0, 0, 0, 1]);
+  });
+
+  it('forces mode to latch, including on documents published as follow', () => {
+    // Every story published before this change carries mode: 'follow', and no
+    // code path renders follow any more. Honouring it would render nothing.
+    for (const m of ['follow', 'latch', 'wobble', undefined]) {
+      const doc = validateStoryDoc(
+        { ...DEFAULT_STORY, anchor: { ...anchor, mode: m } },
+        DEFAULT_STORY,
+      );
+      expect(doc.anchor?.mode).toBe('latch');
+    }
+  });
+
+  it('reads a legacy 1:1 anchor as exactly what it means today', () => {
+    // Backward compatibility (marker-locator-design §2.2): every published
+    // story carries widthInMarkers 1 and a zero offset, which under the new
+    // maths still means artwork covering the marker.
+    const doc = validateStoryDoc({ ...DEFAULT_STORY, anchor }, DEFAULT_STORY);
     expect(doc.anchor?.widthInMarkers).toBe(1);
-    expect(doc.anchor?.local).toEqual({ position: [0, 0, 0], rotation: [0, 0, 0, 1] });
+    expect(doc.anchor?.local.position).toEqual([0, 0, 0]);
   });
 
   it('drops a non-marker anchor type', () => {

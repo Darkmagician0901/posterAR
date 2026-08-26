@@ -79,6 +79,20 @@ aws amplify get-app --app-id d114nr20m4npww --region ca-central-1   --query 'app
 
 ### Deploying the API
 
+> **This has already bitten once.** The function sat a week stale while the site
+> shipped past it, so the live publish endpoint validated against an older schema
+> and silently stripped fields Studio was authoring — returning 200 the whole
+> time. See `docs/cleanup-backlog.md` §9.
+>
+> Redeploy whenever anything under `api/` changes **or anything `api/` imports**
+> changes — today that includes `src/story/storyDoc.ts` and
+> `src/exhibit/exhibitDoc.ts`. Merging is not shipping for this half.
+>
+> Snapshot before overwriting, so rollback is a version switch:
+> ```bash
+> aws lambda publish-version --function-name eml-arcade-api --region ca-central-1
+> ```
+
 The Lambda is not deployed by Amplify or by CI:
 
 ```bash

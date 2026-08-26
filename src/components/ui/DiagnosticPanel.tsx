@@ -133,6 +133,7 @@ const ROWS: { key: keyof Omit<SubsystemsSnapshot, 'platform'>; label: string }[]
   { key: 'motion', label: 'Motion' },
   { key: 'worldTracking', label: 'World tracking' },
   { key: 'hitTest', label: 'Hit-test' },
+  { key: 'imageTarget', label: 'Image marker' },
   { key: 'surface', label: 'Surface' },
   { key: 'desktopMock', label: 'Desktop mock' },
 ];
@@ -190,6 +191,12 @@ const hint = (subs: SubsystemsSnapshot): string | null => {
   }
   if (subs.worldTracking === 'notavailable') {
     return 'World tracking unavailable on this device/session.';
+  }
+  if (subs.imageTarget === 'unavailable') {
+    return 'Image markers unavailable — no fingerprint installed, or the engine predates imageTargetData.';
+  }
+  if (subs.imageTarget === 'searching') {
+    return 'Point the camera at the printed marker so it fills most of the frame.';
   }
   if (subs.hitTest === 'searching') {
     return 'Point at a surface 0.5–2 m away and move the phone slowly.';

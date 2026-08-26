@@ -23,6 +23,21 @@ describe('loadConfig', () => {
     expect(loadConfig(base as NodeJS.ProcessEnv).port).toBe(8787);
   });
 
+  it('defaults S3_FORCE_PATH_STYLE to true for S3-compatible endpoints', () => {
+    expect(loadConfig(base as NodeJS.ProcessEnv).s3.forcePathStyle).toBe(true);
+  });
+
+  it('reads the string "false" as false, not as a truthy string', () => {
+    const cfg = loadConfig({ ...base, S3_FORCE_PATH_STYLE: 'false' } as NodeJS.ProcessEnv);
+    expect(cfg.s3.forcePathStyle).toBe(false);
+  });
+
+  it('rejects a value that is neither "true" nor "false"', () => {
+    expect(() => loadConfig({ ...base, S3_FORCE_PATH_STYLE: 'no' } as NodeJS.ProcessEnv)).toThrow(
+      /S3_FORCE_PATH_STYLE/,
+    );
+  });
+
   it('throws when a required var is missing', () => {
     const { DATABASE_URL: _DATABASE_URL, ...rest } = base;
     expect(() => loadConfig(rest as NodeJS.ProcessEnv)).toThrow(/DATABASE_URL/);

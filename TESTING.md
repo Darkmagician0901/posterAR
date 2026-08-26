@@ -5,6 +5,7 @@ Comprehensive testing procedures and checklist for the XR Poster AR web applicat
 ## Table of Contents
 
 - [Automated Tests](#automated-tests)
+- [Image-Marker Testbed](#image-marker-testbed-modemarker)
 - [Testing Overview](#testing-overview)
 - [Device Testing Matrix](#device-testing-matrix)
 - [Pre-Deployment Testing](#pre-deployment-testing)
@@ -30,7 +31,7 @@ npm run test
 npm run test:watch
 ```
 
-**17 test files, 86 tests, all passing, runs in < 2 s:**
+**21 test files, 131 tests, all passing, runs in < 2 s:**
 
 | File | Tests | What it covers |
 |------|-------|----------------|
@@ -38,17 +39,21 @@ npm run test:watch
 | `src/hooks/usePosterUpload.persist.test.ts` | 2 | Persists processed uploads via `posterApi`; returns `null` (no throw) when persistence fails |
 | `src/services/posterApi.test.ts` | 2 | Client `persistAsset` / `listAssets` — presigned-URL upload flow, owner-scoped fetch |
 | `src/store/posterStore.hydrate.test.ts` | 2 | `hydrateUploads` merges remote assets into the gallery without duplicating ids or touching the current poster |
+| `src/store/spaceStore.test.ts` | 10 | Marker "spaces" store — bind/remove/select, per-binding transform isolation, distance edits, hydrate-replaces-local |
 | `src/store/storyStore.test.ts` | 8 | Story mode phase/era state machine (scanning → placed → outro; place/next/prev/jumpTo) |
 | `src/story/svgTexture.test.ts` | 3 | `svgFrame` — SVG viewBox parsing, aspect ratio, fallback/malformed-input handling |
 | `src/utils/deviceToken.test.ts` | 2 | `getDeviceToken` — generates and persists a stable per-device id in localStorage |
 | `src/utils/gifDecode.test.ts` | 3 | GIF decode adapter (gifuct-js), size reading, data: URL decode |
 | `src/utils/imageUpload.test.ts` | 3 | Upload validation + WebP compression rules (formats, size caps) |
 | `src/utils/screenshot.test.ts` | 13 | Screenshot utilities: crop math, filename generation, blob/data-URL helpers |
-| `src/xr/posterOrientation.test.ts` | 7 | `composeFlatPosterMatrix` — flat-placement orientation math (facing normal, head-away, orthonormal basis, degenerate/tilted cases) |
+| `src/xr/markerRelativeTransform.test.ts` | 10 | Marker-relative anchoring math — latch/restore round-trip, restoring into a *different* world frame, rigid (scale-free) marker frame, distance-along-normal helpers |
+| `src/xr/markerStability.test.ts` | 8 | Rolling jitter metrics — RMS-from-window-mean (not frame-to-frame), update rate, window eviction, quaternion double-cover handling |
+| `src/xr/posterOrientation.test.ts` | 14 | `composeFlatPosterMatrix` / `composeUprightPosterMatrix` — placement orientation math (facing normal, head-away, orthonormal basis, degenerate/tilted cases) |
 | `src/xr8/ambientProbe.test.ts` | 5 | `estimateAmbient` — camera-color math (brightness mapping, color cast, EMA smoothing) |
 | `src/xr8/gifPlayhead.test.ts` | 5 | Pure frame-timing playhead math |
 | `src/xr8/gifAnimator.test.ts` | 4 | CanvasTexture animator behavior |
 | `src/xr8/hitTestController.test.ts` | 2 | `readReticlePose` — hit-test pose reading from the `XR8` global (null when engine absent, flat pose on a horizontal hit) |
+| `src/xr8/imageTargetData.test.ts` | 10 | Fingerprint loading — `imagePath` rewriting, missing/empty manifest, partial failures, offline |
 | `src/xr8/posterPlacement.test.ts` | 9 | Poster mesh placement / removal in the scene |
 | `src/xr8/posterTextureCache.test.ts` | 14 | Refcounted shared animator cache, memory budget, texture disposal |
 
@@ -56,6 +61,73 @@ npm run test:watch
 
 - **Automated (vitest)** — pure logic that is device-independent: timing math, decode adapters, upload validation, placement calculations, cache refcounting.
 - **Manual (on-device)** — anything that requires the live camera, SLAM tracking, 8th Wall engine, or on-device rendering. See the sections below for those checklists.
+
+### Server tests
+
+The API has its own suite (`cd server && npm test`): **4 files, 33 tests** —
+config parsing, the S3 object store (path-style vs virtual-hosted addressing),
+and both route groups (`/api/assets`, `/api/spaces`).
+
+---
+
+## Image-Marker Testbed (`?mode=marker`)
+
+A separate AR mode, reached by adding `?mode=marker` to the URL, that measures
+whether 8th Wall image-target tracking is stable enough to anchor content to a
+printed picture. See
+`docs/marker-testbed-design.md`.
+
+### Setup
+
+1. **Choose a marker.** 8th Wall uses *natural-feature* tracking, not fiducial
+   markers. Use a **detailed, busy, non-repeating** picture (a photo, album
+   art, a map), 3:4 portrait, at least 480x640. A plain high-contrast shape
+   tracks badly and would produce a false "unstable" result.
+2. **Generate the fingerprint** with `npx @8thwall/image-target-cli@latest`
+   (interactive), drop the output into `public/image-targets/`, and list the
+   JSON in `manifest.json`. Full instructions:
+   `public/image-targets/README.md`.
+3. **Print it flat and matte**, a few inches across.
+4. *(optional, for persistence)* Provision the AWS slice —
+   `infra/terraform/README.md` — and set `VITE_API_BASE_URL` to the API's LAN
+   address. Without it the testbed runs local-only and the HUD says so.
+5. `npm run dev`, then open `https://<lan-ip>:5173/?mode=marker` on the phone.
+
+### What to record
+
+| Check | Where | Pass looks like |
+|-------|-------|-----------------|
+| Detection latency | HUD | Marker found within a second or two of framing it |
+| FPS | HUD | Holds ≥ 30 with detection running |
+| Update rate | HUD | Steady while the marker is in view |
+| Position jitter (RMS) | HUD | Sub-millimetre to low single-digit mm, phone held still |
+| Rotation jitter (RMS) | HUD | Fraction of a degree |
+| Re-acquire drift | HUD | Small, and no visible jump when the marker returns |
+
+### Procedure
+
+- [ ] Point at the marker — an asset appears sitting on it
+- [ ] Drag the distance slider — the asset moves **away from the printed
+      surface**, not across it *(if it slides across, flip `MARKER_NORMAL_AXIS`
+      in `src/xr/markerRelativeTransform.ts` — see the spec)*
+- [ ] Hold still ~10 s and read the jitter figures
+- [ ] Cover the marker, move around, uncover it — note the re-acquire drift and
+      whether the asset visibly jumps
+- [ ] Toggle **Follow** vs **Latch** and compare: Follow should look rigidly
+      attached but shakier; Latch steadier but liable to drift
+- [ ] Walk away several metres and back; re-frame the marker
+- [ ] Add a second asset and give it a different distance
+- [ ] Try a second marker — its space must stay independent
+- [ ] **Recovery:** with persistence on, fully quit the browser, reopen
+      `?mode=marker`, re-scan — assets return to the same real-world spots
+
+### Known limits
+
+- Up to 10 targets scanned simultaneously.
+- No fingerprint is committed to the repo — a fresh checkout shows
+  "NO MARKER INSTALLED" until you generate one.
+- Runs on the mobile AR branch only; there is no desktop-mock equivalent,
+  because image targets need world tracking.
 
 ---
 
@@ -747,5 +819,5 @@ Any other relevant information
 
 ---
 
-**Last Updated:** 2026-06-23  
+**Last Updated:** 2026-07-27  
 **Version:** 1.0.0

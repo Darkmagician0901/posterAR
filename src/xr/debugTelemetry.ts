@@ -65,6 +65,8 @@ export interface SubsystemsSnapshot {
   worldTracking: SubsystemStatus;
   /** Center-screen hit-test / reticle lock. */
   hitTest: SubsystemStatus;
+  /** Image-marker detection: 'searching' while hunting, 'tracking' in view. */
+  imageTarget: SubsystemStatus;
   /** Surface under the reticle (estimated vs detected). */
   surface: SubsystemStatus;
   /** Desktop webcam mock sandbox. */
@@ -122,6 +124,7 @@ const initialSubsystems: SubsystemsSnapshot = {
   motion: 'idle',
   worldTracking: 'idle',
   hitTest: 'idle',
+  imageTarget: 'idle',
   surface: 'idle',
   desktopMock: 'idle',
   platform: 'unknown',

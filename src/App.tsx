@@ -22,6 +22,7 @@ import { usePosterStore } from '@/store/posterStore';
 import { useContentStore } from '@/store/contentStore';
 import { DesktopMockMode } from '@/components/ar/DesktopMockMode';
 import { StoryARExperience } from '@/components/ar/StoryARExperience';
+import { MarkerTestbedExperience } from '@/components/ar/MarkerTestbedExperience';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Toast } from '@/components/ui/Toast';
@@ -39,6 +40,21 @@ import { debugTelemetry } from '@/xr/debugTelemetry';
  * Takes no props; capability detection runs in an effect on mount and a
  * loading spinner is shown until it resolves.
  */
+/**
+ * Whether the URL asks for the image-marker testbed (`?mode=marker`).
+ *
+ * A query flag rather than a router: the app has no routing, and the testbed
+ * is a diagnostic surface for on-device testing — a URL you can paste into a
+ * phone is exactly the right amount of machinery. The shipping story mode
+ * stays the default.
+ *
+ * @returns True when the marker testbed should replace StoryARExperience.
+ */
+function wantsMarkerTestbed(): boolean {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('mode') === 'marker';
+}
+
 function App() {
   const [xrSupport, setXrSupport] = useState<XRSupport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -187,7 +203,7 @@ function App() {
           <div className="app-container">
             <Toast />
             <DiagnosticPanel />
-            <StoryARExperience />
+            {wantsMarkerTestbed() ? <MarkerTestbedExperience /> : <StoryARExperience />}
             <DeviceInfoButton
               show={showDeviceInfo}
               onToggle={() => setShowDeviceInfo((s) => !s)}

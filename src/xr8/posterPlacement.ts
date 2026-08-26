@@ -118,6 +118,25 @@ export class PosterPlacement {
   }
 
   /**
+   * Rewrites a poster's world transform after it has been placed.
+   *
+   * Ordinary SLAM-placed posters never need this — the world frame holds them
+   * still. Marker-anchored posters do: their pose is derived from a tracked
+   * image marker, so it is recomputed whenever the marker reports a new pose.
+   * Scale and in-plane rotation live on the mesh (see setScale / setRotation),
+   * so overwriting the group matrix here leaves both intact.
+   *
+   * @param id — Id of the poster to move; unknown ids are ignored.
+   * @param matrix — The 16 floats of the new world transform, column-major.
+   */
+  setPose(id: string, matrix: Float32Array): void {
+    const record = this._posters.get(id);
+    if (!record) return;
+    this._tmpMatrix.fromArray(matrix);
+    record.group.matrix.copy(this._tmpMatrix);
+  }
+
+  /**
    * Advances all animated posters. Called once per frame; static posters are
    * no-ops. Each distinct animator is updated at most once per call even when
    * multiple posters share the same animator instance.

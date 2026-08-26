@@ -11,7 +11,9 @@ export function createObjectStore(s3: AppConfig['s3']): ObjectStore {
   const client = new S3Client({
     endpoint: s3.endpoint,
     region: s3.region,
-    forcePathStyle: true, // required for Supabase / S3-compatible endpoints
+    // Required for Supabase and other S3-compatible endpoints; must be false
+    // against real AWS S3, which treats path-style addressing as legacy.
+    forcePathStyle: s3.forcePathStyle,
     credentials: { accessKeyId: s3.accessKeyId, secretAccessKey: s3.secretAccessKey },
   });
 

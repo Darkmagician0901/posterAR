@@ -174,6 +174,12 @@ export interface LoadedExhibit {
   markerStories: Map<string, StoryDoc>;
   /** Ids the exhibit named that could not be fetched, or carry no picture. */
   unreachable: string[];
+  /**
+   * Where to send a visitor who wants to leave feedback, if the operator set
+   * one. Already validated to be `https:` by `validateExhibitDoc`, so it is
+   * safe to render as an href without re-checking here.
+   */
+  feedbackUrl?: string;
 }
 
 /**
@@ -229,5 +235,7 @@ export async function loadExhibitForLocation(search: string): Promise<LoadedExhi
   const markerStories = buildMarkerStoryMap(stories);
   if (markerStories.size === 0) return null;
 
-  return { id: doc.id, title: doc.title, markerStories, unreachable };
+  const loaded: LoadedExhibit = { id: doc.id, title: doc.title, markerStories, unreachable };
+  if (doc.feedbackUrl !== undefined) loaded.feedbackUrl = doc.feedbackUrl;
+  return loaded;
 }

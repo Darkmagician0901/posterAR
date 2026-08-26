@@ -152,7 +152,10 @@ export default async function handler(request: Request): Promise<Response> {
   // one of them unfireable and quietly publish a fourteen-story exhibit as ten
   // — leaving four pictures that do nothing, which is exactly what this
   // endpoint exists to prevent. See `exhibitIssues`' own doc comment.
-  const issues = exhibitIssues(normalizeStoryIds((rawDoc as { storyIds?: unknown }).storyIds));
+  const issues = exhibitIssues(
+    normalizeStoryIds((rawDoc as { storyIds?: unknown }).storyIds),
+    (rawDoc as { feedbackUrl?: unknown }).feedbackUrl,
+  );
   if (issues.length > 0) return json({ error: issues.join(' ') }, 422);
 
   const doc = validateExhibitDoc({ ...rawDoc, id });

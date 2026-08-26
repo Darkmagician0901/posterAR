@@ -6,10 +6,10 @@ Complete guide for deploying the XR Poster AR web application to various platfor
 
 - [Prerequisites](#prerequisites)
 - [Platform Deployment](#platform-deployment)
-  - [Vercel (Recommended)](#vercel-recommended)
-  - [Netlify](#netlify)
-  - [Cloudflare Pages](#cloudflare-pages)
-  - [Docker](#docker)
+  - [The two halves](#the-two-halves)
+  - [Amplify app](#amplify-app)
+  - [Rewrites](#rewrites)
+  - [Verifying a deploy](#verifying-a-deploy)
 - [Environment Variables](#environment-variables)
 - [Custom Domain Setup](#custom-domain-setup)
 - [SSL/HTTPS Configuration](#sslhttps-configuration)
@@ -31,347 +31,116 @@ Before deploying, ensure you have:
 
 ## Platform Deployment
 
-### Vercel (Recommended)
+**Production is AWS Amplify Hosting. There is no Vercel, Netlify, or Docker
+deploy.** Earlier revisions of this document described all three; none of them
+were ever wired up on this repo, and `vercel.json`, `deploy.yml`, and the
+`deploy:vercel` / `deploy:netlify` npm scripts they referenced do not exist.
 
-Vercel provides the easiest deployment with automatic HTTPS and excellent performance.
+### The two halves
 
-#### Option 1: Deploy via CLI
+The app deploys as two independent pieces:
 
-1. **Install Vercel CLI:**
-   ```bash
-   npm install -g vercel
-   ```
+| Piece | How it deploys | Built by |
+|---|---|---|
+| Static site (`dist/`) | Amplify builds from the connected branch on push | `amplify.yml` |
+| API (`dist-lambda.zip`) | Uploaded manually to the Lambda | `npm run build:lambda` |
 
-2. **Login to Vercel:**
-   ```bash
-   vercel login
-   ```
+`.github/workflows/ci.yml` **does not deploy anything** — it type-checks, lints,
+tests, and builds, and that is all. Merging to `main` is what ships.
 
-3. **Deploy to production:**
-   ```bash
-   npm run deploy:vercel
-   # or
-   vercel --prod
-   ```
+### Amplify app
 
-4. **Deploy preview:**
-   ```bash
-   npm run deploy:vercel:preview
-   # or
-   vercel
-   ```
+- App id **`d114nr20m4npww`**, region **`ca-central-1`**.
+- Amplify reads **`amplify.yml`** (build) and **`customHttp.yml`** (headers,
+  including the CSP). It **ignores `public/_headers`** — that file is a leftover
+  and changing it has no effect on production.
+- Each branch also gets its own preview URL; `main` serves production.
 
-#### Option 2: Deploy via GitHub Integration
+### Rewrites
 
-1. **Push code to GitHub:**
-   ```bash
-   git add .
-   git commit -m "Ready for deployment"
-   git push origin main
-   ```
+Three rules, in this order. Read the live values back rather than trusting this
+list:
 
-2. **Connect to Vercel:**
-   - Go to [vercel.com](https://vercel.com)
-   - Click "Import Project"
-   - Select your GitHub repository
-   - Vercel will auto-detect Vite configuration
-
-3. **Configure project:**
-   - Framework Preset: `Vite`
-   - Build Command: `npm run build`
-   - Output Directory: `dist`
-   - Install Command: `npm ci`
-
-4. **Add environment variables** (optional):
-   - Go to Project Settings → Environment Variables
-   - Add variables from `.env.production.example`
-
-5. **Deploy:**
-   - Click "Deploy"
-   - Vercel will build and deploy automatically
-   - Every push to `main` triggers a new deployment
-
-#### Vercel Configuration
-
-The `vercel.json` file is already configured with:
-- ✅ Security headers (CSP, HSTS, etc.)
-- ✅ HTTPS redirect
-- ✅ SPA routing
-- ✅ CSP allowing the 8th Wall engine CDN (`https://cdn.jsdelivr.net`) in `script-src`
-- ✅ Cache optimization
-
-#### GitHub Actions Integration
-
-The project includes a GitHub Actions workflow (`.github/workflows/deploy.yml`). It triggers on pushes to `main`/`develop` and on PRs to `main`, with these jobs:
-
-- **build-and-test** — type-check (`npm run type-check`) + production build + uploads the `dist/` artifact (retained 7 days). Note: this job does **not** run the vitest suite — run `npm run test` locally before pushing.
-- **deploy-netlify** — **active**; rebuilds and deploys `dist/` to Netlify on pushes to `main`. Requires the `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID` secrets.
-- **docker-build** — builds and pushes a Docker image, but only when `DOCKER_USERNAME` / `DOCKER_PASSWORD` secrets are set (skipped otherwise).
-- **notify** — reports the Netlify deploy status.
-
-> **Note:** The two Vercel deploy jobs are commented out because Vercel auto-deploys directly from its GitHub integration (pushes to `main` → production; PRs → preview). Uncomment them only if you want CI to drive Vercel deployments instead.
-
-**Secrets:**
-```
-NETLIFY_AUTH_TOKEN    # required — the active Netlify deploy job
-NETLIFY_SITE_ID       # required — the active Netlify deploy job
-DOCKER_USERNAME       # optional — enables the Docker build/push job
-DOCKER_PASSWORD       # optional — enables the Docker build/push job
-VERCEL_TOKEN          # only if you uncomment the Vercel CI jobs
-VERCEL_ORG_ID         # only if you uncomment the Vercel CI jobs
-VERCEL_PROJECT_ID     # only if you uncomment the Vercel CI jobs
-```
-
----
-
-### Netlify
-
-Netlify offers similar features to Vercel with excellent build optimization.
-
-#### Option 1: Deploy via CLI
-
-1. **Install Netlify CLI:**
-   ```bash
-   npm install -g netlify-cli
-   ```
-
-2. **Login to Netlify:**
-   ```bash
-   netlify login
-   ```
-
-3. **Initialize site:**
-   ```bash
-   netlify init
-   ```
-
-4. **Deploy to production:**
-   ```bash
-   npm run deploy:netlify
-   # or
-   netlify deploy --prod
-   ```
-
-5. **Deploy preview:**
-   ```bash
-   npm run deploy:netlify:preview
-   # or
-   netlify deploy
-   ```
-
-#### Option 2: Deploy via GitHub Integration
-
-1. **Push code to GitHub**
-
-2. **Connect to Netlify:**
-   - Go to [netlify.com](https://netlify.com)
-   - Click "New site from Git"
-   - Select your GitHub repository
-
-3. **Configure build settings:**
-   - Build command: `npm run build`
-   - Publish directory: `dist`
-   - Node version: `18`
-
-4. **Add environment variables** (optional):
-   - Go to Site Settings → Environment Variables
-   - Add variables from `.env.production.example`
-
-5. **Deploy:**
-   - Click "Deploy site"
-   - Netlify will build and deploy automatically
-
-#### Netlify Configuration
-
-The `netlify.toml` file is already configured with:
-- ✅ Build settings
-- ✅ Security headers
-- ✅ HTTPS redirect
-- ✅ SPA routing
-- ✅ Cache optimization
-- ✅ Lighthouse plugin for performance monitoring
-
-**Required GitHub Secrets (for Actions):**
-```
-NETLIFY_AUTH_TOKEN    # Get from netlify.com/user/applications
-NETLIFY_SITE_ID       # Found in Site Settings → General
-```
-
----
-
-### Cloudflare Pages
-
-Cloudflare Pages provides global CDN with excellent performance and DDoS protection.
-
-#### Deploy via Dashboard
-
-1. **Push code to GitHub**
-
-2. **Connect to Cloudflare Pages:**
-   - Go to [dash.cloudflare.com](https://dash.cloudflare.com)
-   - Navigate to Pages
-   - Click "Create a project"
-   - Connect your GitHub repository
-
-3. **Configure build settings:**
-   - Framework preset: `Vite`
-   - Build command: `npm run build`
-   - Build output directory: `dist`
-   - Node version: `18`
-
-4. **Deploy:**
-   - Click "Save and Deploy"
-   - Cloudflare will build and deploy automatically
-
-#### Cloudflare Configuration
-
-The following files are configured:
-- `wrangler.toml` - Build configuration
-- `public/_headers` - Security headers (incl. CSP allowing the 8th Wall engine CDN)
-- `public/_redirects` - SPA routing and HTTPS redirect
-
-#### Deploy via Wrangler CLI
-
-1. **Install Wrangler:**
-   ```bash
-   npm install -g wrangler
-   ```
-
-2. **Login to Cloudflare:**
-   ```bash
-   wrangler login
-   ```
-
-3. **Deploy:**
-   ```bash
-   wrangler pages publish dist
-   ```
-
----
-
-### Docker
-
-Deploy using Docker for maximum control and portability.
-
-#### Build and Run Locally
-
-1. **Build Docker image:**
-   ```bash
-   npm run docker:build
-   # or
-   docker build -t xr-poster .
-   ```
-
-2. **Run container:**
-   ```bash
-   npm run docker:run
-   # or
-   docker run -p 8080:80 xr-poster
-   ```
-
-3. **Access application:**
-   - Open `http://localhost:8080`
-
-#### Using Docker Compose
-
-1. **Start services:**
-   ```bash
-   npm run docker:compose
-   # or
-   docker-compose up -d
-   ```
-
-2. **Stop services:**
-   ```bash
-   npm run docker:compose:down
-   # or
-   docker-compose down
-   ```
-
-3. **View logs:**
-   ```bash
-   docker-compose logs -f
-   ```
-
-#### Deploy to Cloud Platforms
-
-**AWS ECS:**
 ```bash
-# Build and tag
-docker build -t xr-poster .
-docker tag xr-poster:latest <aws-account-id>.dkr.ecr.<region>.amazonaws.com/xr-poster:latest
-
-# Push to ECR
-aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <aws-account-id>.dkr.ecr.<region>.amazonaws.com
-docker push <aws-account-id>.dkr.ecr.<region>.amazonaws.com/xr-poster:latest
+aws amplify get-app --app-id d114nr20m4npww --region ca-central-1   --query 'app.customRules'
 ```
 
-**Google Cloud Run:**
+1. `/api/<*>` → the API Lambda's function URL. This is why the frontend can call
+   `/api/publish` with **no** `VITE_API_BASE_URL` set — the path is same-origin
+   and Amplify proxies it.
+2. The SPA catch-all → `/index.html`. Its regex excludes anything ending in a
+   known asset extension (`png`, `json`, `js`, `css`, …), so those fall through.
+3. `/image-targets/<*>` → S3 `markers/<*>`, serving marker luminance images
+   same-origin. The 8th Wall engine resolves `imagePath` relative to the page,
+   so this **must** stay same-origin.
+
+**A rewrite beats a committed static file at the same path.** Anything under
+`public/image-targets/` is inert in production — rule 3 wins.
+
+### Deploying the API
+
+The Lambda is not deployed by Amplify or by CI:
+
 ```bash
-# Build and push
-gcloud builds submit --tag gcr.io/<project-id>/xr-poster
-
-# Deploy
-gcloud run deploy xr-poster --image gcr.io/<project-id>/xr-poster --platform managed --region us-central1 --allow-unauthenticated
+npm run build:lambda      # writes dist-lambda.zip
 ```
 
-**Azure Container Instances:**
+Upload that zip to the function with the handler set to `index.handler`. It
+serves exactly three routes (`api/_lambda.ts`): `/api/story-assets`,
+`/api/publish`, `/api/publish-exhibit`. Note that `/api/assets` and `/api/spaces`
+— called by `posterApi.ts` and `spaceApi.ts` — are **not** among them. Those are
+served only by the parked Express app in `server/`, and both callers gate
+themselves on `VITE_API_BASE_URL` being set, so with it unset the features are
+cleanly disabled rather than broken.
+
+### Verifying a deploy
+
+Check by **content type**, never by "a page appeared" — the SPA catch-all
+returns `index.html` with HTTP 200 for a missing asset, so a broken build still
+looks fine in a browser:
+
 ```bash
-# Build and push
-az acr build --registry <registry-name> --image xr-poster:latest .
+curl -s -o /dev/null -w '%{http_code} %{content_type}
+'   https://main.d114nr20m4npww.amplifyapp.com/
+# expect: 200 text/html
 
-# Deploy
-az container create --resource-group <resource-group> --name xr-poster --image <registry-name>.azurecr.io/xr-poster:latest --dns-name-label xr-poster --ports 80
+curl -s -o /dev/null -w '%{http_code} %{content_type}
+'   https://main.d114nr20m4npww.amplifyapp.com/assets/<hashed-bundle>.js
+# expect: 200 text/javascript   (text/html means the asset is MISSING)
 ```
 
----
+Build status:
+
+```bash
+aws amplify list-jobs --app-id d114nr20m4npww --branch-name main   --region ca-central-1 --max-results 5   --query 'jobSummaries[].{id:jobId,status:status,commit:commitId}' --output table
+```
+
 
 ## Environment Variables
 
-### Required Variables
-
-None - the application works without environment variables.
-
-### Optional Variables
-
-Copy `.env.production.example` to `.env.production` and configure:
+Amplify holds these at the **app** level (no branch-level overrides are set).
+Read the live values back rather than trusting this list:
 
 ```bash
-# Analytics
-VITE_GA_TRACKING_ID=G-XXXXXXXXXX
-
-# Error Tracking
-VITE_SENTRY_DSN=https://xxxxx@xxxxx.ingest.sentry.io/xxxxx
-
-# Feature Flags
-VITE_ENABLE_DEBUG_MODE=false
-VITE_MAX_POSTERS=10
-
-# Asset Persistence (optional — enables uploading/hydrating posters via the server API)
-VITE_API_BASE_URL=https://api.xr-poster.com
+aws amplify get-app --app-id d114nr20m4npww --region ca-central-1   --query 'app.environmentVariables'
 ```
 
-### Setting Environment Variables
+### Currently set
 
-**Vercel:**
-```bash
-vercel env add VITE_GA_TRACKING_ID production
-```
+| Variable | Value | Used by |
+|---|---|---|
+| `VITE_ASSET_BASE_URL` | the S3 bucket origin | `assetResolver`, Studio thumbnails |
+| `VITE_STORY_BASE_URL` | the S3 bucket origin | `storyApi`, `exhibitApi` |
 
-**Netlify:**
-```bash
-netlify env:set VITE_GA_TRACKING_ID "G-XXXXXXXXXX"
-```
+### Deliberately NOT set
 
-**Cloudflare Pages:**
-- Dashboard → Pages → Settings → Environment Variables
+| Variable | Effect of leaving it unset |
+|---|---|
+| `VITE_API_BASE_URL` | `isPersistenceEnabled()` and `isSpacePersistenceEnabled()` both return false, so poster and space persistence are **off**. Publishing still works, because it calls `/api/…` same-origin through the Amplify rewrite. Setting this to the Lambda would switch those features on — and they would 404, because the Lambda serves only `story-assets`, `publish`, and `publish-exhibit`. |
 
-**Docker:**
-```bash
-docker run -p 8080:80 -e VITE_GA_TRACKING_ID=G-XXXXXXXXXX xr-poster
-```
-
----
+Anything read through `import.meta.env` is **baked in at build time** and is
+public. Never put a secret in a `VITE_`-prefixed variable — the publish key is
+held server-side by the Lambda, not shipped to the browser.
 
 ## Custom Domain Setup
 

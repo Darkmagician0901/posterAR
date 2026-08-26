@@ -33,9 +33,22 @@ interface StoryOverlayProps {
    * for a printed picture, not a floor.
    */
   markerLock?: LockStatus | null;
+  /**
+   * The room's feedback link, when the exhibit carries one.
+   *
+   * Already validated as `https:` by `validateExhibitDoc`, which is what makes
+   * it safe to drop straight into an href. Do not accept an unvalidated string
+   * here — a published document is untrusted, and a `javascript:` URL would be
+   * script execution on tap.
+   */
+  feedbackUrl?: string | null;
 }
 
-export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady, markerLock = null }) => {
+export const StoryOverlay: React.FC<StoryOverlayProps> = ({
+  surfaceReady,
+  markerLock = null,
+  feedbackUrl = null,
+}) => {
   const { phase, eraIndex, placed, next, prev, jumpTo, reset } = useStoryStore();
   const doc = useContentStore((s) => s.doc);
   // eraIndex can briefly exceed the frame list when a shorter doc loads
@@ -122,6 +135,22 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({ surfaceReady, marker
           <button className="story-btn" onClick={() => jumpTo(0)}>
             WALK IT AGAIN
           </button>
+          {/*
+            Offered only at the outro: asking before the visitor has seen
+            anything is noise, and this is the one moment they have an opinion
+            worth recording. `noopener`/`noreferrer` so the form never gets a
+            handle back into the experience.
+          */}
+          {feedbackUrl !== null && (
+            <a
+              className="story-feedback"
+              href={feedbackUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              TELL US WHAT YOU THINK
+            </a>
+          )}
           <button className="story-btn story-btn-ghost" onClick={reset}>
             PLACE SOMEWHERE ELSE
           </button>

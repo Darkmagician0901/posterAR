@@ -277,16 +277,6 @@ export function isMarkerVisible(name: string): boolean {
   return _markers.get(name)?.visible ?? false;
 }
 
-/** Names of every marker currently in view. */
-export function visibleMarkerNames(): string[] {
-  return [..._markers.values()].filter((r) => r.visible).map((r) => r.pose.name);
-}
-
-/** Names of every marker handed to the engine by the last configure call. */
-export function configuredMarkerNames(): string[] {
-  return [..._configuredNames];
-}
-
 /** A marker's stability readout, for the HUD. */
 export interface MarkerStatus {
   name: string;

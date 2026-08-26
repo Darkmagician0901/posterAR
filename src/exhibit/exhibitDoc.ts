@@ -34,6 +34,47 @@ export interface ExhibitDoc {
   title: string;
   /** Member stories, in the operator's order. */
   storyIds: string[];
+  /**
+   * Where to send a visitor who wants to leave feedback about this room.
+   *
+   * Optional, and absent rather than empty when unset — which is what keeps
+   * `EXHIBIT_SCHEMA_VERSION` at 1: every exhibit published before this field
+   * existed is still a valid document, so nothing has to be migrated.
+   *
+   * Always `https:` — see `safeFeedbackUrl`.
+   */
+  feedbackUrl?: string;
+}
+
+/**
+ * Reads a submitted feedback link, or nothing.
+ *
+ * **`https:` only, and that is a security boundary rather than a preference.**
+ * This value is read back out of an untrusted published document and becomes an
+ * `href`, so a `javascript:` URL here would be script execution on tap, and a
+ * `data:` URL a page of the attacker's choosing. Allowing exactly one scheme is
+ * what makes the value safe to render at all. Plain `http:` is refused too, on
+ * narrower grounds: it would walk a visitor off an https page onto a
+ * downgraded one.
+ *
+ * Parsing with `URL` rather than a regex is deliberate — the parser is the
+ * thing that actually knows what a scheme is, and a regex that tried to would
+ * be a second, worse implementation of it.
+ *
+ * @param raw — The submitted value, of unknown shape.
+ * @returns The URL when it is usable, or undefined. Never throws.
+ */
+export function safeFeedbackUrl(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  if (trimmed === '') return undefined;
+  try {
+    // Relative values throw here, which is the intent: there is no base to
+    // resolve against, and a feedback form is somewhere else by definition.
+    return new URL(trimmed).protocol === 'https:' ? trimmed : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -103,7 +144,14 @@ export function validateExhibitDoc(raw: unknown): ExhibitDoc | null {
 
   const title = typeof r.title === 'string' && r.title.trim() !== '' ? r.title : 'Untitled exhibit';
 
-  return { schemaVersion: EXHIBIT_SCHEMA_VERSION, id, title, storyIds };
+  const doc: ExhibitDoc = { schemaVersion: EXHIBIT_SCHEMA_VERSION, id, title, storyIds };
+
+  // Degrade, don't refuse (§8): an unusable feedback link costs the visitor a
+  // link, not the room. The operator-facing refusal lives in `exhibitIssues`.
+  const feedbackUrl = safeFeedbackUrl(r.feedbackUrl);
+  if (feedbackUrl !== undefined) doc.feedbackUrl = feedbackUrl;
+
+  return doc;
 }
 
 /**
@@ -131,10 +179,22 @@ export function validateExhibitDoc(raw: unknown): ExhibitDoc | null {
  *   produced — and that function has already truncated and de-duplicated, so
  *   every rule below would be structurally unable to fire. Taking the list
  *   makes passing the wrong thing a type error instead of a silent no-op.
+ * @param feedbackUrl — The **submitted** feedback link, if the operator entered
+ *   one. Unlike `validateExhibitDoc`, which silently drops an unusable link,
+ *   this names it: the operator is standing right there and would otherwise
+ *   publish a room whose feedback button had quietly vanished.
  * @returns Human-readable issues; empty when publishable.
  */
-export function exhibitIssues(storyIds: string[]): string[] {
+export function exhibitIssues(storyIds: string[], feedbackUrl?: unknown): string[] {
   const issues: string[] = [];
+
+  // An absent or blank link is simply no link, not a mistake to report.
+  const submitted = typeof feedbackUrl === 'string' ? feedbackUrl.trim() : '';
+  if (submitted !== '' && safeFeedbackUrl(submitted) === undefined) {
+    issues.push(
+      `The feedback link must be a full https:// address. "${submitted}" is not one.`,
+    );
+  }
 
   if (storyIds.length === 0) {
     issues.push('An exhibit needs at least one story.');

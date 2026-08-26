@@ -455,7 +455,7 @@ stored as an uploaded poster.
 
 ## 12. Security
 
-- **CSP** (`vercel.json`, `public/_headers`) allows `https://cdn.jsdelivr.net`
+- **CSP** (`customHttp.yml`, `public/_headers`) allows `https://cdn.jsdelivr.net`
   in `script-src` (the engine CDN) plus `blob:`/`data:` for textures and
   workers; `frame-src 'none'`.
 - **SRI** — `xrextras`/`landing-page` are pinned with `integrity` hashes;
@@ -569,7 +569,7 @@ they will be missed otherwise.
 
 Automated unit/integration tests run under **Vitest** with a **happy-dom**
 environment (`vitest.config.ts`, `include: ['src/**/*.{test,spec}.{ts,tsx}']`).
-**17 test files, 86 test cases** cover the GIF pipeline, poster/story
+**68 test files, 681 test cases** cover the GIF pipeline, poster/story
 placement, upload validation, ambient color, hit-testing, and persistence
 logic:
 
@@ -599,7 +599,7 @@ exists outside the root Vitest `include` glob and is **not** run by `npm run
 test`.
 
 ```
-npm run test        # vitest run (CI) — 17 test files, 86 tests
+npm run test        # vitest run (CI) — 68 test files, 681 tests
 npm run test:watch  # vitest (interactive watch)
 ```
 

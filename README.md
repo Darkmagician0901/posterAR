@@ -193,7 +193,7 @@ xr_poster/
 ### Scripts
 ```bash
 npm run dev          # Dev server (HTTPS, --host)
-npm run test         # vitest run (one-shot; 86 tests across 17 files)
+npm run test         # vitest run (one-shot; 681 tests across 68 files)
 npm run test:watch   # vitest (interactive watch mode)
 npm run type-check   # tsc --noEmit
 npm run build        # tsc && vite build  →  dist/
@@ -341,7 +341,7 @@ pure logic:
 | `src/hooks/usePosterUpload.persist.test.ts` | Upload hook's persistence-enabled path |
 
 ```bash
-npm run test         # vitest run  (86 tests, all passing, < 2 s)
+npm run test         # vitest run  (681 tests, all passing, < 10 s)
 npm run test:watch   # vitest interactive watch
 ```
 

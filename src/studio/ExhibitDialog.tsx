@@ -31,6 +31,7 @@ import {
 import {
   MAX_EXHIBIT_STORIES,
   exhibitIssues,
+  safeFeedbackUrl,
   normalizeStoryIds,
   type ExhibitDoc,
 } from '@/exhibit/exhibitDoc';
@@ -81,6 +82,7 @@ function parseIds(text: string): string[] {
 
 export const ExhibitDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [title, setTitle] = useState('');
+  const [feedbackUrl, setFeedbackUrl] = useState('');
   const [idsText, setIdsText] = useState('');
   const [secret, setSecret] = useState(readSecret);
   const [busy, setBusy] = useState(false);
@@ -90,7 +92,7 @@ export const ExhibitDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
 
   const storyIds = parseIds(idsText);
   const id = slugifyStoryId(title);
-  const issues = exhibitIssues(storyIds);
+  const issues = exhibitIssues(storyIds, feedbackUrl);
   const hostKnown = isStoryHostConfigured();
 
   // Probe each id against the bucket so a typo is visible before publishing.
@@ -141,6 +143,10 @@ export const ExhibitDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
       title: title.trim(),
       storyIds,
     };
+    // Blank means no link rather than an empty one — the field is optional in
+    // the schema precisely so an exhibit without feedback carries nothing.
+    const feedback = safeFeedbackUrl(feedbackUrl);
+    if (feedback !== undefined) doc.feedbackUrl = feedback;
     const outcome = await publishExhibit(doc, id, secret);
     // Same rule as PublishDialog, and it matters more here: both dialogs share
     // one SECRET_KEY, so a rejected passphrase left in the store would come
@@ -229,6 +235,20 @@ export const ExhibitDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
               placeholder="The Lobby"
               onChange={(e) => setTitle(e.target.value)}
             />
+
+            <label className="st-lbl" htmlFor="st-ex-feedback">
+              Feedback link — optional
+            </label>
+            <input
+              id="st-ex-feedback"
+              className="st-in"
+              value={feedbackUrl}
+              placeholder="https://forms.gle/..."
+              onChange={(e) => setFeedbackUrl(e.target.value)}
+            />
+            <p className="st-hint">
+              Visitors see this at the end of the story. Must be a full https:// address.
+            </p>
 
             <label className="st-lbl" htmlFor="st-ex-ids">
               Story ids — one per line

@@ -71,7 +71,7 @@ returns at that point and must be answered then.**
 - [x] Decided — no action required
 - [ ] **Optional cleanup:** consider `terraform destroy -target=aws_db_instance.main` to stop paying ~$15/month for an unused instance. Reversible — the schema is in §6.1 and the migration runner still works.
 
-## 🔴 OPS-1 — Scope the S3 lifecycle rule to `tmp/`
+## ✅ OPS-1 — RESOLVED 2026-08-26 — lifecycle scoped to `tmp/`
 
 **Blocks: Plan A Task 8 running against a real bucket.**
 
@@ -81,9 +81,10 @@ exhibits reference assets indefinitely, so every asset uploaded by Task 8 would
 be deleted three months later — silently, and long after anyone would connect
 the two events.
 
-**Note:** `infra/terraform/` exists **only on `feat/marker-spaces-testbed`**
-(PR #40) — not on `main`, not on `feat/story-composition`. Apply this there, or
-move `infra/` to `main` first.
+**Resolved.** `infra/terraform/` now lives on `main` (merged via PR #57), and
+`s3.tf` declares the three rules the live bucket actually has, the expiry scoped
+to `Prefix: "tmp/"`. The live bucket was verified on 2026-08-26 — it had already
+been hand-fixed; the terraform had drifted and was reconciled to match.
 
 If you would rather not run Terraform for this, the same fix in the console:
 **S3 → your bucket → Management → Lifecycle rules** → edit the existing rule →
@@ -129,12 +130,13 @@ resource "aws_s3_bucket_lifecycle_configuration" "assets" {
 }
 ```
 
-- [ ] Applied
-- [ ] `terraform plan` showed the **lifecycle rule** replaced — **not** the bucket. *If the plan proposes destroying `aws_s3_bucket.assets`, stop.*
+- [x] Applied — live bucket confirmed carrying `expire-scratch-only` (`Prefix: "tmp/"`), `abort-incomplete-uploads`, `expire-noncurrent-versions`
+- [x] Terraform reconciled to match the account; `terraform fmt -check` and `terraform validate` pass
+- [ ] `terraform plan` still to be run against real state to confirm zero drift
 
 ---
 
-## 🟡 OPS-2 — Replace the wildcard CORS origin
+## ✅ OPS-2 — RESOLVED 2026-08-26 — wildcard gone, real origins listed
 
 **Gates Plan B phase 5 verification.** Nothing before that waits on it.
 
@@ -169,9 +171,15 @@ cors_allowed_origins = [
 ]
 ```
 
-- [ ] Wildcard removed, validation added
-- [ ] Production origin listed
-- [ ] **Preview-deployment decision made** — Vercel preview URLs are generated per deployment, so they cannot be enumerated in advance. Either accept that **assets load only in production** (previews show transparent gaps where images would be), or front assets through a stable custom domain. Decide deliberately; discovering it during a review is worse.
+- [x] Wildcard removed, validation added — `variables.tf` now has **no default** and a `validation` block refusing `"*"`, so an apply that forgets the value fails loudly instead of failing open
+- [x] Production origin listed — the live bucket allows `https://arcade.ubc-dxl.ca`, `https://main.d114nr20m4npww.amplifyapp.com`, and one branch-preview origin
+- [x] **Preview decision made** — named origins only. Note this is not Vercel: Amplify branch previews get *stable* per-branch hostnames, so they CAN be enumerated and added individually.
+
+> **This bit us.** The custom domain `arcade.ubc-dxl.ca` was live and serving but
+> was **not** in the allowlist, so every S3 fetch from it failed CORS and visitors
+> silently received the bundled demo story instead of authored content. Adding a
+> new origin here is mandatory whenever a domain is attached — see
+> `docs/cleanup-backlog.md` §8.
 
 ---
 

@@ -6,7 +6,7 @@ Quick reference for Claude Code sessions. See README.md / ARCHITECTURE.md / TEST
 
 ```bash
 npm run dev           # Vite dev server — HTTPS, --host (required for camera + 8th Wall)
-npm run test          # vitest run — 626 tests, < 5 s
+npm run test          # vitest run — 681 tests, < 10 s
 npm run test:watch    # vitest interactive watch
 npm run type-check    # tsc --noEmit
 npm run lint          # eslint src server/src
@@ -19,24 +19,64 @@ npm run build         # tsc && vite build → dist/
 
 | Condition | Branch |
 |-----------|--------|
-| Mobile + secure context (`hasAR8`) | `StoryARExperience` — live 8th Wall AR |
+| Mobile + secure context (`hasAR8`) | `StoryARExperience` — live 8th Wall AR (or `MarkerTestbedExperience` with `?mode=marker`) |
 | Desktop | `DesktopMockMode` — webcam + mouse-look sandbox |
 | Otherwise | "AR Not Supported" panel |
 
-`StoryARExperience` is a 5-era "THE GROUND REMEMBERS" story/diorama mode — it's what ships. `ARExperience` still exists but is retained legacy (unused, not wired into `App.tsx`).
+`StoryARExperience` is a 5-era "THE GROUND REMEMBERS" story/diorama mode — it's what ships. The old `ARExperience` was **deleted** in `57aac88`; don't go looking for it. Three UI components (`ControlPanel`, `DevBanner`, `PosterControls`) are PARKED — nothing imports them, each says so in its own header, and they are deliberately kept.
 
 On the live path **8th Wall (XR8) owns** the canvas, camera feed, three.js renderer, and render loop. The app registers a custom camera-pipeline module (`onStart` / `onUpdate`) that builds the scene, runs a center-screen hit-test every frame, drives the reticle, and places poster meshes on tap.
 
-- `src/xr/` — engine-AGNOSTIC 3D helpers (reticle, debugTelemetry, desktopMockDriver, posterOrientation)
-- `src/xr8/` — 8th Wall (XR8)-SPECIFIC integration (pipeline, hitTestController, posterPlacement, ambientProbe, canvasScreenshot, gifAnimator, gifPlayhead, posterTextureCache, storyTile)
+- `src/xr/` — engine-AGNOSTIC 3D helpers (reticle, debugTelemetry, desktopMockDriver, posterOrientation, markerFrame, markerRelativeTransform, markerStability)
+- `src/xr8/` — 8th Wall (XR8)-SPECIFIC integration (pipeline, hitTestController, posterPlacement, ambientProbe, canvasScreenshot, gifAnimator, gifPlayhead, posterTextureCache, storyTile, markerTracking, imageTargetController, imageTargetData, markerAnchoredAssets)
+- `src/markers/` — marker maths and documents (markerCrop, markerImages, markerLock, markerPose, markerSelection, markerStorage, markerTarget)
 
-State: **Zustand 4** — `contentStore` (*what* the story is: the active `StoryDoc`), `storyStore` (*where in it* the visitor stands: phase + frame index), `posterStore` (placed + uploaded posters), `useUIState` (overlays, toasts).
+State: **Zustand 4** — `contentStore` (*what* the story is: the active `StoryDoc`), `storyStore` (*where in it* the visitor stands: phase + frame index), `posterStore` (placed + uploaded posters), `useUIState` (overlays, toasts), `spaceStore` (marker-anchored spaces, testbed only).
 
 ## Story content
 
 The story is data, not constants. `src/story/storyDoc.ts` defines `StoryDoc` (frames, copy, per-frame `art` SVG + optional authored `props`) and a validator that falls back **per field**. `src/story/defaultStory.ts` derives the shipped story from `storyData.ts` + the committed `era/*.svg`, carried **verbatim** — that is what guarantees the visitor experience is unchanged. `storyData.ts` and `era/*.svg` stay permanently as the typed default and offline fallback.
 
 The era SVGs are hand-composed, **not** regenerable from prop builders, and their animation classes have no keyframes so the art is static in AR. See `docs/arcade-studio-plan.md`.
+
+## Image markers
+
+`?e=<exhibit-id>` opens a **room**: several printed pictures, each triggering its
+own story. This is the shipped marker path (PRs #51/#55/#56). No `?e=` means
+ground mode — reticle, tap-to-place — which the marker code never touches.
+
+- **A marker is a locator, not a frame.** Scene width is `markerWidth ×
+  anchor.widthInMarkers`, centred at `P + Q·(offset × W)`. The `Q ·` is
+  load-bearing: the offset is expressed in the marker's own frame.
+- **The marker frame is rigid** — position + rotation only. The engine's `scale`
+  is excluded on purpose so a wobbling scale estimate cannot move stored offsets.
+- **Latch, not follow.** A tap latches the scene into the world and SLAM holds
+  the matrix — no per-frame anchor update. `sanitizeAnchor` **forces**
+  `mode: 'latch'`, including on documents published as `'follow'`, because there
+  is no follow code path left and honouring a stored `'follow'` would render
+  nothing.
+- **Target documents are built, never stored.** `src/markers/markerTarget.ts`
+  synthesizes the engine's `imageTargetData` from the anchor at load time. There
+  is no marker JSON in S3 to poison — deliberate, see `marker-layer-design.md`
+  §3.4.
+- **`imageTargetData` REPLACES the engine's active set**; it does not add to it.
+  The hosted `imageTargets: ['name']` form died with the 8th Wall console and
+  detects nothing.
+- **Marker images are served same-origin** from `/image-targets/<markerId>.png`,
+  an Amplify rewrite onto the S3 bucket (`markers/<sha>.png`). The engine
+  resolves `imagePath` relative to the page, so this must stay same-origin.
+  **The rewrite beats a static file of the same path** — anything committed under
+  `public/image-targets/` is inert in production.
+- **One marker binds to one story, globally.** `api/publish-exhibit.ts` refuses
+  duplicates with a 422 and `buildMarkerStoryMap` keeps the first writer. Making
+  a marker mean different things per room is MOD-M2 — designed, not built; see
+  `docs/marker-scene-plan.md`.
+- Markers must be **detailed, non-repeating pictures**, printed **matte** — 8th
+  Wall does natural-feature tracking, so flat shapes and gloss both track badly.
+
+`?mode=marker` is a separate **diagnostic testbed** (`MarkerTestbedExperience`),
+kept for measuring tracking stability on device. It predates the marker layer and
+duplicates parts of it; do not confuse the two. See `docs/marker-testbed-design.md`.
 
 ## GIF Pipeline
 
@@ -75,7 +115,7 @@ GIFs are decoded from data: URLs without fetch. `posterTextureCache` releases ac
 
 Stack: **vitest ^4.1.8** + **happy-dom ^20.9.0** (configured in `vitest.config.ts`).
 
-**64 test files, 626 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation, story state, StoryDoc validation, default-story provenance, content store, SVG-texture generation, asset persistence & upload hydration, device-token, marker crop/selection/pose/lock maths, marker-overlay authoring maths). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
+**68 test files, 681 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation, story state, StoryDoc validation, default-story provenance, content store, SVG-texture generation, asset persistence & upload hydration, device-token, marker crop/selection/pose/lock maths, marker-overlay authoring maths). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
 
 ## Conventions
 

@@ -31,7 +31,7 @@ npm run test
 npm run test:watch
 ```
 
-**68 test files, 664 tests, all passing, runs in < 10 s:**
+**68 test files, 681 tests, all passing, runs in < 10 s:**
 
 | File | Tests | What it covers |
 |------|-------|----------------|
@@ -193,7 +193,7 @@ npm install
 
 # 2. Automated tests (must all pass)
 npm run test
-# Expected: 664 tests pass, no failures
+# Expected: 681 tests pass, no failures
 
 # 3. Type checking
 npm run type-check

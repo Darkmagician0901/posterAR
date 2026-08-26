@@ -84,6 +84,11 @@ export const StoryARExperience: React.FC = () => {
    */
   const markerModeRef = useRef(false);
   const [markerMode, setMarkerMode] = useState(false);
+  /**
+   * The room's feedback link, mirrored into state because `exhibitRef` is a
+   * ref and would not re-render the overlay that shows it.
+   */
+  const [feedbackUrl, setFeedbackUrl] = useState<string | null>(null);
   /** Lock status, mirrored the same way and for the same reason. */
   const lockRef = useRef<LockState>(INITIAL_LOCK);
   const [lock, setLock] = useState<LockState>(INITIAL_LOCK);
@@ -118,6 +123,7 @@ export const StoryARExperience: React.FC = () => {
         exhibitRef.current = loaded;
         markerModeRef.current = true;
         setMarkerMode(true);
+        setFeedbackUrl(loaded.feedbackUrl ?? null);
         debugTelemetry.logEvent(`exhibit: ${loaded.markerStories.size} picture(s) loaded`);
         // Named rather than swallowed: a picture on the wall that leads
         // nowhere is the failure a visitor cannot diagnose and an operator
@@ -525,7 +531,11 @@ export const StoryARExperience: React.FC = () => {
       </div>
 
       {/* 2D HUD over the camera + diorama. */}
-      <StoryOverlay surfaceReady={surfaceReady} markerLock={markerMode ? lock.status : null} />
+      <StoryOverlay
+        surfaceReady={surfaceReady}
+        markerLock={markerMode ? lock.status : null}
+        feedbackUrl={feedbackUrl}
+      />
 
       {!isARActive && (
         <button

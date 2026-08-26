@@ -6,7 +6,7 @@ Quick reference for Claude Code sessions. See README.md / ARCHITECTURE.md / TEST
 
 ```bash
 npm run dev           # Vite dev server — HTTPS, --host (required for camera + 8th Wall)
-npm run test          # vitest run — 664 tests, < 10 s
+npm run test          # vitest run — 681 tests, < 10 s
 npm run test:watch    # vitest interactive watch
 npm run type-check    # tsc --noEmit
 npm run lint          # eslint src server/src
@@ -115,7 +115,7 @@ GIFs are decoded from data: URLs without fetch. `posterTextureCache` releases ac
 
 Stack: **vitest ^4.1.8** + **happy-dom ^20.9.0** (configured in `vitest.config.ts`).
 
-**68 test files, 664 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation, story state, StoryDoc validation, default-story provenance, content store, SVG-texture generation, asset persistence & upload hydration, device-token, marker crop/selection/pose/lock maths, marker-overlay authoring maths). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
+**68 test files, 681 tests.** Only pure logic is unit-tested (gif timing/decode, upload validation, placement, texture cache, screenshot utilities, canvas reparent regression, flat-poster orientation math, ambient-color estimation, story state, StoryDoc validation, default-story provenance, content store, SVG-texture generation, asset persistence & upload hydration, device-token, marker crop/selection/pose/lock maths, marker-overlay authoring maths). 8th Wall and browser-canvas interactions are exercised via on-device manual testing (see `TESTING.md`).
 
 ## Conventions
 

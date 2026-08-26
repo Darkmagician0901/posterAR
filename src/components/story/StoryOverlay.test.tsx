@@ -8,9 +8,10 @@
  * careful reading.
  */
 
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { renderToString } from 'react-dom/server';
-import React from 'react';
+import React, { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { StoryOverlay } from './StoryOverlay';
 import { useStoryStore } from '@/store/storyStore';
 
@@ -46,5 +47,69 @@ describe('StoryOverlay prompt copy', () => {
     const html = renderToString(<StoryOverlay surfaceReady={true} markerLock="searching" />);
     expect(html).toContain('POINT AT THE PICTURE');
     expect(html).not.toContain('TAP TO BEGIN');
+  });
+});
+
+/**
+ * The feedback link needs the real harness, not `renderToString`.
+ *
+ * These assertions depend on the store having been moved to 'outro', and
+ * zustand 4 hands `renderToString` the store's INITIAL state — so a
+ * server-rendered test here would render the scan card, find nothing, and pass
+ * for entirely the wrong reason. `createRoot` + `act` commits for real.
+ */
+describe('StoryOverlay feedback link', () => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    useStoryStore.getState().reset();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  const renderAt = (phase: 'outro' | 'placed', feedbackUrl: string | null): void => {
+    act(() => {
+      useStoryStore.getState().setPhase(phase);
+    });
+    act(() => {
+      root.render(<StoryOverlay surfaceReady={true} feedbackUrl={feedbackUrl} />);
+    });
+  };
+
+  it('offers the link on the outro when the room has one', () => {
+    renderAt('outro', 'https://forms.example/abc');
+    const link = container.querySelector('a.story-feedback');
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute('href')).toBe('https://forms.example/abc');
+  });
+
+  // Opening in a new tab must not hand the target a window.opener handle back
+  // into the experience.
+  it('opens in a new tab without leaking an opener handle', () => {
+    renderAt('outro', 'https://forms.example/abc');
+    const link = container.querySelector('a.story-feedback');
+    expect(link?.getAttribute('target')).toBe('_blank');
+    expect(link?.getAttribute('rel')).toContain('noopener');
+    expect(link?.getAttribute('rel')).toContain('noreferrer');
+  });
+
+  it('shows nothing when the room has no link', () => {
+    renderAt('outro', null);
+    expect(container.querySelector('a.story-feedback')).toBeNull();
+  });
+
+  // Asking for feedback before the visitor has seen anything is noise.
+  it('does not offer it before the outro', () => {
+    renderAt('placed', 'https://forms.example/abc');
+    expect(container.querySelector('a.story-feedback')).toBeNull();
   });
 });

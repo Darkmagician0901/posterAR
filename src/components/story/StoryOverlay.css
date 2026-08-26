@@ -322,3 +322,28 @@
   margin-top: 8px;
   width: 100%;
 }
+
+/*
+ * The outro's feedback link.
+ *
+ * Deliberately quieter than `.story-btn`: "walk it again" is the action the
+ * story wants a visitor to take, and this must not compete with it. Styled as
+ * a link rather than a second orange button for that reason.
+ */
+.story-feedback {
+  display: block;
+  margin-top: 12px;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-decoration: none;
+  color: #fff;
+  opacity: 0.75;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 10px;
+  padding: 10px 8px;
+}
+.story-feedback:active {
+  opacity: 1;
+}

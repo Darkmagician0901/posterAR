@@ -118,7 +118,7 @@ Tests run with `npm run test` (single pass) or `npm run test:watch` (interactive
 Config: `vitest.config.ts` — `environment: 'happy-dom'`, includes
 `src/**/*.{test,spec}.{ts,tsx}`.
 
-68 test files / 664 tests, all in `src/`:
+68 test files / 681 tests, all in `src/`:
 
 ```
 utils/gifDecode.test.ts        GIF header parsing + data: URL decode

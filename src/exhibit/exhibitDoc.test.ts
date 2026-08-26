@@ -96,3 +96,73 @@ describe('exhibitIssues', () => {
     expect(exhibitIssues(normalizeStoryIds(many)).join(' ')).toContain('14');
   });
 });
+
+describe('validateExhibitDoc — feedbackUrl', () => {
+  it('keeps an https feedback url', () => {
+    const doc = validateExhibitDoc({ ...good, feedbackUrl: 'https://forms.example/abc' });
+    expect(doc?.feedbackUrl).toBe('https://forms.example/abc');
+  });
+
+  it('omits the field entirely when absent', () => {
+    expect('feedbackUrl' in (validateExhibitDoc(good) as object)).toBe(false);
+  });
+
+  // The value reaches the DOM as an href, and a published document is
+  // untrusted. A javascript: URL here would be script execution on tap.
+  it('drops a javascript: url', () => {
+    const doc = validateExhibitDoc({ ...good, feedbackUrl: 'javascript:alert(1)' });
+    expect(doc?.feedbackUrl).toBeUndefined();
+  });
+
+  it('drops a data: url', () => {
+    const doc = validateExhibitDoc({ ...good, feedbackUrl: 'data:text/html,<script>x</script>' });
+    expect(doc?.feedbackUrl).toBeUndefined();
+  });
+
+  // Plain http would downgrade a visitor from the https page they are on.
+  it('drops an http: url', () => {
+    const doc = validateExhibitDoc({ ...good, feedbackUrl: 'http://forms.example/abc' });
+    expect(doc?.feedbackUrl).toBeUndefined();
+  });
+
+  it('drops a relative or malformed value', () => {
+    expect(validateExhibitDoc({ ...good, feedbackUrl: '/feedback' })?.feedbackUrl).toBeUndefined();
+    expect(validateExhibitDoc({ ...good, feedbackUrl: 'forms.example' })?.feedbackUrl).toBeUndefined();
+  });
+
+  it('drops a non-string', () => {
+    expect(validateExhibitDoc({ ...good, feedbackUrl: 42 })?.feedbackUrl).toBeUndefined();
+  });
+
+  // Degrading, not refusing: a bad link must not cost the visitor the room.
+  it('still returns the exhibit when the url is unusable', () => {
+    const doc = validateExhibitDoc({ ...good, feedbackUrl: 'nonsense' });
+    expect(doc?.storyIds).toEqual(['a-story', 'b-story']);
+  });
+});
+
+describe('exhibitIssues — feedbackUrl', () => {
+  it('says nothing when there is no url', () => {
+    expect(exhibitIssues(['a-story'])).toEqual([]);
+  });
+
+  it('accepts an https url', () => {
+    expect(exhibitIssues(['a-story'], 'https://forms.example/abc')).toEqual([]);
+  });
+
+  // The operator is standing right there and can fix it, so this is named
+  // and refused rather than silently dropped.
+  it('names a non-https url', () => {
+    const issues = exhibitIssues(['a-story'], 'http://forms.example/abc');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatch(/https/i);
+  });
+
+  it('names a malformed url', () => {
+    expect(exhibitIssues(['a-story'], 'nonsense')).toHaveLength(1);
+  });
+
+  it('treats an empty string as no url', () => {
+    expect(exhibitIssues(['a-story'], '')).toEqual([]);
+  });
+});

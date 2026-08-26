@@ -336,7 +336,7 @@ Relates to #456
 - Refactored Z component
 
 ## Testing
-- [ ] `npm run test` passes (all 664 automated tests)
+- [ ] `npm run test` passes (all 681 automated tests)
 - [ ] `npm run type-check` passes
 - [ ] Build succeeds
 - [ ] Tested on iOS Safari 16.4+ (for AR features)
@@ -388,7 +388,7 @@ Run the full vitest suite before every push or PR:
 
 ```bash
 npm run test
-# Expected: 664 tests pass, no failures
+# Expected: 681 tests pass, no failures
 ```
 
 During active development, watch mode is useful:

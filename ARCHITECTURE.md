@@ -569,7 +569,7 @@ they will be missed otherwise.
 
 Automated unit/integration tests run under **Vitest** with a **happy-dom**
 environment (`vitest.config.ts`, `include: ['src/**/*.{test,spec}.{ts,tsx}']`).
-**68 test files, 664 test cases** cover the GIF pipeline, poster/story
+**68 test files, 681 test cases** cover the GIF pipeline, poster/story
 placement, upload validation, ambient color, hit-testing, and persistence
 logic:
 
@@ -599,7 +599,7 @@ exists outside the root Vitest `include` glob and is **not** run by `npm run
 test`.
 
 ```
-npm run test        # vitest run (CI) — 68 test files, 664 tests
+npm run test        # vitest run (CI) — 68 test files, 681 tests
 npm run test:watch  # vitest (interactive watch)
 ```
 

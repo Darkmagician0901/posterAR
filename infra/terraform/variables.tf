@@ -50,5 +50,12 @@ variable "cors_allowed_origins" {
     which surfaces confusingly as a generic network error.
   EOT
   type        = list(string)
-  default     = ["*"]
+
+  # No default, and "*" refused. A wildcard here lets any site on the internet
+  # issue presigned PUTs against the bucket. Requiring the value means an
+  # apply that forgot it fails loudly rather than failing open.
+  validation {
+    condition     = !contains(var.cors_allowed_origins, "*")
+    error_message = "cors_allowed_origins must list real origins; \"*\" is not allowed."
+  }
 }

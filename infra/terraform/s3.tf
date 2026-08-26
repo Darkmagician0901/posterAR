@@ -81,23 +81,53 @@ resource "aws_s3_bucket_cors_configuration" "assets" {
   }
 }
 
-# Testbed uploads are disposable; expiring them keeps the bill and the clutter
-# down without anyone having to remember to clean up.
+# Lifecycle mirrors what is actually configured on the bucket. The expiry is
+# scoped to `tmp/` ON PURPOSE: this rule was written when the bucket held
+# nothing but disposable testbed uploads, and used `filter {}` — the WHOLE
+# BUCKET — with a 90-day expiration. Published exhibits reference assets
+# indefinitely, so an unscoped expiry would silently delete live content three
+# months after upload. Lifetime for `assets/` is governed by reference
+# counting, not by age. See docs/arcade-storage-ops-checklist.md OPS-1.
 resource "aws_s3_bucket_lifecycle_configuration" "assets" {
   bucket = aws_s3_bucket.assets.id
 
   rule {
-    id     = "expire-testbed-assets"
+    id     = "expire-scratch-only"
+    status = "Enabled"
+
+    filter {
+      prefix = "tmp/"
+    }
+
+    expiration {
+      days = 90
+    }
+  }
+
+  rule {
+    id     = "abort-incomplete-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+
+  rule {
+    id     = "expire-noncurrent-versions"
     status = "Enabled"
 
     filter {}
 
     expiration {
-      days = 90
+      expired_object_delete_marker = true
     }
 
-    abort_incomplete_multipart_upload {
-      days_after_initiation = 1
+    noncurrent_version_expiration {
+      noncurrent_days           = 30
+      newer_noncurrent_versions = 3
     }
   }
 }

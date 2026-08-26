@@ -179,3 +179,44 @@ custom domain.
 Any future origin — a new custom domain, a preview branch — needs adding to the
 bucket CORS, and the symptom will be "the demo story appears" rather than an
 error.
+
+## 9. The Lambda is not deployed by anything — and it had gone stale
+
+Found 2026-08-26, immediately after merging PR #58.
+
+`eml-arcade-api` (ca-central-1) was last updated **2026-08-19**. `api/publish.ts`
+imports `validateStoryDoc` from `src/story/storyDoc.ts` and the bundle includes
+it — and `storyDoc.ts` changed on 2026-08-25 in `edd8b1b`, the marker-locator
+commit. The deployed function therefore still ran the **old** `sanitizeAnchor`:
+
+| Deployed (Aug 19) | Merged (Aug 25) |
+|---|---|
+| `widthInMarkers: 1` — *"Forced, not read"* | `widthInMarkers` — *"Bounded, not forced"* |
+
+The removed comment said it plainly: *"`local` and `widthInMarkers` are fixed in
+v1"*. So **the live publish endpoint was hard-coding every story to 1× with a
+zero offset.**
+
+The consequence was not a broken build or an error anywhere. An author would drag
+the scene out to seven marker-widths in Studio, publish, receive a success
+response, and get a 1× story back. The marker-locator feature shipped in PR #56
+was **inert in production** for a full day, and the on-device verification it was
+blocking would have failed for a reason nobody would have guessed while standing
+in front of a printed picture.
+
+**Fixed** by rebuilding from `245bd34` and running
+`aws lambda update-function-code`. The previous code was published as **version 1**
+first, so a rollback is a version switch rather than a rebuild from a commit
+nobody recorded.
+
+### The standing rule this implies
+
+**Amplify deploys the site. Nothing deploys the Lambda.** Any change under
+`api/`, *or to anything `api/` imports* — which today means `src/story/storyDoc.ts`,
+`src/exhibit/exhibitDoc.ts`, `src/story/assetHash.ts` and their transitive
+imports — requires a manual `npm run build:lambda` and upload. Merging is not
+shipping for that half of the system.
+
+The failure mode is always silent: the endpoint keeps returning 200 and quietly
+validates against an older schema. Worth a CI check that compares the deployed
+`CodeSha256` against a bundle built from `main`.

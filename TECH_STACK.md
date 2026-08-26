@@ -105,9 +105,10 @@ Three stores, no Provider/context:
 - `hooks/useUIState.ts` — overlay visibility, active modal, toast queue.
 - `store/storyStore.ts` — story/era progression state.
 
-The 3D scene mirrors `posterStore` mutations via a store subscription in
-`StoryARExperience`, the live AR branch (the older `ARExperience` is retained
-in the codebase as inactive legacy). See [`ARCHITECTURE.md`](ARCHITECTURE.md) §5.
+The 3D scene does **not** mirror `posterStore` in `StoryARExperience` —
+`grep posterStore src/components/ar/StoryARExperience.tsx` returns nothing.
+That mirroring belonged to `ARExperience`, deleted in `57aac88`. See
+`ARCHITECTURE.md` §9.
 
 ---
 
@@ -117,7 +118,7 @@ Tests run with `npm run test` (single pass) or `npm run test:watch` (interactive
 Config: `vitest.config.ts` — `environment: 'happy-dom'`, includes
 `src/**/*.{test,spec}.{ts,tsx}`.
 
-17 test files / 86 tests, all in `src/`:
+68 test files / 664 tests, all in `src/`:
 
 ```
 utils/gifDecode.test.ts        GIF header parsing + data: URL decode

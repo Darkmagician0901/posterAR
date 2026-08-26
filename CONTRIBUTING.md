@@ -251,70 +251,16 @@ function calculateOptimalScale(deviceTier: DeviceTier): number {
 
 ### Commit Message Format
 
-Follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+**This project does NOT use Conventional Commits.** A commit message is one
+plain, readable sentence: imperative mood, capitalized, no trailing period, no
+`feat:`/`fix:` prefix, no scope, one line, no body.
 
 ```
-<type>(<scope>): <subject>
-
-<body>
-
-<footer>
+Scope the S3 expiry to tmp/ so an apply cannot delete published content
+Lock a viewfinder onto the printed picture and let a tap start its story
 ```
 
-### Types
-
-- `feat` - New feature
-- `fix` - Bug fix
-- `docs` - Documentation changes
-- `style` - Code style changes (formatting, etc.)
-- `refactor` - Code refactoring
-- `perf` - Performance improvements
-- `test` - Adding or updating tests
-- `chore` - Maintenance tasks
-- `ci` - CI/CD changes
-
-### Scopes
-
-- `ar` - AR functionality (scene, reticle, placement)
-- `gif` - GIF decode, animation, playhead
-- `poster` - Poster mesh, texture cache, placement
-- `upload` - Image upload and validation
-- `ui` - User interface
-- `xr8` - 8th Wall (XR8) engine integration
-- `xr` - Engine-agnostic 3D helpers / telemetry
-- `csp` - Content-Security-Policy headers
-- `diag` - Diagnostic HUD / breadcrumb tracing
-- `screenshot` - Screenshot feature
-- `build` - Build configuration
-- `deps` - Dependencies
-
-### Examples
-
-```bash
-# Feature
-git commit -m "feat(gif): add CanvasTexture animator"
-
-# Bug fix
-git commit -m "fix(xr8): expose window.THREE for 8th Wall pipeline"
-
-# Documentation
-git commit -m "docs: update deployment guide for Cloudflare Pages"
-
-# Chore / diagnostics
-git commit -m "chore(diag): full tap→place breadcrumbs + on-demand HUD toggle"
-
-# Test
-git commit -m "test(poster): unit tests for placement and texture cache"
-
-# With body
-git commit -m "feat(upload): add GIF support with animated CanvasTexture
-
-Preserve GIF frames through gifuct-js decode and drive playback
-via a shared refcounted animator cache. Non-GIF images continue
-to be compressed to WebP before placement.
-
-Closes #123"
-```
+Never add a `Co-Authored-By: Claude` trailer.
 
 ### Commit Best Practices
 
@@ -390,7 +336,7 @@ Relates to #456
 - Refactored Z component
 
 ## Testing
-- [ ] `npm run test` passes (all 86 automated tests)
+- [ ] `npm run test` passes (all 664 automated tests)
 - [ ] `npm run type-check` passes
 - [ ] Build succeeds
 - [ ] Tested on iOS Safari 16.4+ (for AR features)
@@ -442,7 +388,7 @@ Run the full vitest suite before every push or PR:
 
 ```bash
 npm run test
-# Expected: 86 tests pass, no failures
+# Expected: 664 tests pass, no failures
 ```
 
 During active development, watch mode is useful:

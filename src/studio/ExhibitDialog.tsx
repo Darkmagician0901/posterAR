@@ -202,11 +202,15 @@ export const ExhibitDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 {copied ? 'COPIED' : 'COPY'}
               </button>
             </div>
-            <div className="st-warn">
-              <b>This link does not scan yet.</b> Marker detection is not wired into the viewer
-              (Task 16), so opening it today shows the default story rather than the room. The
-              document is correct and the link will not change — it starts working when marker
-              scanning ships. Don&apos;t print it on anything yet.
+            {/*
+              This panel used to warn that the link "does not scan yet" because
+              marker detection was unbuilt (Task 16). It has been wired into
+              `StoryARExperience` since the marker layer shipped, so the warning
+              was telling operators not to print a link that in fact works.
+            */}
+            <div className="st-statline">
+              Open this on a phone and point it at the room&rsquo;s printed picture. Prints need
+              to be matte — gloss reflects, and the tracker loses the image.
             </div>
             <div className="st-statline">
               Republishing with the same title replaces this exhibit. Change the title to publish a
@@ -235,20 +239,6 @@ export const ExhibitDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
               placeholder="The Lobby"
               onChange={(e) => setTitle(e.target.value)}
             />
-
-            <label className="st-lbl" htmlFor="st-ex-feedback">
-              Feedback link — optional
-            </label>
-            <input
-              id="st-ex-feedback"
-              className="st-in"
-              value={feedbackUrl}
-              placeholder="https://forms.gle/..."
-              onChange={(e) => setFeedbackUrl(e.target.value)}
-            />
-            <p className="st-hint">
-              Visitors see this at the end of the story. Must be a full https:// address.
-            </p>
 
             <label className="st-lbl" htmlFor="st-ex-ids">
               Story ids — one per line
@@ -310,6 +300,33 @@ export const ExhibitDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 publishing still works, and the server checks every id regardless.
               </div>
             )}
+
+            {/*
+              Its own section, and the last one before the publish key.
+              Previously this was a bare field wedged between the room title and
+              the story ids, and it read as part of the room's identity rather
+              than as a separate thing you can choose to add — the first two
+              rooms were both published with it left empty.
+            */}
+            <div className="st-sec st-sec-feedback">
+              <h3>
+                FEEDBACK LINK <em>optional</em>
+              </h3>
+              <input
+                id="st-ex-feedback"
+                className="st-in"
+                value={feedbackUrl}
+                placeholder="https://forms.gle/..."
+                onChange={(e) => setFeedbackUrl(e.target.value)}
+                aria-describedby="st-ex-feedback-help"
+              />
+              <div className="st-hintline" id="st-ex-feedback-help">
+                Paste a form or survey address here and visitors get an{' '}
+                <b>END EXHIBITION</b> button when the story finishes, which opens this
+                link. Leave it empty and no button appears. Must start with{' '}
+                <code>https://</code>.
+              </div>
+            </div>
 
             <label className="st-lbl" htmlFor="st-ex-secret">
               Publish key

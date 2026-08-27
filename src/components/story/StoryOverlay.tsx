@@ -58,6 +58,26 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({
   // Type the narration only while an era is on screen.
   const { shown, done, skip } = useStoryTypewriter(era.line, phase === 'placed');
 
+  /*
+   * Whether the end-of-exhibition sheet is up.
+   *
+   * The visitor opens it from the outro; it is not shown automatically,
+   * because the outro's own copy is the ending and a form request on top of it
+   * would step on that moment.
+   */
+  const [feedbackOpen, setFeedbackOpen] = React.useState(false);
+
+  /*
+   * The sheet belongs to the outro, so leaving the outro closes it — otherwise
+   * WALK IT AGAIN would leave a dialog hanging over the diorama.
+   *
+   * Adjusted during render rather than in an effect. This is React's own
+   * documented idiom for state that derives from a prop or store value, and it
+   * avoids both the wasted second commit and the `react-hooks/set-state-in-effect`
+   * warning an effect would earn here.
+   */
+  if (feedbackOpen && phase !== 'outro') setFeedbackOpen(false);
+
   const isLast = eraIndex === doc.frames.length - 1;
 
   // One boolean and one string, so the two modes cannot drift into two
@@ -135,25 +155,65 @@ export const StoryOverlay: React.FC<StoryOverlayProps> = ({
           <button className="story-btn" onClick={() => jumpTo(0)}>
             WALK IT AGAIN
           </button>
+          <button className="story-btn story-btn-ghost" onClick={reset}>
+            PLACE SOMEWHERE ELSE
+          </button>
           {/*
-            Offered only at the outro: asking before the visitor has seen
-            anything is noise, and this is the one moment they have an opinion
-            worth recording. `noopener`/`noreferrer` so the form never gets a
-            handle back into the experience.
+            Shown only when the room actually carries a feedback link: the
+            button exists to deliver that address, so without one it would open
+            an empty sheet. Rooms published without a link look exactly as they
+            did before.
           */}
           {feedbackUrl !== null && (
+            <button className="story-btn story-end" onClick={() => setFeedbackOpen(true)}>
+              END EXHIBITION
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── End-of-exhibition sheet ───────────────────────────────────── */}
+      {phase === 'outro' && feedbackOpen && feedbackUrl !== null && (
+        <div
+          className="story-feedback-pop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="story-pop-title"
+        >
+          <div className="story-pop-card">
+            <h2 className="story-pop-title" id="story-pop-title">
+              THANK YOU FOR VISITING
+            </h2>
+            <p className="story-pop-sub">
+              Tell us what you thought — it takes about a minute, and it shapes what gets
+              built here next.
+            </p>
+            {/*
+              `noopener`/`noreferrer` so the form never gets a handle back into
+              the experience. The href is safe to interpolate because
+              `validateExhibitDoc` has already rejected any scheme but https.
+            */}
             <a
               className="story-feedback"
               href={feedbackUrl}
               target="_blank"
               rel="noopener noreferrer"
             >
-              TELL US WHAT YOU THINK
+              OPEN THE FEEDBACK FORM
             </a>
-          )}
-          <button className="story-btn story-btn-ghost" onClick={reset}>
-            PLACE SOMEWHERE ELSE
-          </button>
+            {/*
+              Printed as text as well as linked: a visitor may want to see where
+              a tap is about to send them, or type it into another device rather
+              than leave the AR session on this one.
+            */}
+            <p className="story-pop-url">{feedbackUrl}</p>
+            <button
+              className="story-btn story-btn-ghost story-pop-close"
+              onClick={() => setFeedbackOpen(false)}
+            >
+              BACK
+            </button>
+          </div>
         </div>
       )}
 

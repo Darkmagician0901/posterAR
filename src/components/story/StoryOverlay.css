@@ -324,26 +324,95 @@
 }
 
 /*
- * The outro's feedback link.
+ * END EXHIBITION — the outro's terminal action.
  *
- * Deliberately quieter than `.story-btn`: "walk it again" is the action the
- * story wants a visitor to take, and this must not compete with it. Styled as
- * a link rather than a second orange button for that reason.
+ * Quieter than "walk it again", which is the action the story itself wants a
+ * visitor to take, but still a real button: it is the only route to the
+ * feedback form and a visitor has to be able to find it without hunting.
+ */
+.story-end {
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.06em;
+}
+
+/*
+ * The end-of-exhibition sheet.
+ *
+ * A full-screen scrim rather than another card on the pile: at this point the
+ * visitor is finished with the diorama, and the address needs to be readable
+ * over a bright camera feed in a room with real lighting. `pointer-events`
+ * opts back in because the overlay root is transparent to touches.
+ */
+.story-feedback-pop {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(12, 11, 9, 0.86);
+  backdrop-filter: blur(3px);
+  pointer-events: auto;
+}
+.story-pop-card {
+  width: min(88vw, 460px);
+  padding: 22px 20px 20px;
+  text-align: center;
+  background: rgba(20, 18, 14, 0.94);
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+}
+.story-pop-title {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  color: #fff;
+}
+.story-pop-sub {
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/*
+ * The link is the primary action inside the sheet — unlike on the outro card,
+ * where it was one option among three — so it is styled as the orange button
+ * rather than as a quiet outline.
  */
 .story-feedback {
   display: block;
-  margin-top: 12px;
+  margin-top: 16px;
   font-family: inherit;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-align: center;
   text-decoration: none;
   color: #fff;
-  opacity: 0.75;
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  border-radius: 10px;
-  padding: 10px 8px;
+  background: var(--story-orange);
+  border-radius: 12px;
+  padding: 14px 10px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.3);
 }
 .story-feedback:active {
-  opacity: 1;
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+/*
+ * The address in full. Wraps mid-string because form URLs are long and have no
+ * spaces to break on, and overflowing would hide the tail of the link.
+ */
+.story-pop-url {
+  margin: 12px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.5);
+  overflow-wrap: anywhere;
+}
+.story-pop-card .story-pop-close {
+  margin-top: 16px;
+  width: 100%;
 }

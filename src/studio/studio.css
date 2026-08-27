@@ -634,6 +634,18 @@ svg.drift {
   font-weight: 400;
   letter-spacing: 0;
 }
+
+/*
+ * The feedback-link section inside the room dialog.
+ *
+ * `.st-sec` is otherwise used in the left/right rails, where it needs no top
+ * margin because the rail supplies the rhythm. Inside the dialog it follows a
+ * run of warnings, so it needs the gap to read as a separate step rather than
+ * as another notice about the story ids.
+ */
+.st-sec-feedback {
+  margin-top: 16px;
+}
 .st-lbl {
   display: block;
   font-size: 10px;
